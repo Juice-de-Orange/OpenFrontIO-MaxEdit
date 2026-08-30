@@ -14,13 +14,20 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 1 of 11 — world persistence. Complete.** A world ticks every five
-seconds on an epoch-anchored deadline, accepts validated commands, writes every
-one of them to Postgres before acting on it, snapshots every 60 ticks, and
-comes back where it was after being killed. `/health` says whether it is
-actually moving. `src/core` and upstream's match server are gone, the rest of
-the inherited client is quarantined, and the simulation is not in the shipped
-bundle.
+**Phase 2 of 11 — the province graph. Complete.** Europe is 529 provinces, and
+each of them now knows its terrain, infrastructure, building slots, resource
+deposits, air zone and sea zone. All of it is **generated once and checked in**
+next to the terrain bytes rather than recomputed at startup, so a generator fix
+can no longer repartition a running season (decision 0006). A province has a
+**controller** and an **owner**: control moves the tick it is taken, ownership
+follows a fortnight later. The client loads the same artefact, colours the map
+by controller, and draws province borders as an overlay you can toggle with
+`b`.
+
+Phase 1 underneath it is unchanged and still passes: a world ticks every five
+seconds on an epoch-anchored deadline, writes every command to Postgres before
+acting on it, snapshots every 60 ticks, and comes back where it was after being
+killed.
 
 **Start it with three commands:**
 
@@ -34,10 +41,55 @@ Without `docker compose`, `npm run start:server` still works: with no
 `DATABASE_URL` the world keeps its history in memory and says so on the first
 line.
 
-### The gate, run rather than described
+### The gates, run rather than described
 
-`node scripts/phase1-gate.mjs`, against `docker compose up -d`. Last run, on a
-fresh world:
+Both against `docker compose up -d`. **`node scripts/phase2-gate.mjs`**, last
+run:
+
+```
+phase-2 gate
+  artefact on disk: 529 provinces, partition 5a8a6c17, terrain bd09055c
+  world world-0 at tick 67
+  ok    the world runs the artefact on disk: 5a8a6c17 === 5a8a6c17
+  ok    and the terrain it was generated from
+  ok    529 provinces, on the wire and on disk
+  ok    every one of 492907 land tiles carries its province's controller
+  ok    no water tile carries a nation
+  ok    no tile names a nation this world does not have
+  nation 17 holds the most provinces (40)
+  claimed province 400 for tick 68 (362 refused on the way)
+  ok    the claim moved the controller of province 400
+  ok    and left its owner alone — holding is not owning (decision 0002)
+  ok    all 1284 tiles of province 400 now read nation 17
+  ok    a world rebuilt from 4 deltas matches a fresh full state at tick 71
+  ok    and agrees about ownership too
+PASS
+```
+
+**And it was checked against itself being broken**, twice:
+
+```
+$ node scripts/phase2-gate.mjs --break=artefact
+  FAIL  the world runs the artefact on disk: 5a8a6c17 === 5a8a6ce8   → exit 1
+
+$ node scripts/phase2-gate.mjs --break=deltas
+  FAIL  a world rebuilt from 4 deltas matches a fresh full state      → exit 1
+```
+
+Each breaks exactly one line and leaves the rest green, which is what makes
+the green ones mean something.
+
+The gate parses `provinces.bin` itself rather than importing the project's
+decoder. That is deliberate: a gate that calls the same function the server
+calls proves only that the function agrees with itself.
+
+**What the phase-2 gate does not do is look at the screen.** CLAUDE.md §8 ends
+its gate with "and the client renders it correctly", and this project has no
+automated browser leg (see the trap below). Everything up to the pixels is
+proven here; the pixels are the morning checklist.
+
+**`node scripts/phase1-gate.mjs`** still passes unchanged after all of phase 2.
+Last run, on a fresh world:
 
 ```
 phase-1 gate
@@ -53,7 +105,7 @@ phase-1 gate
   ok  the restored world passed back through 5 tick(s) this client had seen
   ok  every replayed tick hashes identically (61, 62, 63, 64, 65)
   ok  the late command is in the log: 61:0:17:401
-  ok  the early command is still in the log: 2:0:17:401
+  ok  the early command is still in the log: 3:0:17:401
   ok  the restored world reports healthy
 PASS
 ```
@@ -89,68 +141,107 @@ than _the_ world is caught by exactly one line, which is why that line exists.
 | `ebc5838b` | World image, compose stack, the gate as a script                  |
 | `bd005f66` | Upstream's match-server deployment chain deleted                  |
 
+Phase 2:
+
+| Commit     | What                                                                                      |
+| ---------- | ----------------------------------------------------------------------------------------- |
+| `5e304481` | **The partition becomes checked-in map data**, with its generator and the guard test      |
+| `6dccc55b` | **Artefact loading on both sides, control/owner split, border overlay, the phase-2 gate** |
+
 Phase 0's commits are in the history of this file before this rewrite.
 
 ### The whole plan, and how far along it is
 
-Two of twelve gates passed. The gate is the unit of progress here, not the
+Three of twelve gates passed. The gate is the unit of progress here, not the
 code: a phase is done when its gate has been demonstrated, not when it
 compiles.
 
-| Phase                          | Gate                                                                                | State     |
-| ------------------------------ | ----------------------------------------------------------------------------------- | --------- |
-| 0 · Fork triage                | The inherited renderer draws a map from server-pushed state, no client simulation   | ✅ passed |
-| 1 · World persistence          | Kill the container mid-run; it resumes at the correct tick with no lost commands    | ✅ passed |
-| 2 · Province graph             | A province changes hands, ownership propagates from tiles, the client renders it    | ⬜ next   |
-| 3 · Factories and construction | Queue a factory, watch it build over ticks, see output rise; shortage degrades it   | ⬜        |
-| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ⬜        |
-| 5 · Research                   | A completed tech measurably changes a production or combat number                   | ⬜        |
-| 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ⬜        |
-| 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ⬜        |
-| 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ⬜        |
-| 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ⬜        |
-| 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜        |
-| 11 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜        |
+| Phase                          | Gate                                                                                | State                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 0 · Fork triage                | The inherited renderer draws a map from server-pushed state, no client simulation   | ✅ passed                                                          |
+| 1 · World persistence          | Kill the container mid-run; it resumes at the correct tick with no lost commands    | ✅ passed                                                          |
+| 2 · Province graph             | A province changes hands, ownership propagates from tiles, the client renders it    | ✅ passed server-side; the rendering half is the morning checklist |
+| 3 · Factories and construction | Queue a factory, watch it build over ticks, see output rise; shortage degrades it   | ⬜ next                                                            |
+| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ⬜                                                                 |
+| 5 · Research                   | A completed tech measurably changes a production or combat number                   | ⬜                                                                 |
+| 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ⬜                                                                 |
+| 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ⬜                                                                 |
+| 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ⬜                                                                 |
+| 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ⬜                                                                 |
+| 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜                                                                 |
+| 11 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜                                                                 |
 
-Phases 3 to 10 are the game. Phases 0 and 1 were the ground it stands on:
-nothing in them is visible to a player, and both had to be right before
-anything else could be built on top. From here every gate is something a player
-could watch happen.
+Phases 3 to 10 are the game. Phases 0 to 2 were the ground it stands on: a
+renderer with no simulation behind it, a world that survives being killed, and
+a map with provinces that mean something. From here every gate is something a
+player could watch happen.
+
+## What you have to look at yourself
+
+Everything below is proven by a script. This is the part that is not, because
+this project has no automated browser leg. Five minutes:
+
+```bash
+docker compose up -d
+npm run start:client
+```
+
+Then open `http://localhost:9000/?nation=17` (or any nation number) and check:
+
+1. **The map draws territory** — coloured regions, not a blank canvas.
+2. **Province borders are visible** as dark seams inside each nation, and
+   `b` turns them off and on again.
+3. **Clicking a neighbouring province changes its colour**, and the notice in
+   the bottom-left says the order was accepted for a tick.
+4. **Clicking a province far away is refused**, with a reason.
+5. **The map keeps moving on its own** — one province changes hands per tick.
+
+If 1 or 2 fail, open the console: a map or artefact mismatch is thrown with
+both hashes in the message, and a stale `provinces.bin` out of the HTTP cache
+is the likely cause — hard-reload.
 
 ## What to do next
 
-**Phase 2 is the province graph.** CLAUDE.md §8 has the gate: a province
-changes hands, ownership propagates from tiles, and the client renders it
-correctly. The pieces already half-exist, which is the trap — read what is
-there before adding to it:
+**Phase 3 is factories and construction.** CLAUDE.md §8 has the gate: a player
+queues a factory, watches it build over ticks, sees output rise, and a resource
+shortage degrades that output proportionally rather than blocking it.
 
-1. **Move the partition offline.** `computeProvincePartition` runs on both
-   sides at startup, 368 ms for Europe. Phase 2 ships the result as a
-   checked-in file, so a generator bugfix cannot repartition a running season.
-   The invariants the tests assert — determinism, connectivity, no province
-   spanning two nations — carry over unchanged.
-2. **Give a province the fields the spec asks for**: terrain, infrastructure,
-   building slots, resource deposits, air and sea zone membership. Today it has
-   an owner and a neighbour list.
-3. **Derive ownership from tiles**, rather than assigning it at partition time.
-4. **Render province borders as an overlay.**
+It is the first phase that is a _game_, and the first with its own UI. The
+order to build it in:
 
-Worth doing in phase 2 while it is still cheap:
+1. **The system framework first** (§6). `run(world, tick): Event[]`, a fixed
+   order, and a reducer that applies events after every system has run. Phase 3
+   fills `economy` and `construction`; the other slots exist empty so the order
+   is the specification's from the start. This is the investment phases 4 to 10
+   live on, and it is cheaper to get right now than to retrofit.
+2. **`shared/config/rates.ts`** — every balance number, deliberately low.
+3. **Buildings, the construction queue and resource extraction.** Invariant 1:
+   everything is a rate. Invariant 2: shortage scales output down and never
+   blocks. The second is what the gate actually tests.
+4. **State growth.** Nation resources, construction queues and per-province
+   buildings all go into `WorldSnapshot` _and_ into `stateHash`. A field left
+   out of the hash is a field the restore test cannot see, and it will pass
+   over a world that came back half right.
+5. **Two new commands**, `queue_construction` and `cancel_construction`. That
+   also settles the "a command set of one hides what the second one needs"
+   worry from phase 1 without writing anything throwaway.
+6. **The first own screen**, in `src/client/world/ui/` — outside `render/`, or
+   the RenderBoundary test breaks. English source strings in `en.json` with the
+   German alongside in the same commit. Per invariant 9, rates are shown **per
+   in-game day**, never per tick.
+
+Still worth doing, and still deferred:
 
 - **The four pathfinding files that did not survive phase 0** (`PathFinder.ts`,
-  `.Air`, `.Station`, `spatial/SpatialQuery`) need rewriting against a province
-  graph. They are in the history.
-- **A second command type.** `claim_province` is the only one, and a command
-  set of one hides whatever the second one will need.
-
-Not started, and deliberately:
-
-- **Deployment to a real host.** This machine has no `docs/deploy/HOST.local.md`
-  and the DNS record is still an open question. `docs/deploy/README.md` has
-  everything a host needs; phase 11 does it.
-- **Accounts.** The nation comes from `?nation=` in the URL. A world on the
-  internet needs more than that, and the account tables belong with the screens
-  that use them.
+  `.Air`, `.Station`, `spatial/SpatialQuery`). They need a province graph,
+  which now exists — but their real consumer is supply in phase 6, and writing
+  them before there is anything to route would be guessing at the interface.
+- **Water provinces.** Phase 2 partitions the ocean into sea zones and stores
+  them in the spare bit of the tile array, which is what §6.7's zone
+  abstraction needs. Phase 9 will want water _provinces_ as well; that is a
+  `provinces.bin` format bump, and the format has a version field for it.
+- **Deployment to a real host** (phase 11) and **accounts**. The nation still
+  comes from `?nation=` in the URL.
 
 ## Traps already paid for
 
@@ -251,6 +342,62 @@ tests, not equality.
 **`systemctl reload nginx` lies** (relevant from phase 11). Covered in
 [`docs/deploy/README.md`](docs/deploy/README.md).
 
+### From phase 2
+
+**`.gitignore`'s `build/` also matches `src/build/`.** An unanchored pattern
+matches at every level, and `src/build/` is source — `PublicAssetManifest.ts`
+only survives there because it was already tracked when the pattern arrived,
+and gitignore does not apply to tracked files. The next file added beside it
+was staged as part of a full `git add -A`, reported nothing, and was simply not
+in the commit. Anchored to `/build/` now. Worth a `git log -1 --stat` after any
+commit that adds a file to a directory you have not added one to before.
+
+**A gate script that restates a constant will eventually restate it wrong.**
+`scripts/phase1-gate.mjs` is `.mjs` and cannot import `PROTOCOL_VERSION`. Left
+at 2 when the wire went to 3, it stopped at "the world refused the connection"
+— the gate failing rather than the world, which is the most expensive way for a
+gate to fail because it looks like a real finding.
+`tests/GateProtocolVersion.test.ts` reads the line out of each gate and
+compares it.
+
+**`; echo "exit=$?"` reports the echo, not the command.** The same shape as the
+`build-prod | tail` trap from phase 0, from a different direction: a gate run
+as `node gate.mjs > log 2>&1; echo "gate=$?"` reported success while the log
+held a stack trace. Write the exit code _into_ the log from inside the
+redirection, or check `$?` with nothing between.
+
+**Sea zones are the ocean, not the water.** The terrain byte distinguishes
+ocean from inland lakes. Flooding sea zones over everything that is not land
+gave landlocked provinces a sea zone and no coastline — caught only because a
+test asserted `seaZone !== null` implies `coastal`. A lake is not a theatre.
+
+**A zone grown to a distance is not a zone grown to a size.** A multi-source
+flood equalises _radius_: every province joins the nearest seed. Provinces are
+not uniform, so on Europe that gave air zones of 2 and of 43 against a target
+of 22, and Lloyd relaxation barely moved it — the shape of the graph, not the
+placement of the seeds, was the problem. Growing every zone one province per
+round until it hits a quota equalises the count, which is what §6.7 actually
+asks for. Two earlier attempts are recorded in the comment above
+`partitionAirZones` so nobody tries them again.
+
+**Merging a group into "the smallest neighbour" has two traps.** A group that
+was already merged away has an empty member list, and empty is the smallest
+there is — it wins every comparison and the provinces are handed to a group
+that no longer exists. And picking the _lowest-numbered_ neighbour instead of
+the smallest piles every stranded piece of a region onto one zone.
+
+**A test with one `expect()` per tile does not finish.** The first version of
+the artefact test asserted per tile over 1.2 million tiles and hit vitest's
+5-second timeout. Aggregate into counters and assert once; the failure message
+is better anyway.
+
+**The occupation timer cannot be tested by taking a province and waiting.** The
+border drift moves a province every tick, so a scripted take-and-wait spends
+its time on whichever nation happened to be adjacent on tick 300. Stated as an
+invariant over a long run — no owner change is ever less than
+`OCCUPATION_TICKS` after that province's last control change — it holds
+regardless, and it caught nothing spurious.
+
 ### From phase 1
 
 **A Postgres advisory lock lives and dies with its connection.** Taken on a
@@ -310,17 +457,18 @@ build with all its sizes; and the usual way of running it —
 `npm run build-prod | tail` — reports the **pipe's** exit code, not the
 command's. Check `$?` on the command itself, or do not pipe it.
 
-**The browser leg is unverified as of the end of phase 1.** The world's socket
+**The browser leg is unverified, and stays that way.** The world's socket
 is proven three ways — `curl` gets `101 Switching Protocols` through the Vite
 proxy on port 9000, a node client completes the handshake through the same
 proxy, and `scripts/phase1-gate.mjs` plays a whole game over it. What has not
 been seen is the map in a browser: in an automated Chrome the page's own
 WebSocket to `/ws` fails immediately while Vite's HMR socket on the same origin
 connects, which points at the automation rather than at the code, but points at
-nothing conclusively. **Open `http://localhost:9000/?nation=<n>` by hand before
-trusting the client half of phase 1.** The renderer itself is unchanged since
-phase 0, where it did draw the map; what is new is the socket's `nation` field,
-the ack handling and claim-by-click.
+nothing conclusively. **Open `http://localhost:9000/?nation=<n>` by hand before trusting the client
+half of any phase.** There is a five-point checklist at the top of this file
+for exactly that. Everything else in this project is proven by a script; this
+is the one thing that is not, and pretending otherwise is how a phase gets
+called done on a blank canvas.
 
 **A gate that hardcodes a nation eventually fails on a healthy world.** The
 border drift redraws the map over hundreds of ticks and can wipe a nation out
@@ -338,18 +486,28 @@ shape whenever you remove data that a test iterates over.
 ## How to verify anything
 
 ```bash
-npm run inst                 # npm ci --ignore-scripts — never `npm install`
-npm run typecheck            # tsc over everything, must be clean
-npm run typecheck:strict     # tsc over shared/ + server/ with strict: true
-npm run lint                 # oxlint + eslint, must be clean
-npm run test                 # one vitest run; see baseline below
-npm run test:db              # the Postgres tests; needs `docker compose up -d db`
-npm run build-prod           # tsc + vite + asset hashing; the real integration test
-npm run check:doc-links      # every relative link in every .md resolves
-docker compose up -d         # Postgres + the world
-npm run start:client         # http://localhost:9000/?nation=1
-node scripts/phase1-gate.mjs # the phase-1 gate, end to end
+npm run inst                                  # npm ci --ignore-scripts — never `npm install`
+npm run typecheck                             # tsc over everything, must be clean
+npm run typecheck:strict                      # tsc over shared/ + server/ with strict: true
+npm run lint                                  # oxlint + eslint, must be clean
+npm run test                                  # one vitest run; see baseline below
+npm run test:db                               # the Postgres tests; needs `docker compose up -d db`
+npm run build-prod                            # tsc + vite + asset hashing; the real integration test
+npm run check:doc-links                       # every relative link in every .md resolves
+npm run gen-provinces                         # regenerate the province artefacts (see below)
+docker compose up -d                          # Postgres + the world
+npm run start:client                          # http://localhost:9000/?nation=17
+node scripts/phase1-gate.mjs                  # persistence, end to end, across a SIGKILL
+node scripts/phase2-gate.mjs                  # the province graph, end to end
+node scripts/phase2-gate.mjs --break=artefact # and it must fail
+node scripts/phase2-gate.mjs --break=deltas   # and this way too
 ```
+
+**`npm run gen-provinces` is not part of the build.** It writes map data into
+the repository, and `tests/shared/ProvinceArtifact.test.ts` fails until the
+result is committed. If you change `ProvincePartition.ts`,
+`ProvinceAttributes.ts` or `shared/config/provinces.ts`, run it and commit both
+halves — that friction is the whole point of decision 0006.
 
 The last three are the ones that matter. A green suite says the pieces
 type-check and their units behave; only running them shows a map, and only the
@@ -357,7 +515,7 @@ gate shows a world that survives.
 
 ### Test baseline
 
-**412 passed, 7 skipped, in one run — no tolerated failures.** `npm run test` is
+**437 passed, 7 skipped, in one run — no tolerated failures.** `npm run test` is
 a single `vitest run`. The seven skipped are the Postgres integration tests,
 which run under `npm run test:db` against `docker compose up -d db`; a unit
 suite that needs a container is a unit suite people stop running.
@@ -369,8 +527,9 @@ rule is now **every failure is yours**, not every third one. If you are
 looking for two red tests because you read an older version of this file,
 stop looking.
 
-The count moved from 4012 because ~300 test files test code that no longer
-exists and are in `tests/_legacy/`, excluded from the run. They were moved
+The count moved from 412 at the end of phase 1, and from 4012 before that
+because ~300 test files test code that no longer exists and are in
+`tests/_legacy/`, excluded from the run. They were moved
 rather than deleted: `AttackLogicGolden`, `tests/pathfinding` and
 `MapConsistency` are effectively the world server's specification, and are
 worth reading when the corresponding system gets built.
