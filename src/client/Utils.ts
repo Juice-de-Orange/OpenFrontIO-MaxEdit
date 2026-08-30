@@ -1,4 +1,3 @@
-import IntlMessageFormat from "intl-messageformat";
 import { DoomsdayClockSpeed } from "../core/game/DoomsdayClock";
 import {
   Duos,
@@ -12,8 +11,19 @@ import {
   Trios,
 } from "../core/game/Game";
 import { GameConfig } from "../core/Schemas";
-import type { LangSelector } from "./LangSelector";
 import { Platform } from "./Platform";
+
+// Re-exported so the ~200 call sites that reach for these through Utils keep
+// working. The definitions moved: formatting to render/util/Format.ts (it is
+// the renderer's number vocabulary), translation to i18n/Translate.ts.
+export { formatDebugTranslation, translateText } from "./i18n/Translate";
+export {
+  formatPercentage,
+  renderNumber,
+  renderTroops,
+} from "./render/util/Format";
+// Imported as well as re-exported: several helpers in this file call it.
+import { translateText } from "./i18n/Translate";
 
 export const TUTORIAL_VIDEO_URL = "https://www.youtube.com/embed/7J5zwb_s_Cg";
 
@@ -277,10 +287,6 @@ export function renderDuration(totalSeconds: number): string {
   return parts.join(" ");
 }
 
-export function renderTroops(troops: number): string {
-  return renderNumber(troops / 10);
-}
-
 export async function copyToClipboard(
   text: string,
   onSuccess?: () => void,
@@ -299,44 +305,6 @@ export async function copyToClipboard(
     console.warn("Failed to copy to clipboard", err);
     throw err;
   }
-}
-
-export function renderNumber(
-  num: number | bigint,
-  fixedPoints?: number,
-): string {
-  num = Number(num);
-  num = Math.max(num, 0);
-
-  if (num >= 10_000_000_000) {
-    const value = Math.floor(num / 100000000) / 10;
-    return value.toFixed(fixedPoints ?? 1) + "B";
-  } else if (num >= 1_000_000_000) {
-    const value = Math.floor(num / 10000000) / 100;
-    return value.toFixed(fixedPoints ?? 2) + "B";
-  } else if (num >= 10_000_000) {
-    const value = Math.floor(num / 100000) / 10;
-    return value.toFixed(fixedPoints ?? 1) + "M";
-  } else if (num >= 1_000_000) {
-    const value = Math.floor(num / 10000) / 100;
-    return value.toFixed(fixedPoints ?? 2) + "M";
-  } else if (num >= 100000) {
-    return Math.floor(num / 1000) + "K";
-  } else if (num >= 10000) {
-    const value = Math.floor(num / 100) / 10;
-    return value.toFixed(fixedPoints ?? 1) + "K";
-  } else if (num >= 1000) {
-    const value = Math.floor(num / 10) / 100;
-    return value.toFixed(fixedPoints ?? 2) + "K";
-  } else {
-    return Math.floor(num).toString();
-  }
-}
-
-export function formatPercentage(value: number): string {
-  const perc = value * 100;
-  if (Number.isNaN(perc)) return "0%";
-  return perc.toFixed(1) + "%";
 }
 
 /**
@@ -426,93 +394,6 @@ export function generateCryptoRandomUUID(): string {
     },
   );
 }
-
-export function formatDebugTranslation(
-  key: string,
-  params: Record<string, string | number>,
-): string {
-  const entries = Object.entries(params);
-  if (entries.length === 0) return key;
-  const serializedParams = entries
-    .map(([paramKey, value]) => `${paramKey}=${String(value)}`)
-    .join(",");
-  return `${key}::${serializedParams}`;
-}
-
-const EMPTY_TRANSLATION_PARAMS: Record<string, string | number> = {};
-
-function getCachedLangSelector(): LangSelector | null {
-  const self = translateText as any;
-  const cached = self.langSelector as LangSelector | null | undefined;
-  if (cached && cached.isConnected) return cached;
-
-  const found = document.querySelector("lang-selector") as LangSelector | null;
-  self.langSelector = found ?? null;
-  return found;
-}
-
-export const translateText = (
-  key: string,
-  params?: Record<string, string | number>,
-): string => {
-  const self = translateText as any;
-  self.formatterCache ??= new Map();
-  self.lastLang ??= null;
-
-  const langSelector = getCachedLangSelector();
-  if (!langSelector) {
-    return key;
-  }
-
-  const resolvedParams = params ?? EMPTY_TRANSLATION_PARAMS;
-
-  if (langSelector.currentLang === "debug") {
-    return formatDebugTranslation(key, resolvedParams);
-  }
-
-  const translations = langSelector.translations;
-  const defaultTranslations = langSelector.defaultTranslations;
-  if (!translations && !defaultTranslations) return key;
-
-  if (self.lastLang !== langSelector.currentLang) {
-    self.formatterCache.clear();
-    self.lastLang = langSelector.currentLang;
-  }
-
-  let message = translations?.[key];
-  const hasPrimaryTranslation = message !== undefined;
-
-  message ??= defaultTranslations?.[key];
-
-  if (message === undefined) return key;
-
-  // Fast path: no params and no ICU placeholders.
-  if (
-    resolvedParams === EMPTY_TRANSLATION_PARAMS &&
-    message.indexOf("{") === -1
-  ) {
-    return message;
-  }
-
-  try {
-    const locale =
-      !hasPrimaryTranslation && langSelector.currentLang !== "en"
-        ? "en"
-        : langSelector.currentLang;
-    const cacheKey = `${key}:${locale}:${message}`;
-    let formatter = self.formatterCache.get(cacheKey);
-
-    if (!formatter) {
-      formatter = new IntlMessageFormat(message, locale);
-      self.formatterCache.set(cacheKey, formatter);
-    }
-
-    return formatter.format(resolvedParams) as string;
-  } catch (e) {
-    console.warn("ICU format error", e);
-    return message;
-  }
-};
 
 export function getTranslatedPlayerTeamLabel(team: Team | null): string {
   if (!team) return "";

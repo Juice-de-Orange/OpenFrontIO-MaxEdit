@@ -18,7 +18,7 @@ import { layoutString } from "./name-pass/TextLayout";
 import { CHAR_RANGE, MAX_CHARS } from "./name-pass/Types";
 
 import { assetUrl } from "src/client/util/AssetUrl";
-import { renderNumber } from "../../../Utils";
+import { renderNumber } from "../../util/Format";
 import fragSrc from "../shaders/world-text/world-text.frag.glsl?raw";
 import vertSrc from "../shaders/world-text/world-text.vert.glsl?raw";
 

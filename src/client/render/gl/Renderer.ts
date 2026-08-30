@@ -10,7 +10,7 @@
  */
 
 import type { MapLayer } from "src/shared/map/Maps.gen";
-import { translateText } from "../../Utils";
+import { translateText } from "../../i18n/Translate";
 import type { SpiralRibbon } from "../frame/SpiralTrails";
 import type {
   AttackRingInput,
