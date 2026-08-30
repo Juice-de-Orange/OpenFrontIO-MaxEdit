@@ -1,0 +1,1 @@
+ALTER TABLE "worlds" ADD COLUMN "partition_hash" bigint;

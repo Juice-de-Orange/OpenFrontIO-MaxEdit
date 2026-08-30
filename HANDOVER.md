@@ -480,6 +480,19 @@ against a real database and was still checking the phase-1 shape a day later,
 because nothing ran it. **`npm run test:db` is part of finishing a phase**, not
 an optional extra — and it is the only thing that runs the migrations.
 
+**`.gitignore` had `*.sql`, so no migration was ever in the repository.**
+Inherited, and aimed at database dumps, which contain password hashes — it also
+matched `drizzle/*.sql`. `drizzle/meta/_journal.json` listed two migrations
+whose SQL was not committed, and a fresh clone would have started a world
+against a database with no tables in it. Nothing failed locally, because the
+files were on the disk of the machine that generated them. This is the second
+inherited ignore rule to silently swallow new files tonight, after `build/`
+matching `src/build/`; when adding the first file of a new kind, check
+`git log -1 --stat` rather than trusting `git add -A`.
+`tests/architecture/MigrationsAreTracked.test.ts` now asserts that every
+migration the journal names is **tracked by git**, not merely present on disk —
+existence is exactly the check that would have passed against the broken state.
+
 **The terrain hash does not identify a world.** The `worlds` table recorded the
 map and its terrain hash, and a regenerated artefact over _unchanged terrain_ —
 a fix to the partition, a tuned number in `shared/config/provinces.ts` — passed
@@ -709,10 +722,13 @@ gate shows a world that survives.
 
 ### Test baseline
 
-**455 passed, 7 skipped, in one run — no tolerated failures.** `npm run test` is
-a single `vitest run`. The seven skipped are the Postgres integration tests,
+**459 passed, 8 skipped, in one run — no tolerated failures.** `npm run test` is
+a single `vitest run`. The eight skipped are the Postgres integration tests,
 which run under `npm run test:db` against `docker compose up -d db`; a unit
-suite that needs a container is a unit suite people stop running.
+suite that needs a container is a unit suite people stop running. **They are
+also a suite that rots when nobody runs it** — see the trap below — so
+`npm run test:db` belongs in every phase's closing checks, not just when the
+database changes.
 
 That is a change of kind, not just of number. The two environmental failures
 this document used to tell you to ignore — the de-DE thousands separator and

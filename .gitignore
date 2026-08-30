@@ -64,6 +64,12 @@ secrets/
 *.sql
 *.sql.gz
 *.dump
+# ...but Drizzle's migrations are source, not a dump. Without this the
+# `drizzle/*.sql` files never reach the repository, `drizzle/meta/_journal.json`
+# lists migrations whose SQL is not there, and a fresh clone starts a world
+# against a database with no tables in it. Both migrations were missing until
+# phase 3 noticed.
+!drizzle/*.sql
 snapshots/
 world-state/
 
