@@ -14,12 +14,20 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 0 of 11 — fork triage. The gate is met.** The inherited renderer draws
-a map and territory from province ownership, with no simulation on the client
-— and, measurably, none in the shipped bundle. What remains of phase 0 removes
-things rather than building them.
+**Phase 0 of 11 — fork triage. Complete.** A world server ticks every five
+seconds and pushes province ownership over a versioned WebSocket protocol; the
+inherited renderer draws it. `src/core` and `src/server` are gone, the rest of
+the upstream client is quarantined, and the simulation is not in the shipped
+bundle.
 
-The number that says it best, from `npm run build-prod`:
+**Start it with two commands:**
+
+```bash
+npm run start:server # the world on ws://localhost:3000/ws
+npm run start:client # http://localhost:9000
+```
+
+The numbers that say it best, from `npm run build-prod`:
 
 | Artefact                                       | before     | now         |
 | ---------------------------------------------- | ---------- | ----------- |
@@ -28,103 +36,90 @@ The number that says it best, from `npm run build-prod`:
 | `Worker.worker-*.js` (the lockstep simulation) | 625.16 kB  | **gone**    |
 | `debug-*.js`                                   | 50.41 kB   | **gone**    |
 
-| Commit     | What                                                             |
-| ---------- | ---------------------------------------------------------------- |
-| `0f5db0ff` | Fork seeded with the spec; dead `gatekeeper` submodule dropped   |
-| `66ffc877` | **The `core`↔`client` import cycle broken**                      |
-| `2c46fc4f` | Upstream's proprietary assets removed, own brand marks added     |
-| `2ecb317b` | Documentation system, new README, hardened `.gitignore`          |
-| `49dc9342` | Handover, inherited docs separated, link checker                 |
-| `ce7e9b71` | Upstream's trackers and remote script loader out of `index.html` |
-| `32f56c2f` | Import ratchet for the renderer boundary                         |
-| `e2d5207d` | `TileRef` → `number`; probe from `FrameData` hits 0              |
-| `eccefb77` | `Veterancy` → `shared/util/`                                     |
-| `ad476545` | `PatternDecoder` → `shared/util/`, schema cycle broken           |
-| `4ae6b103` | `Maps.gen` → `shared/map/`; `MapLayer` duplicate collapsed       |
-| `35100e3b` | Cosmetic effect editor deleted, palette types inlined            |
-| `cfe93756` | `PublicAssetManifest` → `src/build/`                             |
-| `328cf82b` | `AssetUrls` split into `shared/util/AssetPath` + `client/util/`  |
-| `c8ed6cbf` | `Config` → `RenderRules`; `UnitType` resolved with it            |
-| `f4da0196` | Rail geometry split from the `GameUpdates` accumulator           |
-| `65c654d1` | `Utils` split; probe from `gl/Renderer.ts` 56 → 0                |
-| `2c123ff8` | Preview map loaded without the core map loader                   |
-| `44d1a6c5` | Ratchet becomes a prohibition; lint zones; decision 0004         |
-| `0dcb4dda` | Code-review fixes, one of which undid part of the work           |
-| `f8e72532` | Province grid and terrain hash in `shared/map/`                  |
-| `4e3231c4` | Map loading, palette and frame adapter                           |
-| `baf19d02` | **`index.html` boots the world client — the gate**               |
+| Commit     | What                                                              |
+| ---------- | ----------------------------------------------------------------- |
+| `0f5db0ff` | Fork seeded with the spec; dead `gatekeeper` submodule dropped    |
+| `66ffc877` | **The `core`↔`client` import cycle broken**                       |
+| `2c46fc4f` | Upstream's proprietary assets removed, own brand marks added      |
+| `2ecb317b` | Documentation system, new README, hardened `.gitignore`           |
+| `49dc9342` | Handover, inherited docs separated, link checker                  |
+| `ce7e9b71` | Upstream's trackers and remote script loader out of `index.html`  |
+| `32f56c2f` | Import ratchet for the renderer boundary                          |
+| `e2d5207d` | `TileRef` → `number`; probe from `FrameData` hits 0               |
+| `eccefb77` | `Veterancy` → `shared/util/`                                      |
+| `ad476545` | `PatternDecoder` → `shared/util/`, schema cycle broken            |
+| `4ae6b103` | `Maps.gen` → `shared/map/`; `MapLayer` duplicate collapsed        |
+| `35100e3b` | Cosmetic effect editor deleted, palette types inlined             |
+| `cfe93756` | `PublicAssetManifest` → `src/build/`                              |
+| `328cf82b` | `AssetUrls` split into `shared/util/AssetPath` + `client/util/`   |
+| `c8ed6cbf` | `Config` → `RenderRules`; `UnitType` resolved with it             |
+| `f4da0196` | Rail geometry split from the `GameUpdates` accumulator            |
+| `65c654d1` | `Utils` split; probe from `gl/Renderer.ts` 56 → 0                 |
+| `2c123ff8` | Preview map loaded without the core map loader                    |
+| `44d1a6c5` | Ratchet becomes a prohibition; lint zones; decision 0004          |
+| `0dcb4dda` | Code-review fixes, one of which undid part of the work            |
+| `f8e72532` | Province grid and terrain hash in `shared/map/`                   |
+| `4e3231c4` | Map loading, palette and frame adapter                            |
+| `baf19d02` | **`index.html` boots the world client — the gate**                |
+| `459f5437` | **Quarantine, `src/core` and `src/server` deleted, world server** |
+| `9db3ae42` | Provinces grown from national borders, not a grid                 |
 
-Working tree is clean. Nothing has been pushed — the remote is still at the
-upstream fork point.
+Working tree is clean, and everything is pushed.
 
 ### Against the phase-0 step list
 
-The plan's step order is in the plan file (see _Where the plan lives_ below).
-Status:
+Every step is done. What each one turned into:
 
-- **Step 1** — `index.html`: **done.** Rewritten around the world client. The
-  old page is kept as `docs/upstream/index.upstream.html` for the custom
-  elements its body declares — the markup phase 3 and phase 7 screens have to
-  reproduce.
-- **Step 2** — `shared/util/`: **done** (`AssetPath`, number formatting,
-  `PatternDecoder`, `Veterancy`). `EventBus` and `PseudoRandom` have not moved.
-- **Step 3** — break the cycle: **done**, except that `GameMap.ts` itself has
-  not physically moved to `shared/map/` yet (deliberate — see below).
-- **Step 5** — the nine couplings: **done, all of them**, plus two transitive
-  leaks the original count missed.
-- **Step 6** — `RenderConfig`: **done**, as `RenderRules`.
-- **Step 12** — bootstrap: **done.** `client/world/` holds the entry point,
-  map loading, palette, province tile index, frame adapter and camera.
-- **Step 14** — architecture test: **done**, plus lint zones.
-- **Steps 7, 8, 13** — quarantine, deletion, tsconfig split: not started.
-- **Steps 9–11** — protocol, stub server, socket: not started. The world
-  currently comes from `client/world/StaticWorldSource.ts`, which is
-  deliberately throwaway and says so in its own header.
-- **Step 15** — licence hygiene: **done, pulled forward.** It could not wait:
-  the repository is public, so shipping upstream's All-Rights-Reserved assets
-  was actively redistributing them.
+| Step                     | Outcome                                                                                                                                                                                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 `index.html`           | Rewritten around the world client. The old page is kept as `docs/upstream/index.upstream.html` for the custom elements its body declares — the markup phase 3 and 7 screens have to reproduce.                                            |
+| 2 `shared/util/`         | `AssetPath`, number formatting, `PatternDecoder`, `Veterancy`, `EventBus`, `PseudoRandom`, `DebugSpan`.                                                                                                                                   |
+| 3 the import cycle       | Cut. `GameMap.ts` now lives in `shared/map/`.                                                                                                                                                                                             |
+| 4 `shared/pathfinding/`  | 19 of 23 files rescued. The four importing `game/Game` (PathFinder.ts, .Air, .Station, spatial/SpatialQuery) were not — they are built around upstream's unit world and need rewriting against a province graph. They are in the history. |
+| 5 the nine couplings     | All resolved, plus two transitive leaks the original count missed.                                                                                                                                                                        |
+| 6 `RenderConfig`         | Shipped as `RenderRules`, seven methods.                                                                                                                                                                                                  |
+| 7 quarantine             | 259 client files, 336 test files, in `src/client/_legacy/` and `tests/_legacy/`.                                                                                                                                                          |
+| 8 delete core and server | Done: 135 + 48 files.                                                                                                                                                                                                                     |
+| 9 `shared/protocol/`     | `Wire.ts` — JSON, zod-validated, version in the handshake.                                                                                                                                                                                |
+| 10 stub server           | `src/server/`: one process, one world, five-second tick.                                                                                                                                                                                  |
+| 11 store and socket      | `client/world/`: socket, tile index, frame adapter.                                                                                                                                                                                       |
+| 12 bootstrap             | `WorldClient.ts`.                                                                                                                                                                                                                         |
+| 13 tsconfig split        | Not done — a single tsconfig still covers everything. `shared/` is not yet on `strict`, and that is the one piece of step 13 worth doing early.                                                                                           |
+| 14 architecture test     | Two of them, plus lint zones.                                                                                                                                                                                                             |
+| 15 licence hygiene       | Done, pulled forward.                                                                                                                                                                                                                     |
+
+**Reached ahead into phase 2:** the province partition. The throwaway 64x64
+grid was replaced by one grown from the national capitals — see below.
 
 ---
 
 ## What to do next
 
-Everything left in phase 0 removes something.
+Phase 0 is closed. Phase 1 is world persistence, and the plan file has it in
+detail. In short:
 
-1. **Quarantine** — `git mv` the HUD, components, view and controllers into
-   `src/client/_legacy/`, then exclude from tsconfig **and both linters in the
-   same commit** (eslint uses `projectService`, oxlint has `typeAware: true`;
-   a file excluded from tsconfig but still linted makes both abort).
+1. **Tick loop with a real deadline.** `src/server/Main.ts` uses
+   `setInterval`, which accumulates drift and fires bursts when behind.
+   Replace with a deadline computed from a fixed epoch, and **await the tick**
+   — two overlapping ticks end determinism.
+2. **Postgres**: command log, snapshot every 60 ticks, restore on startup,
+   advisory lock on `world_id`.
+3. **Deploy**, which the plan pulls forward from phase 11.
 
-   Nothing imports them any more, because `index.html` points at the world
-   client — so the move is a no-op for the bundle, and that is precisely how
-   to verify it: the chunk list and the `index-*.js` size must not change.
-   Note that `tsconfig`'s `exclude` does **not** cut an imported file out of
-   the program; it only drops it from the root set. The gate for the
-   quarantine has to be a test, not a config entry.
+Two things block deployment and need a decision:
 
-2. **Delete `src/core` and `src/server`.** Rescue first: `core/pathfinding/**`
-   and `core/game/GameMap.ts` to `shared/map/`, `core/EventBus` and
-   `core/PseudoRandom` to `shared/util/`.
-3. **`shared/protocol/` and the stub server**, then swap StaticWorldSource for
-   a socket. A guard test should assert StaticWorldSource is gone, so the
-   throwaway cannot quietly become permanent.
+- The **DNS record** for the world's domain — by hand or via API.
+- The deployment host has a **pending reboot**. A persistent world should not
+  be rolled out the week before one without agreeing how it drains first.
 
-Decisions already taken for that work, so they do not have to be revisited:
+Worth doing early in phase 1, while the code is small:
 
-- Quarantine stays **under `src/`** (`src/client/_legacy/`, `tests/_legacy/`).
-  `tests/TranslationSystem.test.ts:524` scans the filesystem under `src/` and
-  demands no unused translation keys; a `_legacy/` at repo level would orphan
-  hundreds of them.
-- Tests for deleted code are **quarantined, not deleted** — same rule as the
-  HUD. `AttackLogicGolden`, `tests/pathfinding` and `MapConsistency` are
-  effectively the world server's specification.
-- The cosmetic effect editor is **gone**, not quarantined. This fork has no
-  cosmetics store.
-
-**Why `GameMap.ts` has not moved:** 104 files import it, 25 of them under
-`src/core/execution` — code that will be deleted, not rewritten. Moving it now
-means editing import paths in files that will not exist next week. Move it once
-`execution/` is gone. The renderer no longer needs it either way.
+- **`strict` for `shared/`** (step 13). CLAUDE.md §9 requires it and no `any`;
+  the longer `shared/` grows without it, the more it costs.
+- **A `Command` type** in the protocol. Deliberately absent in phase 0 —
+  §7 wants commands validated against world state and there was none — but the
+  server already disconnects on any message after `hello`, so the shape is
+  waiting.
 
 ## Traps already paid for
 
@@ -195,6 +190,23 @@ in device pixels (`cssWidth * dpr`) and leaves a 10% margin, so a controller
 measuring `clientWidth` lands elsewhere on any display with `dpr != 1` —
 visible as a map pushed off-centre and clipped on one side.
 
+**`tsconfig`'s `exclude` does not cut an imported file out of the program.**
+It only drops it from the root set; one import from a live file pulls the
+whole excluded subtree back in, and everything that subtree imports. The
+quarantine is held by `tests/architecture/QuarantineBoundary.test.ts`, not by
+the config entry. The same applies to the four exclusion lists (tsconfig,
+vitest, eslint, oxlint): they have to change together, or a file lands in no
+tsconfig project and both linters abort with "not found by the project
+service" instead of reporting anything.
+
+**A guard test needs its own self-test.** The first version of the quarantine
+scanner passed against a deliberately planted violation. Every part checked
+out in isolation — the walker found the file, the matcher found the import,
+the paths resolved — and it still reported nothing. It now asserts, on every
+run, that it detects a planted violation, and its fixture is built from
+template literals so the file does not violate the rule it enforces. Verify a
+new guard by breaking something on purpose, not by reading it.
+
 **`vite-plugin-html` binds the dev server to one entry.** Adding a second HTML
 page to compare old and new side by side does not work: every path serves
 `index.html` with the configured entry. Switch `index.html` and the plugin's
@@ -221,81 +233,59 @@ shape whenever you remove data that a test iterates over.
 npm run inst            # npm ci --ignore-scripts — never `npm install`
 npx tsc --noEmit        # must be clean
 npm run lint            # oxlint + eslint, must be clean
-npx vitest run          # see baseline below
+npm run test            # one vitest run; see baseline below
 npm run build-prod      # tsc + vite + asset hashing; the real integration test
 npm run check:doc-links # every relative link in every .md resolves
-npm run dev             # http://localhost:9000
+npm run start:server    # the world, ws://localhost:3000/ws
+npm run start:client    # http://localhost:9000
 ```
 
-### Test baseline — do not chase these two
+The last two are the ones that matter. A green suite says the pieces type-check
+and their units behave; only running the pair shows a map.
 
-`4025 / 4027` pass in the main run (341 files), plus `578 / 578` in the
-separate `tests/server` run (56 files). **These are two runs**: `npm run test`
-is `vitest run && vitest run tests/server`, and the server tests do not appear
-in the 4027.
+### Test baseline
 
-The main-run total moved from 4012 during phase 0. What changed: the effect
-editor's tests were deleted with it, `PublicAssetManifest.test.ts` moved from
-`tests/server` into the main run along with its subject, one obsolete
-`index.html` markup assertion was removed, and the architecture, province-grid
-and frame-adapter tests were added. The passing figure moves with the
-`InventoryModal` flake below; the total is what to compare against.
+**385/385 in one run, no tolerated failures.** `npm run test` is a single
+`vitest run` now.
 
-The two failures are **not** regressions:
+That is a change of kind, not just of number. The two environmental failures
+this document used to tell you to ignore — the de-DE thousands separator and
+the InventoryModal timeout — went into quarantine with their subjects. The
+rule is now **every failure is yours**, not every third one. If you are
+looking for two red tests because you read an older version of this file,
+stop looking.
 
-1. `tests/client/clan/ClanDonateDialog.test.ts` — expects the en-US thousands
-   separator (`1,000`); a `de-DE` machine renders `1.000`. Environmental.
-2. `tests/client/InventoryModal.test.ts` — times out under parallel load.
-   Run the file alone and all 27 tests pass. Sometimes two of its tests fail
-   instead of one; that is the same flake, not a new fault.
+The count moved from 4012 because ~300 test files test code that no longer
+exists and are in `tests/_legacy/`, excluded from the run. They were moved
+rather than deleted: `AttackLogicGolden`, `tests/pathfinding` and
+`MapConsistency` are effectively the world server's specification, and are
+worth reading when the corresponding system gets built.
 
-Plus one deliberate `it.skip` in `SoundManager.test.ts` (see above).
+### Measuring the boundary
 
-**Any third failing file is yours.** Check it.
+The probe that made phase 0 tractable — compile a file whose only content is
+`import type { FrameData }`, count `src/core` entries in `tsc --listFiles` —
+has nothing left to measure: `src/core` does not exist. What replaced it:
 
-### Measuring the import boundary
+- `tests/architecture/RenderBoundary.test.ts` — the renderer imports nothing
+  outside `render/` except `shared/`, `client/util/AssetUrl` and
+  `client/i18n/Translate`.
+- `tests/architecture/QuarantineBoundary.test.ts` — nothing live imports into
+  `_legacy/`, and the four exclusion lists agree.
+- `no-restricted-imports` zones in `eslint.config.js` for `render/` and
+  `shared/`, so violations show up in the editor.
 
-The number that made phase 0 tractable. Reproduce it like this:
-
-```bash
-mkdir -p .cycle-probe
-printf 'import type { FrameData } from "../src/client/render/types/FrameData";\nexport type Probe = FrameData;\n' > .cycle-probe/probe.ts
-printf '{ "extends": "../tsconfig.json", "compilerOptions": { "noEmit": true, "types": [] }, "include": ["probe.ts"] }\n' > .cycle-probe/tsconfig.json
-npx tsc -p .cycle-probe/tsconfig.json --listFiles --noEmit \
-  | grep -v node_modules | sed "s|.*OpenFrontIO-MaxEdit/||" \
-  | grep -c '^src/core/'
-rm -rf .cycle-probe
-```
-
-**54** before the cut, **0** now.
-
-That probe is the narrowest one available — it covers the type graph reachable
-from `FrameData` alone. Run it from `render/gl/Renderer.ts` as well, which is
-the renderer's real entry point; it read **56** while the `FrameData` probe
-read 0. Both are 0 now, as are the probes from `gl/MapRenderer.ts` and
-`preview/CosmeticPreviewRenderer.ts`.
-
-It is a permanent test now: `tests/architecture/RenderBoundary.test.ts`, plus
-`no-restricted-imports` zones for `render/` and `shared/` in
-`eslint.config.js`. Both were verified by introducing a violation on purpose.
-
-### The measurement that replaces it
-
-With the entry point switched, there is a blunter and better check: what
-actually ships. After `npm run build-prod`,
+And the blunt one, which measures the artefact rather than the type graph.
+After `npm run build-prod`:
 
 ```bash
 ls static/assets/ | grep -i worker # nothing — the simulation is gone
 du -h static/assets/index-*.js     # ~436 kB, was 2.3 MB
-grep -c "<%-" static/index.html    # 5 EJS placeholders, was 18
 ```
 
-A probe measures the type graph; this measures the artefact. If a later change
-re-imports the simulation by some route the boundary test does not model, the
-worker chunk comes back and the bundle size jumps. Worth reading before
-trusting a green test suite.
-
----
+If a later change re-imports the simulation by some route the boundary tests
+do not model, the worker chunk comes back and the bundle jumps. Worth reading
+before trusting a green suite.
 
 ## Where the plan lives
 

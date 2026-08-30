@@ -4,12 +4,10 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-30, phase 0 gate met — the renderer draws a map and
-territory from province ownership with no simulation on the client, and none
-in the shipped bundle. `src/core` and `src/server` still exist and the client
-code outside `render/` and `world/` still compiles against them; removing that
-is what remains of the phase. Current status is in
-[`../../HANDOVER.md`](../../HANDOVER.md).
+**Last verified:** 2026-08-30, end of phase 0. A world server ticks and pushes
+province ownership; the renderer draws it. `src/core` and `src/server` are
+deleted and the rest of the inherited client is quarantined. Current status is
+in [`../../HANDOVER.md`](../../HANDOVER.md).
 
 > ⚠️ The fork is mid-surgery. Large parts of this tree are inherited upstream
 > code that is being dismantled. Where that is the case, this document says so
@@ -21,29 +19,37 @@ A world server owns the simulation and ticks it every five seconds. Clients
 connect over a WebSocket, receive a full state view on connect and deltas
 afterwards, and render. The client never simulates anything.
 
-**The client half of that is real now.** `index.html` boots
-`src/client/world/WorldClient.ts`, which loads a map, derives provinces from
-its terrain, and hands province ownership to the inherited renderer through
-one long-lived `FrameData` object. The server half is not: ownership comes
-from `client/world/StaticWorldSource.ts`, a deliberately throwaway stand-in
-that will be replaced by a socket. Upstream's lockstep client and match server
-still exist in the tree; nothing loads them.
+**That is what runs.** `src/server/Main.ts` loads a map, partitions it into
+provinces, and ticks every five seconds. `index.html` boots
+`src/client/world/WorldClient.ts`, which connects over a WebSocket, derives
+the same partition from the same terrain bytes, and hands province ownership
+to the inherited renderer through one long-lived `FrameData` object.
 
-## What is inherited, and what happens to it
+What is not there yet is everything that makes it a _game_: no persistence
+(phase 1), no economy, no units, no diplomacy. The world's only behaviour is
+that one province changes hands per tick, at a border, deterministically.
 
-| Path                                              | Origin   | Fate                                                                                                                                                                      |
-| ------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/client/render/`                              | upstream | **Kept.** WebGL2 renderer, ~180 files. The most valuable inherited asset.                                                                                                 |
-| `src/client/hud/`, `components/`                  | upstream | Mostly quarantined, then replaced. A few files are skeletons for later phases.                                                                                            |
-| `src/client/view/`                                | upstream | **Replaced** by a store that applies server deltas.                                                                                                                       |
-| `src/core/pathfinding/`                           | upstream | **Moves to `shared/`.** Water pathfinding and connected components are needed for sea routes and province partitioning.                                                   |
-| `src/core/game/GameMap.ts`                        | upstream | **Moves to `shared/map/`.** Tile geometry and terrain queries.                                                                                                            |
-| `src/core/execution/`, `worker/`, `GameRunner.ts` | upstream | **Deleted.** This is the lockstep simulation.                                                                                                                             |
-| `src/server/`                                     | upstream | **Deleted.** Ephemeral master/worker match server; replaced by the world server.                                                                                          |
-| `src/shared/`                                     | new      | Pure rules and types used by both sides. No I/O, ever. Currently `map/Terrain`, `map/Maps.gen`, `util/AssetPath`, `util/Format`, `util/PatternDecoder`, `util/Veterancy`. |
-| `src/build/`                                      | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs and which used to live in `src/server/`.                                                          |
-| `zbin/`                                           | upstream | Kept as a library. Currently unused by our own protocol.                                                                                                                  |
-| `proprietary/`                                    | upstream | **Removed.** Logo, brand font and music, All Rights Reserved. Replaced by own marks in `resources/images/`.                                                               |
+## The tree, and where it came from
+
+| Path                        | Origin   | State                                                                                                                                                                   |
+| --------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                          |
+| `src/client/world/`         | new      | The world client: entry point, map loading, palette, province tile index, frame adapter, camera, socket.                                                                |
+| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                   |
+| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date. |
+| `src/server/`               | new      | The world server. Upstream's match server of the same name was deleted; nothing of it survives.                                                                         |
+| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, GameMap, TileSet, Maps.gen, ProvincePartition, TerrainHash), `pathfinding/` (19 files), `protocol/Wire.ts`, `util/`.       |
+| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs.                                                                                                |
+| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                  |
+| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                              |
+| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                   |
+
+What was rescued from `src/core` before it went: `GameMap`, `TileSet`,
+`EventBus`, `PseudoRandom`, `DebugSpan`, `Maps.gen`, and 19 of 23 pathfinding
+files. The four that were not — `PathFinder.ts`, `.Air`, `.Station`,
+`spatial/SpatialQuery` — import `game/Game` and are built around upstream's
+unit world; they need rewriting against a province graph in phases 2 and 9,
+and are in the history until then.
 
 ## The renderer, and why it survives the surgery
 
@@ -81,51 +87,39 @@ renderer's own documentation, which is good and worth reading before touching it
 
 ## The import boundary
 
-`src/core` and `src/client` were a single import cycle: `core/configuration/Config.ts`
-imports `client/view`, which imports back into the core worker. A lone
-`import type { FrameData }` dragged 54 simulation files into the type graph.
+`src/core` and `src/client` were once a single import cycle:
+`core/configuration/Config.ts` imported `client/view`, which imported back into
+the core worker, so a lone `import type { FrameData }` dragged 54 simulation
+files into the type graph. Both ends of that cycle are now deleted, but the
+rule it produced is the one the tree still runs on:
 
-That cycle is now cut at its head — see
-[decision 0001](../decisions/0001-break-core-client-import-cycle.md). The rule
-going forward:
+- `shared/` imports **nothing** from `client/` or `server/`. It is the layer
+  both sides depend on, so a single edge out of it inverts the dependency.
+- `client/` and `server/` may import `shared/`.
+- `render/` may import `shared/` and, by name, `client/util/AssetUrl` and
+  `client/i18n/Translate` — nothing else, because every other module brings
+  its own imports with it. That is how `client/Utils.ts` kept 56 core files in
+  the renderer's graph long after every direct import was gone.
 
-- `shared/` imports **nothing** from `client/`, `server/` or `core/`.
-- `server/` may import `shared/`.
-- `client/` may import `shared/`.
-- Nothing imports `core/` that is not itself scheduled for deletion.
+See [decision 0001](../decisions/0001-break-core-client-import-cycle.md) for
+the cut and [decision 0004](../decisions/0004-renderer-owns-its-vocabulary.md)
+for the vocabulary rules that came out of it.
 
-**How to check it:** compile a file whose only content is
-`import type { FrameData } from "src/client/render/types/FrameData"` with
-`tsc --listFiles`, and count `src/core` entries in the output. It was 54 before
-the cut and 1 after — the remaining one is `GameMap.ts`, which has not moved
-yet. The exact commands are in [`../../HANDOVER.md`](../../HANDOVER.md). This
-will become a permanent test.
-
-That measurement covers the _type_ graph reachable from `FrameData`, which is
-the narrowest thing one can measure. Two wider probes matter more, and both now
-read zero:
-
-| Probe from                                  | Before phase 0 | Now |
-| ------------------------------------------- | -------------- | --- |
-| `render/types/FrameData.ts`                 | 54             | 0   |
-| `render/gl/Renderer.ts`                     | 56             | 0   |
-| `render/gl/MapRenderer.ts`                  | —              | 0   |
-| `render/preview/CosmeticPreviewRenderer.ts` | —              | 0   |
-
-The renderer's only edges outside `src/client/render/` are
-`client/util/AssetUrl` and `client/i18n/Translate` (both reach nothing but
-`shared/`), plus `components/WebGLGate`, which imports nothing but `lit`.
-
-**How it is held.** Two mechanisms, deliberately different in kind:
+**How it is held.** Three mechanisms, deliberately different in kind:
 
 - `tests/architecture/RenderBoundary.test.ts` scans every `.ts` under
   `render/`, resolves both the `src/…` alias and relative path forms, and
-  asserts no `src/core` edge and no edge out of `render/` beyond a named list.
-- `no-restricted-imports` zones in `eslint.config.js` for `render/` and for
-  `shared/`, so a violation shows up in the editor before the test runs.
+  asserts no edge out of `render/` beyond a named list.
+- `tests/architecture/QuarantineBoundary.test.ts` asserts nothing live imports
+  into `_legacy/`, and that the four exclusion lists agree. This one carries a
+  self-test, because an earlier version of it passed against a deliberately
+  planted violation.
+- `no-restricted-imports` zones in `eslint.config.js` for `render/` and
+  `shared/`, so a violation shows up in the editor before any test runs.
 
-Both were verified by introducing a violation on purpose and watching them
-fail — in both directions for the lint zones.
+Each was verified by introducing a violation on purpose and watching it fail —
+in both directions for the lint zones. A guard nobody has seen fail is a guard
+nobody should believe.
 
 The nine couplings that were resolved, and how:
 
@@ -146,6 +140,52 @@ Plus two transitive leaks the count above missed, because they were not
 `translateText`, `renderNumber`, `renderTroops`) and
 `client/TerrainMapFileLoader` (reached by the cosmetic preview). See
 [decision 0004](../decisions/0004-renderer-owns-its-vocabulary.md).
+
+## The province partition
+
+Provinces are grown, not gridded, and the order matters:
+
+1. A multi-source breadth-first flood from the capitals in the map manifest,
+   over land only, gives each nation its territory. Because it spreads at a
+   uniform rate, the boundary between two nations ends up equidistant _along
+   the land_ — so it bends around bays and runs through mountains the way a
+   frontier does.
+2. Each territory is then cut into pieces by a flood restricted to that
+   territory, with two Lloyd relaxation passes to even out the sizes.
+
+Cutting inside a territory is what guarantees **no province straddles a
+national border**: the national borders are province borders. An ownership
+change therefore moves one province, and a front is a set of province edges.
+
+Europe at quarter resolution: 529 provinces, mean node degree 3.27, no
+isolated provinces, 368 ms. (The plan measured 2.66 with 160 isolated for a
+naive partition, and warned it would give "corridors instead of fronts".)
+
+The partition is **static map data**, not world state. It is never sent, never
+snapshotted, and never in a delta — both sides derive it from the same terrain
+bytes. `FullState.map.terrainHash` is what makes that agreement checkable; a
+mismatch (one side on `map.bin`, the other on `map4x.bin`) would otherwise
+show up only as quietly mis-coloured regions.
+
+Phase 2 moves the generator offline and ships the result as a checked-in file,
+so a generator bugfix cannot repartition a running season. The invariants the
+tests assert — determinism, connectivity, no province spanning two nations —
+carry over unchanged.
+
+## The protocol
+
+JSON behind `shared/protocol/Wire.ts`, with `protocolVersion` in the
+handshake. The inherited `zbin` is positional and has no version field; its
+own docs warn that mismatched builds decode each other _silently wrong_, which
+for a world running six weeks while we deploy into it is the most expensive
+failure available.
+
+Every rejection closes the connection with a code that says why — 4001 version
+mismatch, 4002 malformed, 4003 unknown world, 4004 no hello within five
+seconds — and sends a `reject` frame first. Nothing is ignored. On the client
+a version mismatch and a tick gap are both terminal: retrying a version
+mismatch turns it into a loop that looks like a network fault, and carrying on
+past a missed delta leaves a permanently wrong map with no error at all.
 
 ## Map data
 
