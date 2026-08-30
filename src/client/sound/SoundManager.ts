@@ -1,5 +1,4 @@
 import { Howl } from "howler";
-import { assetUrl } from "../../core/AssetUrls";
 import { EventBus } from "../../core/EventBus";
 import { UserSettings } from "../../core/game/UserSettings";
 import {
@@ -28,28 +27,12 @@ export class SoundManager {
 
   constructor(eventBus: EventBus, userSettings: UserSettings) {
     this.eventBus = eventBus;
-    this.safely("initialize background music", () => {
-      this.backgroundMusic = [
-        new Howl({
-          src: [assetUrl("sounds/music/of4.mp3")],
-          loop: false,
-          onend: this.playNext.bind(this),
-          volume: 0,
-        }),
-        new Howl({
-          src: [assetUrl("sounds/music/openfront.mp3")],
-          loop: false,
-          onend: this.playNext.bind(this),
-          volume: 0,
-        }),
-        new Howl({
-          src: [assetUrl("sounds/music/war.mp3")],
-          loop: false,
-          onend: this.playNext.bind(this),
-          volume: 0,
-        }),
-      ];
-    });
+    // No background music. Upstream's tracks live in `proprietary/`, which is
+    // All Rights Reserved and therefore not part of this fork — see README.
+    // The playlist is deliberately empty rather than removed: the volume
+    // controls, the settings key and playNext() all still work, so dropping
+    // freely-licensed tracks in here later is a one-line change.
+    this.backgroundMusic = [];
     this.setBackgroundMusicVolume(userSettings.backgroundMusicVolume());
     this.setSoundEffectsVolume(userSettings.soundEffectsVolume());
     this.onPlaySoundEffect = (e) => this.playSoundEffect(e.effect);

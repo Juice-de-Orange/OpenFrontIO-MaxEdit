@@ -95,8 +95,11 @@ describe("SoundManager", () => {
   it("lazy-loads a sound effect once and reuses it", () => {
     eventBus.emit(new PlaySoundEffectEvent("click"));
     eventBus.emit(new PlaySoundEffectEvent("click"));
-    // 3 background music Howls + 1 Click Howl = 4
-    expect(howlCtor).toHaveBeenCalledTimes(4);
+    // 1 Click Howl, constructed once and reused for the second event.
+    // Upstream expected 4 here: three background music Howls plus the click.
+    // This fork ships no background music — the tracks are in upstream's
+    // proprietary/ directory, which is All Rights Reserved and excluded.
+    expect(howlCtor).toHaveBeenCalledTimes(1);
   });
 
   it("plays a sound effect when PlaySoundEffectEvent is emitted", () => {
@@ -105,13 +108,19 @@ describe("SoundManager", () => {
     expect(effectHowl.play).toHaveBeenCalledTimes(1);
   });
 
-  it("applies bootstrap volume from UserSettings to background music", () => {
+  // Skipped, not deleted, and deliberately not "fixed" by lowering the
+  // expectation: with no background music the assertion body never runs, so
+  // the test would pass while checking nothing — which is worse than a red
+  // one, because it looks like coverage. Re-enable this the moment freely
+  // licensed tracks are added; the volume curve it guards is still live code.
+  it.skip("applies bootstrap volume from UserSettings to background music", () => {
     const settings = createUserSettings(0.5, 1);
     const bus = new EventBus();
     howlCtor.mockClear();
     howlInstances.length = 0;
     new SoundManager(bus, settings);
     const bgHowls = howlInstances.slice(0, 3);
+    expect(bgHowls.length).toBeGreaterThan(0);
     bgHowls.forEach((h) => {
       // Slider position is curved (squared) into perceptual gain: 0.5² = 0.25.
       expect(h.volume).toHaveBeenCalledWith(0.25);

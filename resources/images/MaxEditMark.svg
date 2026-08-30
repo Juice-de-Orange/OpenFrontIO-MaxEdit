@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="OpenFront MaxEdit">
+  <title>OpenFront MaxEdit</title>
+  <!--
+    The mark is the game in one picture: two provinces meeting at a border.
+    Deliberately flat and geometric — it has to stay legible at 16px in a
+    browser tab, and it must not resemble the upstream OpenFront logo, which
+    is proprietary and not part of this fork.
+  -->
+  <rect width="64" height="64" rx="12" fill="#1f2733"/>
+  <!-- western province -->
+  <path d="M12 14 h18 l4 10 -5 9 6 10 -3 7 H12 Z" fill="#6f9e5e"/>
+  <!-- eastern province -->
+  <path d="M34 14 h18 v36 H32 l3 -7 -6 -10 5 -9 Z" fill="#b6763f"/>
+  <!-- the border between them -->
+  <path d="M30 14 l4 10 -5 9 6 10 -3 7"
+        fill="none" stroke="#f2ead9" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

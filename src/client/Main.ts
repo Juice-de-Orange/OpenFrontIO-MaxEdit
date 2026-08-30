@@ -1,7 +1,6 @@
 import version from "resources/version.txt?raw";
 import { ClientEnv } from "src/client/ClientEnv";
 import { isTemporaryUsername, UserMeResponse } from "../core/ApiSchemas";
-import { assetUrl } from "../core/AssetUrls";
 import { EventBus } from "../core/EventBus";
 import {
   GAME_ID_REGEX,
@@ -304,12 +303,9 @@ class Client {
     await customElements.whenDefined("mobile-nav-bar");
     await customElements.whenDefined("desktop-nav-bar");
 
-    const openFrontFont = new FontFace(
-      "OpenFront",
-      `url(${assetUrl("fonts/OpenFront.ttf")})`,
-    );
-    document.fonts.add(openFrontFont);
-    openFrontFont.load().catch(() => {});
+    // Upstream loaded its brand typeface here. That font is All Rights
+    // Reserved and is not shipped with this fork; anything styled with the
+    // "OpenFront" family falls back to the CSS stack.
 
     const versionElements = document.querySelectorAll(
       "#game-version, .game-version-display",

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 88" width="360" height="88" role="img" aria-label="OpenFront MaxEdit">
+  <title>OpenFront MaxEdit</title>
+  <!--
+    Wordmark: the province mark plus the name. System font stack rather than a
+    bundled typeface — upstream's brand font is proprietary and excluded from
+    this fork, and a logo is not worth shipping a font file for.
+  -->
+  <g transform="translate(12 12)">
+    <rect width="64" height="64" rx="12" fill="#1f2733"/>
+    <path d="M12 14 h18 l4 10 -5 9 6 10 -3 7 H12 Z" fill="#6f9e5e"/>
+    <path d="M34 14 h18 v36 H32 l3 -7 -6 -10 5 -9 Z" fill="#b6763f"/>
+    <path d="M30 14 l4 10 -5 9 6 10 -3 7"
+          fill="none" stroke="#f2ead9" stroke-width="3"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g font-family="Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif" fill="currentColor">
+    <text x="94" y="42" font-size="30" font-weight="700" letter-spacing="-0.5">OpenFront</text>
+    <text x="94" y="70" font-size="30" font-weight="300" letter-spacing="4" opacity="0.85">MaxEdit</text>
+  </g>
+</svg>
