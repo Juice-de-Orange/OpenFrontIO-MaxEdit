@@ -13,6 +13,7 @@
 import path from "path";
 import { fileURLToPath } from "url";
 import { MemoryStore } from "./db/MemoryStore";
+import { PgStore } from "./db/PgStore";
 import type { WorldStore } from "./db/Store";
 import { WorldSocketServer } from "./net/WsServer";
 import { World } from "./world/World";
@@ -32,12 +33,25 @@ const RESOURCES = path.resolve(here, "..", "..", "resources");
  * many times a day and should not need a container. It is emphatically not the
  * right default for anything else, so it says so.
  */
-function createStore(): WorldStore {
-  console.warn(
-    "[world] no DATABASE_URL: this world is not persisted and will be lost " +
-      "when the process ends",
-  );
-  return new MemoryStore();
+async function createStore(): Promise<WorldStore> {
+  const url = process.env.DATABASE_URL;
+  if (url === undefined || url === "") {
+    console.warn(
+      "[world] no DATABASE_URL: this world is not persisted and will be lost " +
+        "when the process ends",
+    );
+    return new MemoryStore();
+  }
+  return PgStore.connect({
+    connectionString: url,
+    onLockLost: (error) => {
+      // The lock is the only thing keeping a second process off this world.
+      // Without it, carrying on is worse than stopping: two servers would
+      // append to one command log and the log would describe neither run.
+      console.error("[world] lost the world lock, stopping", error);
+      process.exit(1);
+    },
+  });
 }
 
 async function main(): Promise<void> {
@@ -50,7 +64,7 @@ async function main(): Promise<void> {
       `terrain ${world.descriptor.terrainHash.toString(16)}`,
   );
 
-  const store = createStore();
+  const store = await createStore();
   if (!(await store.acquireWorldLock(WORLD_ID))) {
     console.error(
       `[world] ${WORLD_ID} is already being ticked by another process. ` +

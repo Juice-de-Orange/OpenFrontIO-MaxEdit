@@ -1,0 +1,51 @@
+# The world and its database.
+#
+# `docker compose up -d` gives a world on ws://localhost:3000/ws with a
+# Postgres behind it. The client is not in here: it is served by Vite in
+# development, and its /ws proxy already points at port 3000.
+#
+# TLS, a public hostname and a backup sidecar are deliberately absent. They are
+# phase 11, and they belong to a host rather than to a checkout —
+# docs/deploy/README.md says what a real deployment needs in front of this.
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: openfront
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openfront}
+      POSTGRES_DB: openfront
+    volumes:
+      - world-db:/var/lib/postgresql/data
+    healthcheck:
+      # The world refuses to start without its database, so compose has to know
+      # more than "the container is running".
+      test: ["CMD-SHELL", "pg_isready -U openfront -d openfront"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      # Exposed so the integration tests and psql can reach it from the host.
+      - "${POSTGRES_PORT:-5432}:5432"
+
+  world:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://openfront:${POSTGRES_PASSWORD:-openfront}@db:5432/openfront
+      WORLD_ID: ${WORLD_ID:-world-0}
+      MAP_ID: ${MAP_ID:-europe}
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    # No restart policy on purpose: the phase-1 gate is to kill this container
+    # and start it again by hand, and a restart policy would do it before
+    # anyone could look.
+    restart: "no"
+
+volumes:
+  world-db:

@@ -29,7 +29,8 @@
     "generated/**/*",
     "tests/**/*",
     "src/scripts",
-    "vite.config.ts"
+    "vite.config.ts",
+    "drizzle.config.ts"
   ],
   // _legacy/ holds the inherited client and its tests, kept as reference
   // until their replacements exist (see src/client/_legacy/README.md).
