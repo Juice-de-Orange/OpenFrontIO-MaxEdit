@@ -4,10 +4,11 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-30, end of phase 0. A world server ticks and pushes
-province ownership; the renderer draws it. `src/core` and `src/server` are
-deleted and the rest of the inherited client is quarantined. Current status is
-in [`../../HANDOVER.md`](../../HANDOVER.md).
+**Last verified:** 2026-08-30, end of phase 1. A world server ticks, persists
+to Postgres, accepts commands and survives being killed; the renderer draws
+what it sends. `src/core` and upstream's match server are deleted and the rest
+of the inherited client is quarantined. Current status is in
+[`../../HANDOVER.md`](../../HANDOVER.md).
 
 > ⚠️ The fork is mid-surgery. Large parts of this tree are inherited upstream
 > code that is being dismantled. Where that is the case, this document says so
@@ -17,32 +18,36 @@ in [`../../HANDOVER.md`](../../HANDOVER.md).
 
 A world server owns the simulation and ticks it every five seconds. Clients
 connect over a WebSocket, receive a full state view on connect and deltas
-afterwards, and render. The client never simulates anything.
+afterwards, send commands, and render. The client never simulates anything.
 
 **That is what runs.** `src/server/Main.ts` loads a map, partitions it into
-provinces, and ticks every five seconds. `index.html` boots
+provinces, takes an advisory lock on its world id, replays whatever the
+database remembers, and starts a clock. `index.html` boots
 `src/client/world/WorldClient.ts`, which connects over a WebSocket, derives
 the same partition from the same terrain bytes, and hands province ownership
-to the inherited renderer through one long-lived `FrameData` object.
+to the inherited renderer through one long-lived `FrameData` object. A click
+on a province sends a `claim_province` command.
 
-What is not there yet is everything that makes it a _game_: no persistence
-(phase 1), no economy, no units, no diplomacy. The world's only behaviour is
-that one province changes hands per tick, at a border, deterministically.
+What is not there yet is everything that makes it a _game_: no economy, no
+units, no diplomacy. Besides commands, the world's only behaviour is that one
+province changes hands per tick, at a border, deterministically — a heartbeat,
+kept because a persistent world has to look alive with nobody online, and
+because it is what makes the replay test hard enough to be worth running.
 
 ## The tree, and where it came from
 
-| Path                        | Origin   | State                                                                                                                                                                   |
-| --------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                          |
-| `src/client/world/`         | new      | The world client: entry point, map loading, palette, province tile index, frame adapter, camera, socket.                                                                |
-| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                   |
-| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date. |
-| `src/server/`               | new      | The world server. Upstream's match server of the same name was deleted; nothing of it survives.                                                                         |
-| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, GameMap, TileSet, Maps.gen, ProvincePartition, TerrainHash), `pathfinding/` (19 files), `protocol/Wire.ts`, `util/`.       |
-| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs.                                                                                                |
-| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                  |
-| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                              |
-| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                   |
+| Path                        | Origin   | State                                                                                                                                                                                                                    |
+| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                           |
+| `src/client/world/`         | new      | The world client: entry point, map loading, palette, province tile index, frame adapter, camera, socket.                                                                                                                 |
+| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                    |
+| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                  |
+| `src/server/`               | new      | The world server: `world/` (World, TickLoop, WorldRunner), `db/` (store interface, memory and Postgres store), `net/` (socket and health). Upstream's match server of the same name was deleted; nothing of it survives. |
+| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, GameMap, TileSet, Maps.gen, ProvincePartition, TerrainHash), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`.                                             |
+| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs.                                                                                                                                                 |
+| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                   |
+| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                               |
+| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                    |
 
 What was rescued from `src/core` before it went: `GameMap`, `TileSet`,
 `EventBus`, `PseudoRandom`, `DebugSpan`, `Maps.gen`, and 19 of 23 pathfinding
@@ -172,9 +177,52 @@ so a generator bugfix cannot repartition a running season. The invariants the
 tests assert — determinism, connectivity, no province spanning two nations —
 carry over unchanged.
 
+## Time, and what a restart costs
+
+The tick is the only clock the simulation sees. `TickLoop` computes every
+deadline absolutely from an epoch — `epoch + tick * tickMs` — so a late tick
+does not shift the next one, and it awaits each tick before scheduling the
+following one, so two can never run at once.
+
+The epoch is derived from the tick the world _resumes_ at, not from a fixed
+world beginning. That is what makes re-simulating an outage structurally
+impossible rather than bounded by a limit somebody has to tune
+([decision 0003](../decisions/0003-tick-anchored-time.md)).
+
+Two things are durable: every accepted command, written immediately and tagged
+with the tick it takes effect on, and a full snapshot every 60 ticks. On
+startup the newest snapshot is loaded and the world is _run forward_ through
+every tick after it, with the logged commands fed in on their own ticks —
+replaying commands without running the ticks between them would land in a
+different world, because the drift is part of the state.
+
+A world therefore resumes at the later of the newest snapshot and the newest
+logged command: a hard crash costs up to five minutes of drift and **no player
+command** ([decision 0005](../decisions/0005-resume-at-the-last-durable-record.md)).
+
+Three rules hold the command path together, and all three are in `WorldRunner`:
+
+- A command is written to the log **before** it is queued, and refused if the
+  write fails. A command acknowledged but not recorded would vanish at the next
+  restart.
+- Ticks and command submissions are serialised onto one chain. Both are async
+  and both decide things from the current tick; interleaved, a command could be
+  logged for one tick and queued for another.
+- Commands are validated twice — on arrival, so the player is told at once, and
+  again on the tick they apply, because the world moved in between. The second
+  check depends only on state and tick, so a replay makes the same decision.
+
+## One world, one process
+
+The server takes a Postgres advisory lock keyed on its world id, on a
+connection of its own outside the pool, and holds it for the life of the
+process. If it cannot get the lock it exits; if the connection later drops it
+stops. Two processes ticking one world would both append to its command log,
+and afterwards the log would describe a run neither of them had.
+
 ## The protocol
 
-JSON behind `shared/protocol/Wire.ts`, with `protocolVersion` in the
+JSON behind `shared/protocol/Wire.ts`, version 2, with `protocolVersion` in the
 handshake. The inherited `zbin` is positional and has no version field; its
 own docs warn that mismatched builds decode each other _silently wrong_, which
 for a world running six weeks while we deploy into it is the most expensive
@@ -182,10 +230,22 @@ failure available.
 
 Every rejection closes the connection with a code that says why — 4001 version
 mismatch, 4002 malformed, 4003 unknown world, 4004 no hello within five
-seconds — and sends a `reject` frame first. Nothing is ignored. On the client
-a version mismatch and a tick gap are both terminal: retrying a version
-mismatch turns it into a loop that looks like a network fault, and carrying on
-past a missed delta leaves a permanently wrong map with no error at all.
+seconds, 4005 unauthorised — and sends a `reject` frame first. Nothing is
+ignored. On the client a version mismatch and a tick gap are both terminal:
+retrying a version mismatch turns it into a loop that looks like a network
+fault, and carrying on past a missed delta leaves a permanently wrong map with
+no error at all.
+
+The one thing answered rather than closed is a command the world refuses on its
+merits. "You cannot claim that province" is a game rule, not a protocol
+violation, so it comes back as an `ack` carrying the command's id and a reason.
+Every command gets exactly one ack — including the ones a dropped connection
+ate, which the client fails locally rather than leaving a click that produced
+nothing and explained nothing.
+
+`/health` shares the socket's port. It reports the tick, the lag, the age of
+the newest snapshot and the state hash, and returns 503 when the world is up
+and stuck — which is the failure a status-code check cannot see.
 
 ## Map data
 

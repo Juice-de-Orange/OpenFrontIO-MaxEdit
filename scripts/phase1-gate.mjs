@@ -34,7 +34,16 @@ import WebSocket from "ws";
 const run = promisify(execFile);
 
 const WORLD_ID = process.env.WORLD_ID ?? "world-0";
-const NATION = Number(process.env.GATE_NATION ?? 1);
+/**
+ * Which nation the gate plays.
+ *
+ * Picked from the world rather than hardcoded. The border drift redraws the
+ * map over hundreds of ticks and a nation can be wiped out entirely; a gate
+ * that always asks for nation 1 eventually reports "could not claim anything"
+ * on a perfectly healthy world, which is a false failure and a slow one to
+ * read.
+ */
+let NATION = Number(process.env.GATE_NATION ?? 0);
 const BASE = process.env.GATE_BASE ?? "http://localhost:3000";
 const WS_URL = process.env.GATE_WS ?? "ws://localhost:3000/ws";
 const PROTOCOL_VERSION = 2;
@@ -83,7 +92,8 @@ async function waitForHealth(timeoutMs = 60_000) {
  * after — because that is also what proves the deltas are complete.
  */
 class Watcher {
-  constructor() {
+  constructor(nation = NATION) {
+    this.nation = nation;
     this.owners = null;
     this.tick = null;
     this.hashes = new Map();
@@ -98,7 +108,7 @@ class Watcher {
           t: "hello",
           protocolVersion: PROTOCOL_VERSION,
           worldId: WORLD_ID,
-          nation: NATION,
+          nation: this.nation,
         }),
       ),
     );
@@ -171,18 +181,37 @@ class Watcher {
  * says whether it borders us. Asking is cheaper than reimplementing the
  * partition, and it exercises the rejection path on the way.
  */
+/** The nation holding the most provinces right now. */
+function largestNation(owners) {
+  const held = new Map();
+  for (const owner of owners) {
+    if (owner === 0) continue;
+    held.set(owner, (held.get(owner) ?? 0) + 1);
+  }
+  let best = 0;
+  let bestCount = 0;
+  for (const [nation, count] of held) {
+    if (count > bestCount) {
+      best = nation;
+      bestCount = count;
+    }
+  }
+  return { nation: best, provinces: bestCount };
+}
+
 async function claimSomething(watcher, idPrefix) {
   let attempt = 0;
   let refused = 0;
   for (let province = 0; province < watcher.owners.length; province++) {
     const owner = watcher.owners[province];
-    if (owner === NATION || owner === 0) continue;
+    if (owner === watcher.nation || owner === 0) continue;
     const ack = await watcher.claim(province, `${idPrefix}-${attempt++}`);
     if (ack.accepted) return { province, tick: ack.tick, refused };
     refused++;
   }
   throw new Error(
-    `nation ${NATION} could not claim anything (${refused} provinces refused)`,
+    `nation ${watcher.nation} could not claim anything ` +
+      `(${refused} provinces refused)`,
   );
 }
 
@@ -207,6 +236,17 @@ async function main() {
       `last snapshot ${before.lastSnapshotTick}`,
   );
 
+  if (NATION === 0) {
+    // Watch first, then choose. A spectator connection is the only way to see
+    // the map before deciding whose side to be on.
+    const spectator = new Watcher(null);
+    await spectator.ready;
+    const largest = largestNation(spectator.owners);
+    spectator.close();
+    NATION = largest.nation;
+    log(`  nation ${NATION} holds the most provinces (${largest.provinces})`);
+  }
+
   const watcher = new Watcher();
   await watcher.ready;
   log(`  connected as nation ${NATION} at tick ${watcher.tick}`);
@@ -221,7 +261,7 @@ async function main() {
 
   log("  waiting for a snapshot after that command...");
   const until = Date.now() + SNAPSHOT_TIMEOUT_MS;
-  let snapshotTick = 0;
+  let snapshotTick;
   for (;;) {
     const { body } = await health();
     snapshotTick = body.lastSnapshotTick;

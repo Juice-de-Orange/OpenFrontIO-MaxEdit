@@ -60,16 +60,18 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Early. Phase 0 of 11.** The fork currently boots upstream's client; the
-persistent world server does not exist yet.
+**Early. Phase 1 of 11 done.** A world server ticks every five seconds,
+persists to Postgres, accepts commands and comes back where it was after being
+killed. The inherited renderer draws what it sends. There is no economy yet —
+the world's own behaviour is one province changing hands per tick.
 
 The build order and the gate each phase has to pass are in
 [CLAUDE.md § 8](CLAUDE.md). For the current state of the work — what is done,
 what is next, and the traps already paid for — see
 [HANDOVER.md](HANDOVER.md). Progress so far:
 
-- [x] Fork triage — break the `core` ↔ `client` import cycle _(in progress)_
-- [ ] World persistence — tick loop, snapshots, crash recovery
+- [x] Fork triage — lockstep removed, renderer kept, world server stubbed
+- [x] World persistence — tick loop, command log, snapshots, crash recovery
 - [ ] Province graph
 - [ ] Factories and construction
 - [ ] Production and equipment
@@ -118,17 +120,28 @@ keeping.)
 ## 🎮 Running
 
 ```bash
-npm run dev          # client + server, http://localhost:9000
+npm run dev          # client + world server, http://localhost:9000
 npm run start:client # client only
+npm run start:server # world only, ws://localhost:3000/ws
 npm test             # test suite (Vitest)
+npm run typecheck    # tsc, plus typecheck:strict for shared/ and server/
 npm run lint         # Oxlint + ESLint
 npm run format       # Prettier
 ```
 
-> Note: `npm run start:client` is all you need right now. The client boots the
-> world renderer and takes its world from a local stand-in, so `npm run dev`'s
-> second half — **upstream's** match server — is started but never contacted.
-> The persistent world server arrives in phase 1.
+`npm run dev` needs no database: without `DATABASE_URL` the world keeps its
+history in memory and says so. For a world that survives a restart:
+
+```bash
+docker compose up -d         # Postgres, and the world on port 3000
+npm run start:client         # http://localhost:9000
+npm run test:db              # the Postgres tests, skipped without a database
+node scripts/phase1-gate.mjs # kill the world mid-run; check it comes back
+```
+
+Open `http://localhost:9000/?nation=1` to play a nation instead of watching,
+and click a province bordering yours to claim it. There are no accounts yet.
+[`docs/deploy/`](docs/deploy/) has the rest.
 
 ## 🏗️ Project structure
 

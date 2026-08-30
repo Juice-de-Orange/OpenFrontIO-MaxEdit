@@ -14,112 +14,117 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 0 of 11 — fork triage. Complete.** A world server ticks every five
-seconds and pushes province ownership over a versioned WebSocket protocol; the
-inherited renderer draws it. `src/core` and `src/server` are gone, the rest of
-the upstream client is quarantined, and the simulation is not in the shipped
+**Phase 1 of 11 — world persistence. Complete.** A world ticks every five
+seconds on an epoch-anchored deadline, accepts validated commands, writes every
+one of them to Postgres before acting on it, snapshots every 60 ticks, and
+comes back where it was after being killed. `/health` says whether it is
+actually moving. `src/core` and upstream's match server are gone, the rest of
+the inherited client is quarantined, and the simulation is not in the shipped
 bundle.
 
-**Start it with two commands:**
+**Start it with three commands:**
 
 ```bash
-npm run start:server # the world on ws://localhost:3000/ws
-npm run start:client # http://localhost:9000
+docker compose up -d # Postgres + the world, ws://localhost:3000/ws
+npm run start:client # http://localhost:9000 (add ?nation=1 to play one)
+curl -s localhost:3000/health
 ```
 
-The numbers that say it best, from `npm run build-prod`:
+Without `docker compose`, `npm run start:server` still works: with no
+`DATABASE_URL` the world keeps its history in memory and says so on the first
+line.
 
-| Artefact                                       | before     | now         |
-| ---------------------------------------------- | ---------- | ----------- |
-| `index.html`                                   | 28.02 kB   | **0.96 kB** |
-| `index-*.js`                                   | 2307.84 kB | **436 kB**  |
-| `Worker.worker-*.js` (the lockstep simulation) | 625.16 kB  | **gone**    |
-| `debug-*.js`                                   | 50.41 kB   | **gone**    |
+### The gate, run rather than described
+
+`node scripts/phase1-gate.mjs`, against `docker compose up -d`. Last run, on a
+fresh world:
+
+```
+phase-1 gate
+  world world-0 at tick 1, last snapshot 0
+  nation 17 holds the most provinces (38)
+  claimed province 401 for tick 2 (363 refused on the way, the rejection path)
+  snapshot at tick 60
+  claimed province 401 for tick 61
+  SIGKILL to the world container
+  the world came back, resuming at tick 61
+  ok  resumed at the last durable tick: 61 === 61
+  ok  the tick did not restart from zero (61)
+  ok  the restored world passed back through 5 tick(s) this client had seen
+  ok  every replayed tick hashes identically (61, 62, 63, 64, 65)
+  ok  the late command is in the log: 61:0:17:401
+  ok  the early command is still in the log: 2:0:17:401
+  ok  the restored world reports healthy
+PASS
+```
+
+The hash line is the one that matters. The client tracks province ownership
+from the full state and the deltas and hashes it per tick with the same
+function the server uses; after the restart the world replays back through
+ticks the client already saw, and those hashes have to match.
+
+**And the gate was checked against a broken restore**, because a gate nobody
+has seen fail is a gate nobody should believe. With the replay altered to skip
+the commands it loads, the same run gives:
+
+```
+  ok    resumed at the last durable tick: 61 === 61
+  ok    the tick did not restart from zero (61)
+  ok    the restored world passed back through 5 tick(s) this client had seen
+  FAIL  ticks that replayed differently: 61, 62, 63, 64, 65
+  ok    the late command is in the log: 61:0:17:401
+```
+
+Every other check passes. A restore that produces a _plausible_ world rather
+than _the_ world is caught by exactly one line, which is why that line exists.
 
 | Commit     | What                                                              |
 | ---------- | ----------------------------------------------------------------- |
-| `0f5db0ff` | Fork seeded with the spec; dead `gatekeeper` submodule dropped    |
-| `66ffc877` | **The `core`↔`client` import cycle broken**                       |
-| `2c46fc4f` | Upstream's proprietary assets removed, own brand marks added      |
-| `2ecb317b` | Documentation system, new README, hardened `.gitignore`           |
-| `49dc9342` | Handover, inherited docs separated, link checker                  |
-| `ce7e9b71` | Upstream's trackers and remote script loader out of `index.html`  |
-| `32f56c2f` | Import ratchet for the renderer boundary                          |
-| `e2d5207d` | `TileRef` → `number`; probe from `FrameData` hits 0               |
-| `eccefb77` | `Veterancy` → `shared/util/`                                      |
-| `ad476545` | `PatternDecoder` → `shared/util/`, schema cycle broken            |
-| `4ae6b103` | `Maps.gen` → `shared/map/`; `MapLayer` duplicate collapsed        |
-| `35100e3b` | Cosmetic effect editor deleted, palette types inlined             |
-| `cfe93756` | `PublicAssetManifest` → `src/build/`                              |
-| `328cf82b` | `AssetUrls` split into `shared/util/AssetPath` + `client/util/`   |
-| `c8ed6cbf` | `Config` → `RenderRules`; `UnitType` resolved with it             |
-| `f4da0196` | Rail geometry split from the `GameUpdates` accumulator            |
-| `65c654d1` | `Utils` split; probe from `gl/Renderer.ts` 56 → 0                 |
-| `2c123ff8` | Preview map loaded without the core map loader                    |
-| `44d1a6c5` | Ratchet becomes a prohibition; lint zones; decision 0004          |
-| `0dcb4dda` | Code-review fixes, one of which undid part of the work            |
-| `f8e72532` | Province grid and terrain hash in `shared/map/`                   |
-| `4e3231c4` | Map loading, palette and frame adapter                            |
-| `baf19d02` | **`index.html` boots the world client — the gate**                |
-| `459f5437` | **Quarantine, `src/core` and `src/server` deleted, world server** |
-| `9db3ae42` | Provinces grown from national borders, not a grid                 |
+| `698d8196` | `shared/config/time.ts`; strict TypeScript for shared + server    |
+| `654dc704` | **The tick loop: absolute deadlines, awaited, epoch from resume** |
+| `8864eedb` | Protocol v2 — commands, acks, nation identity, claim by click     |
+| `3ce25211` | **Snapshots, command log and replay behind a store interface**    |
+| `fb031e5b` | Postgres via Drizzle, advisory lock on its own connection         |
+| `bb5b17da` | `/health` on the socket's port                                    |
+| `ebc5838b` | World image, compose stack, the gate as a script                  |
+| `bd005f66` | Upstream's match-server deployment chain deleted                  |
 
-Working tree is clean, and everything is pushed.
-
-### Against the phase-0 step list
-
-Every step is done. What each one turned into:
-
-| Step                     | Outcome                                                                                                                                                                                                                                   |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 `index.html`           | Rewritten around the world client. The old page is kept as `docs/upstream/index.upstream.html` for the custom elements its body declares — the markup phase 3 and 7 screens have to reproduce.                                            |
-| 2 `shared/util/`         | `AssetPath`, number formatting, `PatternDecoder`, `Veterancy`, `EventBus`, `PseudoRandom`, `DebugSpan`.                                                                                                                                   |
-| 3 the import cycle       | Cut. `GameMap.ts` now lives in `shared/map/`.                                                                                                                                                                                             |
-| 4 `shared/pathfinding/`  | 19 of 23 files rescued. The four importing `game/Game` (PathFinder.ts, .Air, .Station, spatial/SpatialQuery) were not — they are built around upstream's unit world and need rewriting against a province graph. They are in the history. |
-| 5 the nine couplings     | All resolved, plus two transitive leaks the original count missed.                                                                                                                                                                        |
-| 6 `RenderConfig`         | Shipped as `RenderRules`, seven methods.                                                                                                                                                                                                  |
-| 7 quarantine             | 259 client files, 336 test files, in `src/client/_legacy/` and `tests/_legacy/`.                                                                                                                                                          |
-| 8 delete core and server | Done: 135 + 48 files.                                                                                                                                                                                                                     |
-| 9 `shared/protocol/`     | `Wire.ts` — JSON, zod-validated, version in the handshake.                                                                                                                                                                                |
-| 10 stub server           | `src/server/`: one process, one world, five-second tick.                                                                                                                                                                                  |
-| 11 store and socket      | `client/world/`: socket, tile index, frame adapter.                                                                                                                                                                                       |
-| 12 bootstrap             | `WorldClient.ts`.                                                                                                                                                                                                                         |
-| 13 tsconfig split        | Not done — a single tsconfig still covers everything. `shared/` is not yet on `strict`, and that is the one piece of step 13 worth doing early.                                                                                           |
-| 14 architecture test     | Two of them, plus lint zones.                                                                                                                                                                                                             |
-| 15 licence hygiene       | Done, pulled forward.                                                                                                                                                                                                                     |
-
-**Reached ahead into phase 2:** the province partition. The throwaway 64x64
-grid was replaced by one grown from the national capitals — see below.
-
----
+Phase 0's commits are in the history of this file before this rewrite.
 
 ## What to do next
 
-Phase 0 is closed. Phase 1 is world persistence, and the plan file has it in
-detail. In short:
+**Phase 2 is the province graph.** CLAUDE.md §8 has the gate: a province
+changes hands, ownership propagates from tiles, and the client renders it
+correctly. The pieces already half-exist, which is the trap — read what is
+there before adding to it:
 
-1. **Tick loop with a real deadline.** `src/server/Main.ts` uses
-   `setInterval`, which accumulates drift and fires bursts when behind.
-   Replace with a deadline computed from a fixed epoch, and **await the tick**
-   — two overlapping ticks end determinism.
-2. **Postgres**: command log, snapshot every 60 ticks, restore on startup,
-   advisory lock on `world_id`.
-3. **Deploy**, which the plan pulls forward from phase 11.
+1. **Move the partition offline.** `computeProvincePartition` runs on both
+   sides at startup, 368 ms for Europe. Phase 2 ships the result as a
+   checked-in file, so a generator bugfix cannot repartition a running season.
+   The invariants the tests assert — determinism, connectivity, no province
+   spanning two nations — carry over unchanged.
+2. **Give a province the fields the spec asks for**: terrain, infrastructure,
+   building slots, resource deposits, air and sea zone membership. Today it has
+   an owner and a neighbour list.
+3. **Derive ownership from tiles**, rather than assigning it at partition time.
+4. **Render province borders as an overlay.**
 
-Two things block deployment and need a decision:
+Worth doing in phase 2 while it is still cheap:
 
-- The **DNS record** for the world's domain — by hand or via API.
-- The deployment host has a **pending reboot**. A persistent world should not
-  be rolled out the week before one without agreeing how it drains first.
+- **The four pathfinding files that did not survive phase 0** (`PathFinder.ts`,
+  `.Air`, `.Station`, `spatial/SpatialQuery`) need rewriting against a province
+  graph. They are in the history.
+- **A second command type.** `claim_province` is the only one, and a command
+  set of one hides whatever the second one will need.
 
-Worth doing early in phase 1, while the code is small:
+Not started, and deliberately:
 
-- **`strict` for `shared/`** (step 13). CLAUDE.md §9 requires it and no `any`;
-  the longer `shared/` grows without it, the more it costs.
-- **A `Command` type** in the protocol. Deliberately absent in phase 0 —
-  §7 wants commands validated against world state and there was none — but the
-  server already disconnects on any message after `hello`, so the shape is
-  waiting.
+- **Deployment to a real host.** This machine has no `docs/deploy/HOST.local.md`
+  and the DNS record is still an open question. `docs/deploy/README.md` has
+  everything a host needs; phase 11 does it.
+- **Accounts.** The nation comes from `?nation=` in the URL. A world on the
+  internet needs more than that, and the account tables belong with the screens
+  that use them.
 
 ## Traps already paid for
 
@@ -217,8 +222,85 @@ reference and reads it at draw time. A fresh array per tick renders the first
 frame and then silently ignores every update. Assert buffer _identity_ in
 tests, not equality.
 
-**`systemctl reload nginx` lies** (relevant from phase 1). Covered in
-`docs/deploy/README.md`.
+**`systemctl reload nginx` lies** (relevant from phase 11). Covered in
+[`docs/deploy/README.md`](docs/deploy/README.md).
+
+### From phase 1
+
+**A Postgres advisory lock lives and dies with its connection.** Taken on a
+pooled connection, its lifetime is the pool's business — and a pool is entitled
+to close an idle connection. `PgStore` keeps one client outside the pool for
+the life of the process, does nothing else with it, and stops the server if it
+drops. Two containers ticking one world both append to its command log, and
+afterwards the log describes a run neither of them had. There is no repair.
+
+**`npx tsx` runs the server as a grandchild.** `pgrep -f Main.ts` finds the
+`sh -c`, the `tsx` wrapper and the real node process, in that order, so killing
+the first hit leaves the world ticking. The second server then starts, is
+refused by the advisory lock, and exits — the lock demonstrating itself from
+the wrong end. In a container the world is PID 1 and `docker kill` has no such
+gap, which is one reason the gate runs against the container.
+
+**And `pkill -f "Main.ts"` kills the shell you typed it in**, because that
+shell's own command line contains the pattern. Match on the process's actual
+binary, or use the container.
+
+**`prettier --write src` reformats the quarantine.** `src/client/_legacy/` is
+excluded from tsconfig, vitest and both linters, but not from prettier, so a
+broad format pass produces a dozen unrelated modified files in the middle of a
+commit. Format the paths you touched.
+
+**A new config file at the repository root must join `tsconfig.json`'s
+`include`.** `drizzle.config.ts` did not, and both linters aborted with "not
+found by the project service" instead of reporting anything — the same shape as
+the four-exclusion-list trap, from the other direction.
+
+**The restore resumes at the last durable record, not at the tick it died on.**
+Snapshot at 120, command at 135, killed at 137 → it comes back at 135. That is
+the guarantee the design makes (decision 0005) and the restore test asserts it
+in that form. The first version of that test asserted 137 and failed, which was
+the test being wrong, not the code.
+
+**A test fixture map needs to be big.** Provinces are cut at roughly 900 tiles,
+so a 180x60 fixture gives three nations one province each: every "does this
+province border mine" test is then vacuously true or impossible, and the border
+drift eats the world inside thirty ticks. `tests/server/Restore.test.ts` uses
+320x140 with five capitals for 48 provinces, and says why.
+
+**An overlap test has to hold a tick open.** The first version of
+`TickLoop.test.ts` checked for concurrent `onTick` calls with a flag, and did
+not catch an unawaited tick: the callback's synchronous part finished before
+the next invocation, so the flag was never set when it mattered. It now blocks
+tick 1 on a promise the test releases, and fails as it should.
+
+**A memory store that returns its own arrays is not a store.** `MemoryStore`
+`structuredClone`s on the way in and out. Without that, a test can mutate what
+it just "persisted" and every restore assertion passes for the wrong reason.
+
+**`npm run build-prod` was failing silently for the whole of phase 0.** Its
+last step hashed `src/core`, which phase 0 deleted, and died with `ENOENT`. Two
+things hid it: the step runs after vite, which had already printed a clean
+build with all its sizes; and the usual way of running it —
+`npm run build-prod | tail` — reports the **pipe's** exit code, not the
+command's. Check `$?` on the command itself, or do not pipe it.
+
+**The browser leg is unverified as of the end of phase 1.** The world's socket
+is proven three ways — `curl` gets `101 Switching Protocols` through the Vite
+proxy on port 9000, a node client completes the handshake through the same
+proxy, and `scripts/phase1-gate.mjs` plays a whole game over it. What has not
+been seen is the map in a browser: in an automated Chrome the page's own
+WebSocket to `/ws` fails immediately while Vite's HMR socket on the same origin
+connects, which points at the automation rather than at the code, but points at
+nothing conclusively. **Open `http://localhost:9000/?nation=<n>` by hand before
+trusting the client half of phase 1.** The renderer itself is unchanged since
+phase 0, where it did draw the map; what is new is the socket's `nation` field,
+the ack handling and claim-by-click.
+
+**A gate that hardcodes a nation eventually fails on a healthy world.** The
+border drift redraws the map over hundreds of ticks and can wipe a nation out
+entirely; `scripts/phase1-gate.mjs` used to ask for nation 1 and reported
+"could not claim anything" after 524 refusals. It now connects as a spectator
+first and plays whichever nation holds the most provinces.
 
 **A green test can be worse than a red one.** When background music was
 removed, one test's assertion body stopped running — it would have passed while
@@ -230,23 +312,29 @@ shape whenever you remove data that a test iterates over.
 ## How to verify anything
 
 ```bash
-npm run inst            # npm ci --ignore-scripts — never `npm install`
-npx tsc --noEmit        # must be clean
-npm run lint            # oxlint + eslint, must be clean
-npm run test            # one vitest run; see baseline below
-npm run build-prod      # tsc + vite + asset hashing; the real integration test
-npm run check:doc-links # every relative link in every .md resolves
-npm run start:server    # the world, ws://localhost:3000/ws
-npm run start:client    # http://localhost:9000
+npm run inst                 # npm ci --ignore-scripts — never `npm install`
+npm run typecheck            # tsc over everything, must be clean
+npm run typecheck:strict     # tsc over shared/ + server/ with strict: true
+npm run lint                 # oxlint + eslint, must be clean
+npm run test                 # one vitest run; see baseline below
+npm run test:db              # the Postgres tests; needs `docker compose up -d db`
+npm run build-prod           # tsc + vite + asset hashing; the real integration test
+npm run check:doc-links      # every relative link in every .md resolves
+docker compose up -d         # Postgres + the world
+npm run start:client         # http://localhost:9000/?nation=1
+node scripts/phase1-gate.mjs # the phase-1 gate, end to end
 ```
 
-The last two are the ones that matter. A green suite says the pieces type-check
-and their units behave; only running the pair shows a map.
+The last three are the ones that matter. A green suite says the pieces
+type-check and their units behave; only running them shows a map, and only the
+gate shows a world that survives.
 
 ### Test baseline
 
-**385/385 in one run, no tolerated failures.** `npm run test` is a single
-`vitest run` now.
+**412 passed, 7 skipped, in one run — no tolerated failures.** `npm run test` is
+a single `vitest run`. The seven skipped are the Postgres integration tests,
+which run under `npm run test:db` against `docker compose up -d db`; a unit
+suite that needs a container is a unit suite people stop running.
 
 That is a change of kind, not just of number. The two environmental failures
 this document used to tell you to ignore — the de-DE thousands separator and
@@ -289,26 +377,43 @@ before trusting a green suite.
 
 ## Where the plan lives
 
-The full implementation plan — phase by phase, with the measured numbers behind
-each decision — is **outside this repository**, at:
+The implementation plan is a working document, kept outside this repository
+because it is per-machine and parts of it discuss a specific deployment host.
+`CLAUDE.md` is the authoritative public specification; a plan is only the route
+to it.
 
-```
-C:\Users\maxob\.claude\plans\schau-dir-die-md-proud-unicorn.md
-```
-
-It is not committed because it is a working document for one machine, and parts
-of it discuss a specific deployment host. `CLAUDE.md` is the authoritative
-public specification; the plan is how we get there.
+**It does not travel between machines, and phase 1 was planned twice because of
+that** — the phase-0 plan lived at `C:\Users\maxob\.claude\plans\` and was not
+there when the work moved to a Linux machine. Nothing was lost: `CLAUDE.md` §8
+and this file were enough to reconstruct it. That is the arrangement working as
+intended rather than a mishap, but it is worth knowing before you go looking
+for a file that is not coming.
 
 ---
 
 ## Open questions
 
-**Needs a decision before phase 1 deployment:**
+**Needs a decision before the world is deployed anywhere real** (phase 11 —
+phase 1 deliberately stopped at a local stack):
 
 - DNS record for the world's domain — who creates it, and by hand or via API.
-- The deployment host has a pending reboot. A persistent world should not be
-  rolled out the week before one without agreeing how it drains first.
+- The deployment host had a pending reboot when this was last discussed. A
+  persistent world should not be rolled out the week before one without
+  agreeing how it drains first.
+- **Accounts.** `?nation=1` in the URL is the whole of authentication. That is
+  right for a local stack and unacceptable for a public one, and the tables
+  belong with the registration screen rather than ahead of it.
+
+**Answered in phase 1, recorded here so they are not reopened:**
+
+- A world resumes at its last durable record, not the tick it died on
+  ([decision 0005](docs/decisions/0005-resume-at-the-last-durable-record.md)).
+- The border drift stays as the world's heartbeat. It is deterministic from
+  (state, tick), so it replays exactly — which is also what makes the restore
+  test hard enough to be worth running.
+- `strict` applies to `shared/` and `server/` through `tsconfig.strict.json`,
+  not to the inherited renderer. Measured when it went in: zero errors, the
+  inherited `shared/map` and `shared/pathfinding` included.
 
 **Deliberately deferred** (`CLAUDE.md` § 10 says to decide these only when they
 block): season victory condition, manpower model, how new players enter a

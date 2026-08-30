@@ -39,7 +39,7 @@ export default [
             "eslint.config.js",
             "scripts/sync-assets.mjs",
             "scripts/check-doc-links.mjs",
-            "tests/matchmaking/*.mjs",
+            "scripts/phase1-gate.mjs",
           ],
         },
         tsconfigRootDir: import.meta.dirname,
