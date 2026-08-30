@@ -8,6 +8,8 @@
     "dev": "concurrently \"npm run start:client\" \"npm run start:server\"",
     "docs:map-generator": "cd map-generator && go doc -cmd -u -all",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "test:coverage": "vitest run --coverage",
     "format": "prettier --ignore-unknown --write .",
     "check:doc-links": "node scripts/check-doc-links.mjs",

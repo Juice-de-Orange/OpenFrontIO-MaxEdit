@@ -1,0 +1,30 @@
+// The strict project.
+//
+// CLAUDE.md §9 asks for TypeScript strict mode and no `any` in shared/ and
+// server/. The root tsconfig cannot deliver that yet: it also covers the
+// inherited WebGL renderer, ~32k lines of upstream code that was never written
+// against strict, and turning it on there is phase-0 archaeology rather than
+// phase-1 work.
+//
+// So the rule applies where the new code is. This project is checked by
+// `npm run typecheck:strict` alongside the root `tsc --noEmit`; a file has to
+// pass both.
+//
+// Measured when this was added: the whole of shared/ and server/ passes with
+// zero errors, the inherited shared/map and shared/pathfinding included. They
+// were going to be exempted; they did not need to be. Keep them in — an
+// exemption nobody needs is one somebody later mistakes for a warning.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true
+  },
+  "include": [
+    "src/shared/**/*",
+    "src/server/**/*",
+    "tests/server/**/*",
+    "tests/shared/**/*"
+  ],
+  "exclude": ["node_modules"]
+}

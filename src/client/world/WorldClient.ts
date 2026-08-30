@@ -21,8 +21,9 @@ import { MapRenderer, preloadAtlasData } from "src/client/render/gl";
 import { createRenderSettings } from "src/client/render/gl/RenderSettings";
 import type { RenderRules } from "src/client/render/types";
 import { ALL_UNIT_TYPES, PlayerTypeEnum } from "src/client/render/types";
-import { terrainHashFnv1a } from "src/shared/map/TerrainHash";
+import { TICK_MS } from "src/shared/config/time";
 import { computeProvincePartition } from "src/shared/map/ProvincePartition";
+import { terrainHashFnv1a } from "src/shared/map/TerrainHash";
 import type { FullState } from "src/shared/protocol/Wire";
 import { CameraController } from "./CameraController";
 import { FrameAdapter } from "./FrameAdapter";
@@ -30,9 +31,6 @@ import { loadWorldMap } from "./MapAssets";
 import { buildPalette } from "./Palette";
 import { ProvinceTileIndex } from "./ProvinceTileIndex";
 import { WorldSocket } from "./WorldSocket";
-
-/** One in-game hour per tick, five seconds of wall clock. */
-const TICK_MS = 5000;
 
 const DEFAULT_WORLD = "world-0";
 

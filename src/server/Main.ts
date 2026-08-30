@@ -13,12 +13,10 @@
  */
 
 import path from "path";
+import { TICK_MS } from "src/shared/config/time";
 import { fileURLToPath } from "url";
 import { WorldSocketServer } from "./net/WsServer";
 import { StubWorld } from "./world/StubWorld";
-
-/** One in-game hour per tick, five seconds of wall clock. CLAUDE.md §4. */
-const TICK_MS = 5000;
 
 const PORT = Number(process.env.PORT ?? 3000);
 const WORLD_ID = process.env.WORLD_ID ?? "world-0";
