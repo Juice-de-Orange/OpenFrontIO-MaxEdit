@@ -32,7 +32,7 @@
  *   Shells emit 2 instances (pos + lastPos) to match live game's 2-pixel trail.
  */
 
-import { assetUrl } from "src/core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import type { Config } from "src/core/configuration/Config";
 import type { RendererConfig, UnitState } from "../../types";
 import {

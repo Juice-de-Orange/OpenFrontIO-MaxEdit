@@ -1,5 +1,5 @@
 import * as d3 from "d3";
-import { assetUrl } from "../../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { EventBus, GameEvent } from "../../../core/EventBus";
 import { Controller } from "../../Controller";
 import { CloseViewEvent } from "../../InputHandler";

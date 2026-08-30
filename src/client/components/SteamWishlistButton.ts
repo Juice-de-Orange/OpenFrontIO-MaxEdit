@@ -1,6 +1,6 @@
 import { html, LitElement, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { assetUrl } from "../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { steamSDK } from "../SteamSDK";
 import { translateText } from "../Utils";
 import { steamStoreUrl } from "./SteamWishlist";

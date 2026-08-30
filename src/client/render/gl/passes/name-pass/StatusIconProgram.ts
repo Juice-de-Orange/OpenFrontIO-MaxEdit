@@ -11,7 +11,7 @@
  */
 
 import statusAtlasMeta from "resources/atlases/status-atlas-meta.json";
-import { assetUrl } from "src/core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import type { RenderSettings } from "../../RenderSettings";
 import statusFragSrc from "../../shaders/name/status-icon.frag.glsl?raw";
 import statusVertSrc from "../../shaders/name/status-icon.vert.glsl?raw";

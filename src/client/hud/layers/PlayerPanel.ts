@@ -1,7 +1,7 @@
 import { html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import Countries from "resources/countries.json" with { type: "json" };
-import { assetUrl } from "../../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { EventBus } from "../../../core/EventBus";
 import {
   AllPlayers,

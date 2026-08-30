@@ -1,4 +1,4 @@
-import { assetUrl } from "../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { GameEvent } from "../../core/EventBus";
 
 export type SoundEffect =

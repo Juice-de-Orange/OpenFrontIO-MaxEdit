@@ -20,7 +20,7 @@ import { createProgram, shaderSrc } from "../../utils/GlUtils";
 import { nukeExplosionRadius } from "./FxSettings";
 
 import fxAtlasMeta from "resources/atlases/fx-atlas-meta.json";
-import { assetUrl } from "src/core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 
 import spriteFragSrc from "../../shaders/fx/sprite.frag.glsl?raw";
 import spriteVertSrc from "../../shaders/fx/sprite.vert.glsl?raw";

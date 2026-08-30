@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { PlayerView } from "../../client/view";
-import { AssetManifest } from "../AssetUrls";
 import { DoomsdayClockSpeed } from "../game/DoomsdayClock";
 import {
   Difficulty,
@@ -22,24 +21,6 @@ import { UserSettings } from "../game/UserSettings";
 import { GameConfig, TeamCountConfig } from "../Schemas";
 import { NukeType } from "../StatsSchemas";
 import { assertNever, sigmoid, toInt, within } from "../Util";
-
-declare global {
-  interface Window {
-    BOOTSTRAP_CONFIG?: {
-      gitCommit?: string;
-      assetManifest?: AssetManifest;
-      cdnBase?: string;
-      gameEnv?: string;
-      numWorkers?: number;
-      turnstileSiteKey?: string;
-      jwtAudience?: string;
-      instanceId?: string;
-      // Desktop-only: explicit game-server host for the WebSocket origin.
-      // Absent on the web build (client falls back to same-origin location).
-      serverHost?: string;
-    };
-  }
-}
 
 export enum GameEnv {
   Dev,

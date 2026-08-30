@@ -1,4 +1,4 @@
-import { assetUrl } from "../AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { GameMapType } from "./Game";
 import { GameMapLoader, MapData } from "./GameMapLoader";
 import { MapManifest } from "./TerrainMapLoader";

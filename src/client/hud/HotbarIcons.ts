@@ -1,4 +1,4 @@
-import { assetUrl } from "../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 
 export const warshipIcon = assetUrl("images/BattleshipIconWhite.svg");
 export const cityIcon = assetUrl("images/CityIconWhite.svg");

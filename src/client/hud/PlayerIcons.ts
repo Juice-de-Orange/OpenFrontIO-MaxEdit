@@ -1,4 +1,4 @@
-import { assetUrl } from "../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { AllPlayers, Nukes } from "../../core/game/Game";
 import { GameView, PlayerView } from "../view";
 const allianceRequestBlackIcon = assetUrl(

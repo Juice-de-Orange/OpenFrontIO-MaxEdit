@@ -1,7 +1,7 @@
 import { html, LitElement } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
-import { assetUrl } from "../../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import {
   Difficulty,
   GameMapType,

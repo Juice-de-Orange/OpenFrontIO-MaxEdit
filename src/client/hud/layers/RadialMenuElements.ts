@@ -1,4 +1,4 @@
-import { assetUrl } from "../../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { Config } from "../../../core/configuration/Config";
 import {
   AllPlayers,

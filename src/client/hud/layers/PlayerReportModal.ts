@@ -1,6 +1,6 @@
 import { html, LitElement } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { assetUrl } from "../../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { EventBus } from "../../../core/EventBus";
 import { ReportReason, ReportReasonSchema } from "../../../core/Schemas";
 import { SendPlayerReportEvent } from "../../Transport";

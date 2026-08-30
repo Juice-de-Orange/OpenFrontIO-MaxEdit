@@ -1,4 +1,4 @@
-import { getCdnBase } from "../AssetUrls";
+import { getCdnBase } from "src/client/util/AssetUrl";
 import {
   BuildableUnit,
   Cell,

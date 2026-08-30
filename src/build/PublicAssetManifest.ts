@@ -5,7 +5,7 @@ import {
   type AssetManifest,
   encodeAssetPath,
   normalizeAssetPath,
-} from "../core/AssetUrls";
+} from "../shared/util/AssetPath";
 
 const HASHED_PUBLIC_ASSET_GLOBS = [
   "changelog.md",
@@ -404,4 +404,23 @@ export function writePublicAssetManifest(
   const manifestPath = path.join(outDir, "asset-manifest.json");
   fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
   fs.writeFileSync(manifestPath, `${JSON.stringify(assetManifest, null, 2)}\n`);
+}
+
+// Rewrites Vite's emitted /assets/... references in the built index.html to
+// use the cdnBaseRaw EJS placeholder, so RenderHtml.ts can prefix them with
+// CDN_BASE at request time. Scoped to src=/href= attribute values so inline
+// scripts containing the literal "/assets/..." can't be mangled. Does NOT
+// match /_assets/ (underscore) — source-asset manifest URLs are prefixed via
+// buildAssetUrl, not this rewrite. Falls back to "" when cdnBaseRaw is missing
+// so a future renderer that forgets to provide it still produces working
+// same-origin URLs.
+//
+// Lives here rather than in shared/: it is pure, but it is a build step with a
+// single consumer (vite.config.ts), and shared/ is not where build tooling
+// accumulates.
+export function rewriteAssetsForCdn(html: string): string {
+  return html.replace(
+    /(\s(?:src|href)=)(["'])\/assets\//g,
+    `$1$2<%- locals.cdnBaseRaw || "" %>/assets/`,
+  );
 }

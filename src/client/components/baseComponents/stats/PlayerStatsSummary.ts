@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { PlayerStatsLeaf } from "../../../../core/ApiSchemas";
-import { assetUrl } from "../../../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { renderNumber, translateText } from "../../../Utils";
 
 type PlayerSummaryMetricKey =

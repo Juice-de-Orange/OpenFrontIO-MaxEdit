@@ -1,4 +1,4 @@
-import { assetUrl } from "../AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { FetchGameMapLoader } from "../game/FetchGameMapLoader";
 import { ErrorUpdate, GameUpdateViewData } from "../game/GameUpdates";
 import { createGameRunner, GameRunner } from "../GameRunner";

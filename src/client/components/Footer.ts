@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import version from "resources/version.txt?raw";
-import { assetUrl } from "../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { composeVersionDisplay, desktopVersion } from "../DesktopShell";
 import "./SteamWishlistButton";
 

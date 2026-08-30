@@ -1,7 +1,7 @@
 import { Colord, colord } from "colord";
 import { base64url } from "jose";
 import { decodePatternData } from "src/shared/util/PatternDecoder";
-import { assetUrl } from "../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import {
   type Cosmetics,
   type EffectAttributesFor,

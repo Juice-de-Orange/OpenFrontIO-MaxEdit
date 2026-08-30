@@ -4,7 +4,7 @@
  */
 
 import emojiAtlasMeta from "resources/atlases/emoji-atlas-meta.json";
-import { assetUrl } from "src/core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import type { BMChar, BMKerning, ParsedAtlas } from "./Types";
 import { CHAR_RANGE } from "./Types";
 

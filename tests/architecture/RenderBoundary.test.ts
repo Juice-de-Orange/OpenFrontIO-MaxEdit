@@ -20,7 +20,6 @@ const RENDER_DIR = path.join(REPO_ROOT, "src", "client", "render");
 
 /** Module specifier -> number of import statements that still reach it. */
 const ALLOWED: Record<string, number> = {
-  "src/core/AssetUrls": 10,
   "src/core/configuration/Config": 10,
   "src/core/game/Game": 1,
   "src/core/game/GameUpdates": 1,
@@ -29,7 +28,7 @@ const ALLOWED: Record<string, number> = {
 interface Edge {
   /** Repo-relative path of the importing file, forward slashes. */
   from: string;
-  /** Resolved core module, e.g. "src/core/AssetUrls". */
+  /** Resolved core module, e.g. "src/core/configuration/Config". */
   to: string;
   /** How the path was written: bare `src/...` alias, or a relative path. */
   form: "alias" | "relative";

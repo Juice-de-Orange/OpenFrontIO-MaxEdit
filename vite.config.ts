@@ -5,17 +5,14 @@ import { fileURLToPath } from "url";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { createHtmlPlugin } from "vite-plugin-html";
 import {
-  type AssetManifest,
-  buildAssetUrl,
-  rewriteAssetsForCdn,
-} from "./src/core/AssetUrls";
-import {
   buildPublicAssetManifest,
   copyRootPublicFiles,
   createHashedPublicAssetFiles,
   getResourcesDir,
+  rewriteAssetsForCdn,
   writePublicAssetManifest,
 } from "./src/build/PublicAssetManifest";
+import { buildAssetUrl, type AssetManifest } from "./src/shared/util/AssetPath";
 
 // Vite already handles these, but its good practice to define them explicitly
 const __filename = fileURLToPath(import.meta.url);

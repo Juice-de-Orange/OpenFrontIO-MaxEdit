@@ -3,7 +3,7 @@ import { html, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import Countries from "resources/countries.json" with { type: "json" };
 import { UserMeResponse } from "../core/ApiSchemas";
-import { assetUrl } from "../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import {
   Cosmetics,
   Effect,

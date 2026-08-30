@@ -12,7 +12,7 @@ vi.mock("../../src/client/CrazyGamesSDK", () => ({
     addAuthListener: vi.fn(),
   },
 }));
-vi.mock("../../src/core/AssetUrls", () => ({
+vi.mock("../../src/client/util/AssetUrl", () => ({
   assetUrl: (path: string) => path,
 }));
 

@@ -1,7 +1,7 @@
 import { Colord } from "colord";
 import { html, LitElement } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
-import { assetUrl } from "../../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import type { EventBus } from "../../../core/EventBus";
 import { GameMode, type Team } from "../../../core/game/Game";
 import type { Controller } from "../../Controller";

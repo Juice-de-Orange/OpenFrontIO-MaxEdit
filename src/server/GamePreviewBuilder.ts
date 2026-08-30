@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { buildAssetUrl } from "../core/AssetUrls";
+import { buildAssetUrl } from "src/shared/util/AssetPath";
 import { ClanTagSchema, GameInfo, UsernameSchema } from "../core/Schemas";
 import { formatPlayerDisplayName } from "../core/Util";
 import { GameMode, maps } from "../core/game/Game";

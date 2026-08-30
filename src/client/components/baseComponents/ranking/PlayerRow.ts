@@ -5,7 +5,7 @@ import {
   type TemplateResult,
 } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { assetUrl } from "../../../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { renderNumber, translateText } from "../../../Utils";
 import { PlayerInfo, RANK_TYPE_LABEL_KEYS, RankType } from "./GameInfoRanking";
 

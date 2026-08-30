@@ -10,7 +10,7 @@ import {
   type PlayerGameTypeFilter,
   type PublicPlayerGame,
 } from "../../../../core/ApiSchemas";
-import { assetUrl } from "../../../../core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { GameMapType } from "../../../../core/game/Game";
 import { fetchPublicPlayerGames } from "../../../Api";
 import { ClientEnv } from "../../../ClientEnv";

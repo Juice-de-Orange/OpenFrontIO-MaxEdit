@@ -1,4 +1,4 @@
-import { assetUrl } from "src/core/AssetUrls";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { UserMeResponse } from "../core/ApiSchemas";
 import {
   ColorPalette,
