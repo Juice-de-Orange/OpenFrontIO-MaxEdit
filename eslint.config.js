@@ -40,6 +40,7 @@ export default [
             "scripts/sync-assets.mjs",
             "scripts/check-doc-links.mjs",
             "scripts/phase1-gate.mjs",
+            "scripts/phase2-gate.mjs",
           ],
         },
         tsconfigRootDir: import.meta.dirname,

@@ -1,14 +1,13 @@
 /**
  * The world, and the only place its state changes.
  *
- * It owns the map, the province partition derived from it, and who holds each
- * province. Two things move it: player commands, and a deterministic border
- * drift of one province per tick that keeps a world with nobody online from
- * looking frozen.
+ * It owns the province map loaded from disk and who holds each province. Two
+ * things move it: player commands, and a deterministic border drift of one
+ * province per tick that keeps a world with nobody online from looking frozen.
  *
- * **Everything here is a pure function of (state, tick).** No I/O, no wall
- * clock, no Math.random (CLAUDE.md §9). That is not tidiness — it is the
- * entire basis of the restore: replaying the same commands over the same
+ * **Everything here is a pure function of (state, tick).** No I/O after load,
+ * no wall clock, no Math.random (CLAUDE.md §9). That is not tidiness — it is
+ * the entire basis of the restore: replaying the same commands over the same
  * starting state has to land on the same world, or a restart quietly forks the
  * season.
  *
@@ -17,6 +16,11 @@
  * result depend on where in the five seconds the packet landed, which is
  * exactly the thing a replay cannot reproduce.
  *
+ * **Holding is not owning.** `controller` moves the moment a province is
+ * taken; `owner` follows only after the same nation has held it without a
+ * break for `OCCUPATION_TICKS` (docs/decisions/0002). Until then it is
+ * occupied territory, and retaking it puts it straight back.
+ *
  * Phases 3 and up replace the inside of `step()` with the real system order
  * (economy, construction, production, …). The shape does not change: the
  * server holds the authoritative state and emits what changed.
@@ -24,10 +28,12 @@
 
 import fs from "fs/promises";
 import path from "path";
+import { OCCUPATION_TICKS } from "src/shared/config/provinces";
 import {
-  computeProvincePartition,
-  type ProvincePartition,
-} from "src/shared/map/ProvincePartition";
+  decodeProvinceMap,
+  type ProvinceMap,
+  type ProvinceMapMeta,
+} from "src/shared/map/ProvinceMap";
 import { terrainHashFnv1a } from "src/shared/map/TerrainHash";
 import type {
   CommandBody,
@@ -59,26 +65,45 @@ export interface QueuedAt {
 }
 
 /**
+ * What one tick moved.
+ *
+ * Two lists rather than one, because they mean different things to a player:
+ * control is the front, and ownership is the map. A province usually appears
+ * in the first list alone, and in the second one only once, a fortnight later.
+ */
+export interface WorldChanges {
+  /** [provinceId, newController]. */
+  control: [number, number][];
+  /** [provinceId, newOwner]. */
+  owner: [number, number][];
+}
+
+/**
  * Everything needed to put the world back, and nothing that can be derived.
  *
- * The province partition is not in here. It is static map data both sides
- * compute from the same terrain bytes, so storing it would only create a
- * second version of it that could disagree. What *is* stored is enough to
- * detect that disagreement: a snapshot restored against a different map, or a
- * repartitioned one, is refused rather than loaded into a world that would
- * then be quietly wrong everywhere.
+ * The province map is not in here. It is static map data checked in beside the
+ * terrain bytes, so storing it would only create a second version of it that
+ * could disagree. What *is* stored is enough to detect that disagreement: a
+ * snapshot restored against a different map, or a regenerated one, is refused
+ * rather than loaded into a world that would then be quietly wrong everywhere.
  */
 export interface WorldSnapshot {
   tick: number;
   mapId: string;
   terrainHash: number;
+  partitionHash: number;
   provinceCount: number;
   owners: number[];
+  controllers: number[];
+  /** The tick each province's current controller took it. */
+  heldSince: number[];
 }
 
 export class World {
   private tick = 0;
   private readonly owners: number[];
+  private readonly controllers: number[];
+  private readonly heldSince: number[];
   private readonly neighbours: number[][];
   /** Commands waiting for the tick they were accepted for. */
   private readonly pending = new Map<number, WorldCommand[]>();
@@ -86,18 +111,21 @@ export class World {
   private constructor(
     readonly descriptor: MapDescriptor,
     readonly nations: NationStatic[],
-    private readonly partition: ProvincePartition,
+    readonly map: ProvinceMap,
   ) {
-    // Ownership comes straight from the partition: a province belongs to the
-    // nation whose territory it was cut out of, so no province starts split
-    // across a border. Slot 0 stays "unowned".
-    this.owners = Array.from(partition.nationOfProvince, (n) => n + 1);
-    this.neighbours = partition.neighbours;
+    // Ownership starts from the partition: a province belongs to the nation
+    // whose territory it was cut out of, so no province starts split across a
+    // border. Slot 0 stays "unowned".
+    this.owners = map.provinces.map((province) => province.nation);
+    this.controllers = [...this.owners];
+    this.heldSince = new Array<number>(this.owners.length).fill(0);
+    this.neighbours = map.provinces.map((province) => province.neighbours);
   }
 
   static async load(mapId: string, resourcesDir: string): Promise<World> {
     const mapsDir = path.join(resourcesDir, "maps");
     const dir = path.join(mapsDir, mapId);
+
     let manifestJson: string;
     try {
       manifestJson = await fs.readFile(
@@ -114,41 +142,57 @@ export class World {
       );
     }
     const manifest = JSON.parse(manifestJson) as MapManifest;
+
+    let bin: Buffer;
+    let metaJson: string;
+    try {
+      [bin, metaJson] = await Promise.all([
+        fs.readFile(path.join(dir, "provinces.bin")),
+        fs.readFile(path.join(dir, "provinces.json"), "utf-8"),
+      ]);
+    } catch {
+      throw new Error(
+        `map ${mapId} has no province artefact. Generate it with ` +
+          `\`npm run gen-provinces\` and commit it — it is map data, not a ` +
+          `build product (docs/decisions/0006)`,
+      );
+    }
+    const provinceMap = decodeProvinceMap(
+      new Uint8Array(bin),
+      JSON.parse(metaJson) as ProvinceMapMeta,
+    );
+
+    // The artefact carries the hash of the terrain it was generated from;
+    // hash the terrain in this image and compare. An image built from a
+    // half-updated tree — new map bytes, old artefact — otherwise starts
+    // cleanly and means something different by every province id.
     const terrain = new Uint8Array(
       await fs.readFile(path.join(dir, "map4x.bin")),
     );
-
-    const { width, height } = manifest.map4x;
-    if (terrain.length !== width * height) {
+    const terrainHash = terrainHashFnv1a(terrain);
+    if (terrainHash !== provinceMap.terrainHash) {
       throw new Error(
-        `Map ${mapId}: manifest says ${width}x${height}, map4x.bin has ${terrain.length} bytes`,
+        `map ${mapId}: provinces.bin was generated from terrain ` +
+          `${provinceMap.terrainHash.toString(16)}, but map4x.bin here hashes ` +
+          `to ${terrainHash.toString(16)}. Regenerate with npm run gen-provinces`,
       );
     }
 
-    // Manifest coordinates are full-map; the client scales them identically,
-    // which it has to — the partition is derived on both sides and never sent.
-    const scale = manifest.map.width / width;
-    const raw = manifest.nations ?? [];
-    const seeds = raw.map((n) => ({
-      x: Math.min(width - 1, Math.round(n.coordinates[0] / scale)),
-      y: Math.min(height - 1, Math.round(n.coordinates[1] / scale)),
-    }));
-
-    const partition = computeProvincePartition(terrain, width, height, seeds);
-    const nations: NationStatic[] = raw.map((n, i) => ({
+    const nations: NationStatic[] = (manifest.nations ?? []).map((n, i) => ({
       smallID: i + 1,
       name: n.name,
     }));
 
     const descriptor: MapDescriptor = {
       id: mapId,
-      width,
-      height,
-      provinceCount: partition.count,
-      terrainHash: terrainHashFnv1a(terrain),
+      width: provinceMap.width,
+      height: provinceMap.height,
+      provinceCount: provinceMap.provinceCount,
+      terrainHash,
+      partitionHash: provinceMap.partitionHash,
     };
 
-    return World.create(descriptor, nations, partition);
+    return World.create(descriptor, nations, provinceMap);
   }
 
   /**
@@ -158,13 +202,17 @@ export class World {
   static create(
     descriptor: MapDescriptor,
     nations: NationStatic[],
-    partition: ProvincePartition,
+    map: ProvinceMap,
   ): World {
-    return new World(descriptor, nations, partition);
+    return new World(descriptor, nations, map);
   }
 
   currentTick(): number {
     return this.tick;
+  }
+
+  provinceCount(): number {
+    return this.owners.length;
   }
 
   snapshot(): WorldSnapshot {
@@ -172,18 +220,21 @@ export class World {
       tick: this.tick,
       mapId: this.descriptor.id,
       terrainHash: this.descriptor.terrainHash,
-      provinceCount: this.partition.count,
+      partitionHash: this.descriptor.partitionHash,
+      provinceCount: this.owners.length,
       owners: [...this.owners],
+      controllers: [...this.controllers],
+      heldSince: [...this.heldSince],
     };
   }
 
   /**
    * Load a snapshot into this world.
    *
-   * Every field but `owners` exists to be checked. A snapshot taken on one map
-   * and restored onto another has nothing to disagree about on the way in —
-   * province ids are just numbers — and the only symptom would be a world that
-   * looks plausible and is wrong.
+   * Every field but the three arrays exists to be checked. A snapshot taken on
+   * one map and restored onto another has nothing to disagree about on the way
+   * in — province ids are just numbers — and the only symptom would be a world
+   * that looks plausible and is wrong.
    */
   restoreFrom(snapshot: WorldSnapshot): void {
     if (snapshot.mapId !== this.descriptor.id) {
@@ -197,18 +248,36 @@ export class World {
           `match this world's ${this.descriptor.terrainHash.toString(16)}`,
       );
     }
-    if (snapshot.provinceCount !== this.partition.count) {
+    if (snapshot.partitionHash !== this.descriptor.partitionHash) {
       throw new Error(
-        `snapshot has ${snapshot.provinceCount} provinces, this world has ${this.partition.count}`,
+        `snapshot was taken on province artefact ` +
+          `${snapshot.partitionHash.toString(16)}, this world runs on ` +
+          `${this.descriptor.partitionHash.toString(16)}; the province ids do ` +
+          `not mean the same places`,
       );
     }
-    if (snapshot.owners.length !== this.owners.length) {
+    if (snapshot.provinceCount !== this.owners.length) {
       throw new Error(
-        `snapshot owner list is ${snapshot.owners.length} long, expected ${this.owners.length}`,
+        `snapshot has ${snapshot.provinceCount} provinces, this world has ${this.owners.length}`,
       );
     }
-    for (let i = 0; i < this.owners.length; i++)
+    for (const [name, list] of [
+      ["owner", snapshot.owners],
+      ["controller", snapshot.controllers],
+      ["heldSince", snapshot.heldSince],
+    ] as const) {
+      if (list.length !== this.owners.length) {
+        throw new Error(
+          `snapshot ${name} list is ${list.length} long, expected ${this.owners.length}`,
+        );
+      }
+    }
+
+    for (let i = 0; i < this.owners.length; i++) {
       this.owners[i] = snapshot.owners[i];
+      this.controllers[i] = snapshot.controllers[i];
+      this.heldSince[i] = snapshot.heldSince[i];
+    }
     this.tick = snapshot.tick;
     this.pending.clear();
   }
@@ -220,6 +289,10 @@ export class World {
    * assertion a restore has to make, and comparing owner arrays element by
    * element in a log line is not something anyone does twice. FNV-1a, the same
    * function the terrain hash uses.
+   *
+   * **Every field of the state goes in.** A field left out is a field the
+   * restore test cannot see, and it will pass over a world that came back half
+   * right.
    */
   stateHash(): number {
     let hash = 0x811c9dc5;
@@ -235,6 +308,8 @@ export class World {
     };
     mix(this.tick);
     for (const owner of this.owners) mix(owner);
+    for (const controller of this.controllers) mix(controller);
+    for (const since of this.heldSince) mix(since);
     return hash >>> 0;
   }
 
@@ -242,8 +317,16 @@ export class World {
     return [...this.owners];
   }
 
+  controllerSnapshot(): number[] {
+    return [...this.controllers];
+  }
+
   ownerOf(province: number): number {
     return this.owners[province];
+  }
+
+  controllerOf(province: number): number {
+    return this.controllers[province];
   }
 
   /**
@@ -266,14 +349,16 @@ export class World {
     switch (body.kind) {
       case "claim_province": {
         const province = body.provinceId;
-        if (province < 0 || province >= this.partition.count) {
+        if (province < 0 || province >= this.owners.length) {
           return `no province ${province} on this map`;
         }
-        if (this.owners[province] === nation) {
+        // Control, not ownership: a nation fights from where its troops are,
+        // not from where its title deeds are.
+        if (this.controllers[province] === nation) {
           return "province is already yours";
         }
         const adjacent = this.neighbours[province].some(
-          (n) => this.owners[n] === nation,
+          (n) => this.controllers[n] === nation,
         );
         if (!adjacent) return "province does not border your territory";
         return null;
@@ -318,17 +403,17 @@ export class World {
   /**
    * Advance one tick and return what changed.
    *
-   * Commands first, then the drift: a player order for this tick is resolved
-   * against the world as it was left by the previous one, not against a world
-   * the drift has already moved underneath it.
+   * Commands first, then the drift, then occupation: a player order for this
+   * tick is resolved against the world as it was left by the previous one, not
+   * against a world the drift has already moved underneath it.
    *
    * Deterministic sweep rather than a random pick: the tick has to be
    * reproducible from the log, which is what the restore depends on.
    * No Math.random() anywhere near world state — CLAUDE.md §9.
    */
-  step(): [number, number][] {
+  step(): WorldChanges {
     this.tick++;
-    const changes: [number, number][] = [];
+    const changes: WorldChanges = { control: [], owner: [] };
 
     const commands = this.pending.get(this.tick);
     if (commands !== undefined) {
@@ -338,32 +423,65 @@ export class World {
         // A claim whose foothold was lost in the meantime does nothing; it is
         // not an error, and it is the same nothing on every replay.
         if (this.rejectionFor(command) !== null) continue;
-        const province = command.body.provinceId;
-        this.owners[province] = command.nation;
-        changes.push([province, command.nation]);
+        this.takeControl(command.body.provinceId, command.nation, changes);
       }
     }
 
-    if (this.partition.count === 0) return changes;
+    this.drift(changes);
+    this.settleOccupation(changes);
+    return changes;
+  }
+
+  /** One province changes hands at a border. The world's heartbeat. */
+  private drift(changes: WorldChanges): void {
+    const count = this.owners.length;
+    if (count === 0) return;
 
     // The drift never touches a province a command just moved. A heartbeat
     // that can undo a player's order in the same tick it lands would be
     // indistinguishable, from the player's side, from the order being lost.
-    const claimed = new Set(changes.map(([province]) => province));
-    const start = (this.tick * 7919) % this.partition.count;
-    for (let i = 0; i < this.partition.count; i++) {
-      const province = (start + i) % this.partition.count;
+    const claimed = new Set(changes.control.map(([province]) => province));
+    const start = (this.tick * 7919) % count;
+    for (let i = 0; i < count; i++) {
+      const province = (start + i) % count;
       if (claimed.has(province)) continue;
-      const mine = this.owners[province];
+      const mine = this.controllers[province];
       const taker = this.neighbours[province].find(
-        (n) => this.owners[n] !== mine && this.owners[n] !== 0,
+        (n) => this.controllers[n] !== mine && this.controllers[n] !== 0,
       );
       if (taker !== undefined) {
-        this.owners[province] = this.owners[taker];
-        changes.push([province, this.owners[province]]);
+        this.takeControl(province, this.controllers[taker], changes);
         break;
       }
     }
-    return changes;
+  }
+
+  /**
+   * Ownership catches up with control, a fortnight late.
+   *
+   * A province whose controller has held it without a break for
+   * `OCCUPATION_TICKS` stops being occupied and becomes theirs. Retaking it
+   * before then resets the clock, which is what makes holding ground cost
+   * something separate from taking it (docs/decisions/0002).
+   */
+  private settleOccupation(changes: WorldChanges): void {
+    for (let province = 0; province < this.owners.length; province++) {
+      const controller = this.controllers[province];
+      if (controller === this.owners[province]) continue;
+      if (this.tick - this.heldSince[province] < OCCUPATION_TICKS) continue;
+      this.owners[province] = controller;
+      changes.owner.push([province, controller]);
+    }
+  }
+
+  private takeControl(
+    province: number,
+    nation: number,
+    changes: WorldChanges,
+  ): void {
+    if (this.controllers[province] === nation) return;
+    this.controllers[province] = nation;
+    this.heldSince[province] = this.tick;
+    changes.control.push([province, nation]);
   }
 }

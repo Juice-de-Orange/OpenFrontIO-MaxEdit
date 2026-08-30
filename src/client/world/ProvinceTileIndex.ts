@@ -1,15 +1,19 @@
 /**
  * Province -> tiles, in CSR form.
  *
- * Built once at load from the same province grid the server used. Two linear
- * scans: count tiles per province, then fill. `tilesOf` returns a subarray —
- * a view, not a copy — so expanding a delta allocates nothing.
+ * Built once at load from the same province artefact the server loaded. Two
+ * linear scans: count tiles per province, then fill. `tilesOf` returns a
+ * subarray — a view, not a copy — so expanding a delta allocates nothing.
  *
  * This is static map data. It is never sent, never stored, and never part of
- * a delta; both sides derive it from the terrain bytes.
+ * a delta; both sides read it from the file checked in beside the terrain.
  */
 
-import type { ProvincePartition } from "src/shared/map/ProvincePartition";
+/** What the index needs: a tile -> province array and how many provinces. */
+export interface ProvinceTileSource {
+  provinceOfTile: Int32Array;
+  provinceCount: number;
+}
 
 export class ProvinceTileIndex {
   private readonly offsets: Int32Array;
@@ -19,8 +23,8 @@ export class ProvinceTileIndex {
   readonly tileCount: number;
   readonly provinceCount: number;
 
-  constructor(grid: ProvincePartition) {
-    const { provinceOfTile, count } = grid;
+  constructor(grid: ProvinceTileSource) {
+    const { provinceOfTile, provinceCount: count } = grid;
     this.tileCount = provinceOfTile.length;
     this.provinceCount = count;
 

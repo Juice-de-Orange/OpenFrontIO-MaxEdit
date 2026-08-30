@@ -12,6 +12,11 @@
  */
 
 import { assetUrl } from "src/client/util/AssetUrl";
+import {
+  decodeProvinceMap,
+  type ProvinceMap,
+  type ProvinceMapMeta,
+} from "src/shared/map/ProvinceMap";
 
 /** A nation seed from the map manifest. Coordinates are full-resolution. */
 export interface MapNation {
@@ -34,6 +39,16 @@ export interface WorldMap {
   terrain: Uint8Array;
   /** Nation seeds, already scaled to this map's resolution. */
   nations: MapNation[];
+  /**
+   * The province partition and everything derived from it.
+   *
+   * Loaded, not computed. Both sides used to run `computeProvincePartition`
+   * over these terrain bytes and were trusted to agree; they now read one
+   * generated file, and `partitionHash` in the world's opening state is what
+   * proves this client did not serve a stale copy of it out of its HTTP cache
+   * (docs/decisions/0006).
+   */
+  provinces: ProvinceMap;
 }
 
 async function fetchAsset(mapId: string, file: string): Promise<Response> {
@@ -55,13 +70,19 @@ async function fetchAsset(mapId: string, file: string): Promise<Response> {
  * exists to prove.
  */
 export async function loadWorldMap(mapId: string): Promise<WorldMap> {
-  const [manifest, terrain] = await Promise.all([
+  const [manifest, terrain, provinceBin, provinceMeta] = await Promise.all([
     fetchAsset(mapId, "manifest.json").then(
       (r) => r.json() as Promise<MapManifestFile>,
     ),
     fetchAsset(mapId, "map4x.bin")
       .then((r) => r.arrayBuffer())
       .then((b) => new Uint8Array(b)),
+    fetchAsset(mapId, "provinces.bin")
+      .then((r) => r.arrayBuffer())
+      .then((b) => new Uint8Array(b)),
+    fetchAsset(mapId, "provinces.json").then(
+      (r) => r.json() as Promise<ProvinceMapMeta>,
+    ),
   ]);
 
   const { width, height } = manifest.map4x;
@@ -84,5 +105,13 @@ export async function loadWorldMap(mapId: string): Promise<WorldMap> {
     ] as [number, number],
   }));
 
-  return { id: mapId, width, height, terrain, nations };
+  const provinces = decodeProvinceMap(provinceBin, provinceMeta);
+  if (provinces.width !== width || provinces.height !== height) {
+    throw new Error(
+      `Map ${mapId}: the manifest says ${width}x${height}, the province ` +
+        `artefact says ${provinces.width}x${provinces.height}`,
+    );
+  }
+
+  return { id: mapId, width, height, terrain, nations, provinces };
 }

@@ -2,27 +2,11 @@ import { describe, expect, test } from "vitest";
 import { MemoryStore } from "../../src/server/db/MemoryStore";
 import { World } from "../../src/server/world/World";
 import { WorldRunner } from "../../src/server/world/WorldRunner";
-import {
-  computeProvincePartition,
-  type ProvincePartition,
-} from "../../src/shared/map/ProvincePartition";
-import type {
-  MapDescriptor,
-  NationStatic,
-} from "../../src/shared/protocol/Wire";
+import { mapFixture } from "../util/worldFixture";
 
-const LAND = 0x80;
 const WORLD_ID = "world-test";
 const SNAPSHOT_EVERY = 60;
 const CRASH_AT = 137;
-
-const nations: NationStatic[] = [
-  { smallID: 1, name: "One" },
-  { smallID: 2, name: "Two" },
-  { smallID: 3, name: "Three" },
-  { smallID: 4, name: "Four" },
-  { smallID: 5, name: "Five" },
-];
 
 /**
  * Big enough that the border drift does not eat the world.
@@ -31,44 +15,32 @@ const nations: NationStatic[] = [
  * nations. A smaller fixture collapses to one owner inside thirty ticks, and a
  * world with one nation left cannot demonstrate anything about commands.
  */
-const descriptor: MapDescriptor = {
-  id: "fixture",
+const fixture = mapFixture({
   width: 320,
   height: 140,
-  provinceCount: 0,
-  terrainHash: 0xabcdef,
-};
-
-/** The same partition every time: both worlds must derive it identically. */
-function partition(): ProvincePartition {
-  const { width, height } = descriptor;
-  const terrain = new Uint8Array(width * height);
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) terrain[y * width + x] = LAND | 3;
-  }
-  return computeProvincePartition(terrain, width, height, [
+  capitals: [
     { x: 40, y: 40 },
     { x: 280, y: 40 },
     { x: 40, y: 100 },
     { x: 280, y: 100 },
     { x: 160, y: 70 },
-  ]);
-}
+  ],
+});
 
-function newWorld(p: ProvincePartition): World {
-  return World.create({ ...descriptor, provinceCount: p.count }, nations, p);
+function newWorld(): World {
+  return World.create(fixture.descriptor, fixture.nations, fixture.map);
 }
 
 /** A province `nation` could legally claim right now, or null. */
-function claimable(
-  world: World,
-  p: ProvincePartition,
-  nation: number,
-): number | null {
-  for (let province = 0; province < p.count; province++) {
-    const owner = world.ownerOf(province);
-    if (owner === nation || owner === 0) continue;
-    if (p.neighbours[province].some((n) => world.ownerOf(n) === nation)) {
+function claimable(world: World, nation: number): number | null {
+  for (let province = 0; province < fixture.map.provinceCount; province++) {
+    const holder = world.controllerOf(province);
+    if (holder === nation || holder === 0) continue;
+    if (
+      fixture.map.provinces[province].neighbours.some(
+        (n) => world.controllerOf(n) === nation,
+      )
+    ) {
       return province;
     }
   }
@@ -84,12 +56,12 @@ function claimable(
 async function runTo(
   runner: WorldRunner,
   world: World,
-  p: ProvincePartition,
   lastTick: number,
   claimOn: Map<number, number>,
 ): Promise<{
   accepted: { tick: number; province: number; nation: number }[];
   hashes: Map<number, number>;
+  /** Who *held* each province at that tick, which is what a claim moves. */
   ownersAt: Map<number, number[]>;
 }> {
   const accepted: { tick: number; province: number; nation: number }[] = [];
@@ -98,7 +70,7 @@ async function runTo(
   while (world.currentTick() < lastTick) {
     const nation = claimOn.get(world.currentTick() + 1);
     if (nation !== undefined) {
-      const province = claimable(world, p, nation);
+      const province = claimable(world, nation);
       if (province !== null) {
         const result = await runner.submit(nation, {
           kind: "claim_province",
@@ -112,14 +84,13 @@ async function runTo(
     }
     await runner.tickOnce();
     hashes.set(world.currentTick(), world.stateHash());
-    ownersAt.set(world.currentTick(), world.ownerSnapshot());
+    ownersAt.set(world.currentTick(), world.controllerSnapshot());
   }
   return { accepted, hashes, ownersAt };
 }
 
 describe("restore", () => {
   test("a crashed world comes back identical, with every command intact", async () => {
-    const p = partition();
     const store = new MemoryStore();
 
     // The claims are placed to straddle the last snapshot: 121 and 135 are
@@ -131,7 +102,7 @@ describe("restore", () => {
       [135, 2],
     ]);
 
-    const live = newWorld(p);
+    const live = newWorld();
     const liveRunner = new WorldRunner({
       world: live,
       store,
@@ -142,7 +113,6 @@ describe("restore", () => {
     const { accepted, hashes, ownersAt } = await runTo(
       liveRunner,
       live,
-      p,
       CRASH_AT,
       claimOn,
     );
@@ -154,7 +124,7 @@ describe("restore", () => {
     const snapshot = await store.latestSnapshot(WORLD_ID);
     expect(snapshot?.tick).toBe(120);
 
-    const restored = newWorld(p);
+    const restored = newWorld();
     const restoredRunner = new WorldRunner({
       world: restored,
       store,
@@ -173,7 +143,7 @@ describe("restore", () => {
 
     // And at that tick it is the same world, province by province.
     expect(restored.stateHash()).toBe(hashes.get(135));
-    expect(restored.ownerSnapshot()).toEqual(ownersAt.get(135));
+    expect(restored.controllerSnapshot()).toEqual(ownersAt.get(135));
 
     // The negative control, which is the actual content of "no lost
     // commands": a world rebuilt from the snapshot alone, replaying the same
@@ -181,20 +151,25 @@ describe("restore", () => {
     // assertions above would still pass if the command log were never read.
     const late = accepted.filter((a) => a.tick > 120);
     expect(late.length).toBe(2);
-    const snapshotOnly = newWorld(p);
+    const snapshotOnly = newWorld();
     snapshotOnly.restoreFrom(
       (snapshot as { state: ReturnType<World["snapshot"]> }).state,
     );
     while (snapshotOnly.currentTick() < 135) snapshotOnly.step();
     expect(snapshotOnly.currentTick()).toBe(135);
-    expect(snapshotOnly.ownerSnapshot()).not.toEqual(restored.ownerSnapshot());
+    // Control, not ownership. A claim moves the controller at once and the
+    // owner only after OCCUPATION_TICKS, which is longer than this whole run
+    // — so comparing owners here compares two arrays that the commands were
+    // never going to change, and the control asserts nothing.
+    expect(snapshotOnly.controllerSnapshot()).not.toEqual(
+      restored.controllerSnapshot(),
+    );
   });
 
   test("the restored world keeps ticking in step with the one it replaced", async () => {
-    const p = partition();
     const store = new MemoryStore();
 
-    const live = newWorld(p);
+    const live = newWorld();
     const liveRunner = new WorldRunner({
       world: live,
       store,
@@ -206,9 +181,9 @@ describe("restore", () => {
     // the live world is on and the two can be compared step for step. Away
     // from a boundary they legitimately differ: a hard crash loses up to one
     // snapshot interval of drift, and no commands.
-    await runTo(liveRunner, live, p, 120, new Map([[30, 1]]));
+    await runTo(liveRunner, live, 120, new Map([[30, 1]]));
 
-    const restored = newWorld(p);
+    const restored = newWorld();
     const restoredRunner = new WorldRunner({
       world: restored,
       store,
@@ -228,9 +203,8 @@ describe("restore", () => {
   });
 
   test("a command is in the log before the world is told about it", async () => {
-    const p = partition();
     const store = new MemoryStore();
-    const world = newWorld(p);
+    const world = newWorld();
     const runner = new WorldRunner({ world, store, worldId: WORLD_ID });
     await runner.restore();
 
@@ -245,7 +219,7 @@ describe("restore", () => {
       store: failing as unknown as MemoryStore,
       worldId: WORLD_ID,
     });
-    const province = claimable(world, p, 1);
+    const province = claimable(world, 1);
     expect(province).not.toBeNull();
     await expect(
       brittle.submit(1, {
@@ -260,10 +234,13 @@ describe("restore", () => {
   });
 
   test("a snapshot that does not match its own hash is refused", async () => {
-    const p = partition();
     const store = new MemoryStore();
-    const world = newWorld(p);
-    await store.ensureWorld(WORLD_ID, descriptor.id, descriptor.terrainHash);
+    const world = newWorld();
+    await store.ensureWorld(
+      WORLD_ID,
+      fixture.descriptor.id,
+      fixture.descriptor.terrainHash,
+    );
     const state = world.snapshot();
     state.owners[0] = state.owners[0] === 1 ? 2 : 1;
     await store.writeSnapshot(WORLD_ID, {
@@ -273,7 +250,7 @@ describe("restore", () => {
     });
 
     const runner = new WorldRunner({
-      world: newWorld(p),
+      world: newWorld(),
       store,
       worldId: WORLD_ID,
     });
@@ -281,9 +258,8 @@ describe("restore", () => {
   });
 
   test("a snapshot from another map is refused rather than loaded", async () => {
-    const p = partition();
     const store = new MemoryStore();
-    const world = newWorld(p);
+    const world = newWorld();
     const state = world.snapshot();
     expect(() => world.restoreFrom({ ...state, mapId: "elsewhere" })).toThrow(
       /map elsewhere/,

@@ -24,7 +24,7 @@ import { z } from "zod";
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -110,12 +110,15 @@ export type NationStatic = z.infer<typeof NationStaticSchema>;
 /**
  * Identifies the map both sides must agree on.
  *
- * `terrainHash` is the load-bearing field. The province -> tile mapping is
- * static map data: it is never sent, and both sides derive it from the same
- * terrain bytes. Nothing on the wire would otherwise disagree if one side
- * read map.bin and the other map4x.bin — the province ids would simply mean
- * different things, and the only symptom would be quietly mis-coloured
- * regions.
+ * `partitionHash` is the load-bearing field. The province -> tile mapping is
+ * static map data: it is never sent, and both sides load it from the artefact
+ * checked in beside the terrain (docs/decisions/0006). Nothing on the wire
+ * would otherwise disagree if the client served a stale provinces.bin out of
+ * its HTTP cache — the province ids would simply mean different things, and
+ * the only symptom would be quietly mis-coloured regions.
+ *
+ * `terrainHash` is kept beside it because the artefact and the terrain are
+ * two files that can also drift apart from each other.
  */
 export const MapDescriptorSchema = z.object({
   id: z.string().min(1),
@@ -123,6 +126,7 @@ export const MapDescriptorSchema = z.object({
   height: z.number().int().positive(),
   provinceCount: z.number().int().nonnegative(),
   terrainHash: z.number().int().nonnegative(),
+  partitionHash: z.number().int().nonnegative(),
 });
 export type MapDescriptor = z.infer<typeof MapDescriptorSchema>;
 
@@ -144,6 +148,10 @@ export const ServerRejectSchema = z.object({
   serverProtocolVersion: z.number().int(),
 });
 
+const ProvinceChangeSchema = z.array(
+  z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
+);
+
 export const FullStateSchema = z.object({
   t: z.literal("full"),
   tick: z.number().int().nonnegative(),
@@ -151,18 +159,30 @@ export const FullStateSchema = z.object({
   nations: z.array(NationStaticSchema),
   /** The nation this session acts for, as the server understood it. */
   nation: z.number().int().positive().nullable(),
-  /** Owner per province, indexed by province id. 0 is unowned. */
+  /**
+   * Owner per province, indexed by province id. 0 is unowned.
+   *
+   * Who the province belongs to, which is not who is standing on it. See
+   * `controllers`, and docs/decisions/0002.
+   */
   owners: z.array(z.number().int().nonnegative()),
+  /**
+   * Controller per province — who holds it right now.
+   *
+   * This is what the map is coloured by: a player looking at a front wants to
+   * see where the line is, not where the line was a fortnight ago.
+   */
+  controllers: z.array(z.number().int().nonnegative()),
 });
 export type FullState = z.infer<typeof FullStateSchema>;
 
 export const DeltaSchema = z.object({
   t: z.literal("delta"),
   tick: z.number().int().nonnegative(),
-  /** [provinceId, newOwner] pairs. */
-  changes: z.array(
-    z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
-  ),
+  /** [provinceId, newController] pairs. Usually the only list with anything in it. */
+  control: ProvinceChangeSchema,
+  /** [provinceId, newOwner] pairs. Empty on almost every tick. */
+  owner: ProvinceChangeSchema,
 });
 export type Delta = z.infer<typeof DeltaSchema>;
 

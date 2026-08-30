@@ -46,15 +46,31 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
 let NATION = Number(process.env.GATE_NATION ?? 0);
 const BASE = process.env.GATE_BASE ?? "http://localhost:3000";
 const WS_URL = process.env.GATE_WS ?? "ws://localhost:3000/ws";
-const PROTOCOL_VERSION = 2;
+/**
+ * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
+ *
+ * This file is .mjs and cannot import it. Left behind at 2 when the wire moved
+ * to 3, the gate stopped at "the world refused the connection" — which is the
+ * gate failing rather than the world, and the worst way for a gate to fail.
+ * `tests/GateProtocolVersion.test.ts` now reads this line and compares it.
+ */
+const PROTOCOL_VERSION = 3;
 /** How long to wait for the snapshot the gate needs. Six minutes of ticks. */
 const SNAPSHOT_TIMEOUT_MS = 8 * 60 * 1000;
 
 const log = (...parts) => console.log(...parts);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** The same FNV-1a over (tick, owners) that World.stateHash computes. */
-function stateHash(tick, owners) {
+/**
+ * FNV-1a over everything this client can see of the world.
+ *
+ * Not the server's `World.stateHash`: that also mixes `heldSince`, which
+ * never goes on the wire. This hash exists to compare *this client's own view*
+ * of a tick before and after the restart, and for that it has to be built only
+ * from what the wire carries — which is also what makes it a check on the
+ * deltas rather than on the server agreeing with itself.
+ */
+function viewHash(tick, owners, controllers) {
   let hash = 0x811c9dc5;
   const mix = (value) => {
     for (let shift = 0; shift < 32; shift += 8) {
@@ -64,6 +80,7 @@ function stateHash(tick, owners) {
   };
   mix(tick);
   for (const owner of owners) mix(owner);
+  for (const controller of controllers) mix(controller);
   return hash >>> 0;
 }
 
@@ -95,6 +112,7 @@ class Watcher {
   constructor(nation = NATION) {
     this.nation = nation;
     this.owners = null;
+    this.controllers = null;
     this.tick = null;
     this.hashes = new Map();
     this.acks = new Map();
@@ -121,16 +139,26 @@ class Watcher {
     switch (message.t) {
       case "full":
         this.owners = message.owners;
+        this.controllers = message.controllers;
         this.tick = message.tick;
-        this.hashes.set(message.tick, stateHash(message.tick, this.owners));
+        this.hashes.set(
+          message.tick,
+          viewHash(message.tick, this.owners, this.controllers),
+        );
         this.onReady();
         break;
       case "delta":
-        for (const [province, owner] of message.changes) {
-          this.owners[province] = owner;
+        for (const [province, nation] of message.control) {
+          this.controllers[province] = nation;
+        }
+        for (const [province, nation] of message.owner) {
+          this.owners[province] = nation;
         }
         this.tick = message.tick;
-        this.hashes.set(message.tick, stateHash(message.tick, this.owners));
+        this.hashes.set(
+          message.tick,
+          viewHash(message.tick, this.owners, this.controllers),
+        );
         break;
       case "ack": {
         const waiting = this.acks.get(message.id);
@@ -182,11 +210,11 @@ class Watcher {
  * partition, and it exercises the rejection path on the way.
  */
 /** The nation holding the most provinces right now. */
-function largestNation(owners) {
+function largestNation(controllers) {
   const held = new Map();
-  for (const owner of owners) {
-    if (owner === 0) continue;
-    held.set(owner, (held.get(owner) ?? 0) + 1);
+  for (const controller of controllers) {
+    if (controller === 0) continue;
+    held.set(controller, (held.get(controller) ?? 0) + 1);
   }
   let best = 0;
   let bestCount = 0;
@@ -202,9 +230,9 @@ function largestNation(owners) {
 async function claimSomething(watcher, idPrefix) {
   let attempt = 0;
   let refused = 0;
-  for (let province = 0; province < watcher.owners.length; province++) {
-    const owner = watcher.owners[province];
-    if (owner === watcher.nation || owner === 0) continue;
+  for (let province = 0; province < watcher.controllers.length; province++) {
+    const holder = watcher.controllers[province];
+    if (holder === watcher.nation || holder === 0) continue;
     const ack = await watcher.claim(province, `${idPrefix}-${attempt++}`);
     if (ack.accepted) return { province, tick: ack.tick, refused };
     refused++;
@@ -241,7 +269,7 @@ async function main() {
     // the map before deciding whose side to be on.
     const spectator = new Watcher(null);
     await spectator.ready;
-    const largest = largestNation(spectator.owners);
+    const largest = largestNation(spectator.controllers);
     spectator.close();
     NATION = largest.nation;
     log(`  nation ${NATION} holds the most provinces (${largest.provinces})`);

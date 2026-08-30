@@ -1,66 +1,32 @@
 import { describe, expect, test } from "vitest";
 import { World, type WorldCommand } from "../../src/server/world/World";
-import {
-  computeProvincePartition,
-  type ProvincePartition,
-} from "../../src/shared/map/ProvincePartition";
-import type {
-  MapDescriptor,
-  NationStatic,
-} from "../../src/shared/protocol/Wire";
-
-const LAND = 0x80;
+import { OCCUPATION_TICKS } from "../../src/shared/config/provinces";
+import type { ProvinceMap } from "../../src/shared/map/ProvinceMap";
+import { mapFixture } from "../util/worldFixture";
 
 /** A small continent with three capitals, enough for real borders. */
-function fixture(): {
-  world: World;
-  partition: ProvincePartition;
-  descriptor: MapDescriptor;
-  nations: NationStatic[];
-} {
-  // Provinces are cut at roughly 900 tiles each, so a fixture has to be this
-  // big before three nations have several provinces apiece — and before any
-  // of them has an inland one.
-  const width = 180;
-  const height = 60;
-  const terrain = new Uint8Array(width * height);
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) terrain[y * width + x] = LAND | 3;
-  }
-  const partition = computeProvincePartition(terrain, width, height, [
-    { x: 15, y: 30 },
-    { x: 165, y: 30 },
-    { x: 90, y: 12 },
-  ]);
-  const nations: NationStatic[] = [
-    { smallID: 1, name: "One" },
-    { smallID: 2, name: "Two" },
-    { smallID: 3, name: "Three" },
-  ];
-  const descriptor: MapDescriptor = {
-    id: "fixture",
-    width,
-    height,
-    provinceCount: partition.count,
-    terrainHash: 1,
-  };
-  return {
-    world: World.create(descriptor, nations, partition),
-    partition,
-    descriptor,
-    nations,
-  };
+function fixture(): { world: World; map: ProvinceMap } {
+  const { map, descriptor, nations } = mapFixture({
+    width: 180,
+    height: 60,
+    capitals: [
+      { x: 15, y: 30 },
+      { x: 165, y: 30 },
+      { x: 90, y: 12 },
+    ],
+  });
+  return { world: World.create(descriptor, nations, map), map };
 }
 
 /** A province owned by `nation` that borders one owned by somebody else. */
 function borderProvince(
   world: World,
-  partition: ProvincePartition,
+  map: ProvinceMap,
   nation: number,
 ): { mine: number; theirs: number } {
-  for (let p = 0; p < partition.count; p++) {
+  for (let p = 0; p < map.provinceCount; p++) {
     if (world.ownerOf(p) !== nation) continue;
-    for (const n of partition.neighbours[p]) {
+    for (const n of map.provinces[p].neighbours) {
       const owner = world.ownerOf(n);
       if (owner !== nation && owner !== 0) return { mine: p, theirs: n };
     }
@@ -71,15 +37,15 @@ function borderProvince(
 /** `count` provinces owned by somebody else that all border `nation`. */
 function borderTargets(
   world: World,
-  partition: ProvincePartition,
+  map: ProvinceMap,
   nation: number,
   count: number,
 ): number[] {
   const found: number[] = [];
-  for (let p = 0; p < partition.count && found.length < count; p++) {
+  for (let p = 0; p < map.provinceCount && found.length < count; p++) {
     const owner = world.ownerOf(p);
     if (owner === nation || owner === 0) continue;
-    if (partition.neighbours[p].some((n) => world.ownerOf(n) === nation)) {
+    if (map.provinces[p].neighbours.some((n) => world.ownerOf(n) === nation)) {
       found.push(p);
     }
   }
@@ -92,24 +58,99 @@ function borderTargets(
  * Every invariant a world must satisfy at any tick, per CLAUDE.md §9.
  * Cheap enough to assert after every step in a long run.
  */
-function assertInvariants(world: World, partition: ProvincePartition): void {
+function assertInvariants(world: World, map: ProvinceMap): void {
   const owners = world.ownerSnapshot();
-  expect(owners.length).toBe(partition.count);
-  for (const owner of owners) {
-    expect(Number.isInteger(owner)).toBe(true);
-    expect(owner).toBeGreaterThanOrEqual(0);
-    expect(owner).toBeLessThanOrEqual(world.nations.length);
+  const controllers = world.controllerSnapshot();
+  expect(owners.length).toBe(map.provinceCount);
+  expect(controllers.length).toBe(map.provinceCount);
+  for (const list of [owners, controllers]) {
+    for (const nation of list) {
+      expect(Number.isInteger(nation)).toBe(true);
+      expect(nation).toBeGreaterThanOrEqual(0);
+      expect(nation).toBeLessThanOrEqual(world.nations.length);
+    }
   }
 }
 
+describe("holding and owning", () => {
+  test("a claim moves the controller at once and the owner not at all", () => {
+    const { world, map } = fixture();
+    const { theirs } = borderProvince(world, map, 1);
+    const before = world.ownerOf(theirs);
+
+    world.queueCommand({
+      nation: 1,
+      body: { kind: "claim_province", provinceId: theirs },
+    });
+    const changes = world.step();
+
+    expect(world.controllerOf(theirs)).toBe(1);
+    expect(world.ownerOf(theirs)).toBe(before);
+    expect(changes.control).toContainEqual([theirs, 1]);
+    expect(changes.owner).toEqual([]);
+  });
+
+  /**
+   * The occupation period is the whole content of decision 0002: taking
+   * ground and holding it are two different costs.
+   *
+   * Stated as an invariant over a long run rather than as a scripted
+   * take-and-wait. The border drift moves a province every tick, so a scripted
+   * version spends its time fighting the fixture — it was written that way
+   * first, and what it actually measured was which nation happened to be
+   * adjacent on tick 300. The invariant holds regardless of who took what.
+   */
+  test("no province is ever owned before it has been held long enough", () => {
+    const { world } = fixture();
+    const lastControlChange = new Map<number, number>();
+    let transfers = 0;
+
+    for (let i = 0; i < OCCUPATION_TICKS * 2; i++) {
+      const changes = world.step();
+      const tick = world.currentTick();
+
+      for (const [province, nation] of changes.owner) {
+        const heldFrom = lastControlChange.get(province) ?? 0;
+        expect(
+          tick - heldFrom,
+          `province ${province} changed owner ${tick - heldFrom} ticks after ` +
+            `its controller last changed`,
+        ).toBeGreaterThanOrEqual(OCCUPATION_TICKS);
+        expect(world.controllerOf(province)).toBe(nation);
+        transfers++;
+      }
+
+      // After the owner check, so a province that changed hands this tick is
+      // measured from its previous controller.
+      for (const [province] of changes.control) {
+        lastControlChange.set(province, tick);
+      }
+    }
+
+    // Without this the whole test passes on a world where nothing was ever
+    // occupied long enough, which is the same shape as a green test that
+    // checks nothing.
+    expect(transfers).toBeGreaterThan(0);
+  });
+
+  test("ownership only ever moves to the nation already in control", () => {
+    const { world } = fixture();
+    for (let i = 0; i < OCCUPATION_TICKS + 50; i++) {
+      for (const [province, nation] of world.step().owner) {
+        expect(world.controllerOf(province)).toBe(nation);
+      }
+    }
+  });
+});
+
 describe("World commands", () => {
   test("refuses a claim on a province that does not border the nation", () => {
-    const { world, partition } = fixture();
+    const { world, map } = fixture();
     // A province nation 1 does not touch.
     const distant = (() => {
-      for (let p = 0; p < partition.count; p++) {
+      for (let p = 0; p < map.provinceCount; p++) {
         if (world.ownerOf(p) === 1) continue;
-        if (partition.neighbours[p].every((n) => world.ownerOf(n) !== 1))
+        if (map.provinces[p].neighbours.every((n) => world.ownerOf(n) !== 1))
           return p;
       }
       throw new Error("no province out of nation 1's reach in the fixture");
@@ -135,11 +176,11 @@ describe("World commands", () => {
   });
 
   test("refuses an unknown province and an unknown nation", () => {
-    const { world, partition } = fixture();
+    const { world, map } = fixture();
     expect(
       world.rejectionFor({
         nation: 1,
-        body: { kind: "claim_province", provinceId: partition.count },
+        body: { kind: "claim_province", provinceId: map.provinceCount },
       }),
     ).toMatch(/no province/);
     expect(
@@ -151,8 +192,8 @@ describe("World commands", () => {
   });
 
   test("accepts a claim on a bordering province, and applies it on the promised tick", () => {
-    const { world, partition } = fixture();
-    const { theirs } = borderProvince(world, partition, 1);
+    const { world, map } = fixture();
+    const { theirs } = borderProvince(world, map, 1);
     const command: WorldCommand = {
       nation: 1,
       body: { kind: "claim_province", provinceId: theirs },
@@ -164,16 +205,16 @@ describe("World commands", () => {
     expect(at.seq).toBe(0);
 
     // Not before its tick.
-    expect(world.ownerOf(theirs)).not.toBe(1);
+    expect(world.controllerOf(theirs)).not.toBe(1);
     const changes = world.step();
     expect(world.currentTick()).toBe(at.tick);
-    expect(world.ownerOf(theirs)).toBe(1);
-    expect(changes).toContainEqual([theirs, 1]);
+    expect(world.controllerOf(theirs)).toBe(1);
+    expect(changes.control).toContainEqual([theirs, 1]);
   });
 
   test("two commands on one tick keep the order they were accepted in", () => {
-    const { world, partition } = fixture();
-    const targets = borderTargets(world, partition, 1, 2);
+    const { world, map } = fixture();
+    const targets = borderTargets(world, map, 1, 2);
     const first = world.queueCommand({
       nation: 1,
       body: { kind: "claim_province", provinceId: targets[0] },
@@ -189,15 +230,15 @@ describe("World commands", () => {
     const changes = world.step();
     // Order is what `seq` records, and it is the order a replay has to put
     // them back in.
-    expect(changes.slice(0, 2)).toEqual([
+    expect(changes.control.slice(0, 2)).toEqual([
       [targets[0], 1],
       [targets[1], 1],
     ]);
   });
 
   test("a command is revalidated on the tick it applies, not only when it arrives", () => {
-    const { world, partition } = fixture();
-    const { theirs } = borderProvince(world, partition, 1);
+    const { world, map } = fixture();
+    const { theirs } = borderProvince(world, map, 1);
     const body = { kind: "claim_province", provinceId: theirs } as const;
 
     // Both are valid when they arrive. By the time the second one applies the
@@ -209,19 +250,21 @@ describe("World commands", () => {
     world.queueCommand({ nation: 1, body });
 
     const changes = world.step();
-    expect(changes.filter(([p]) => p === theirs)).toEqual([[theirs, 1]]);
+    expect(changes.control.filter(([p]) => p === theirs)).toEqual([
+      [theirs, 1],
+    ]);
   });
 
   test("the border drift never undoes a command from the same tick", () => {
-    const { world, partition } = fixture();
+    const { world, map } = fixture();
     // Whichever province the drift would take this tick, a command on it wins.
-    const probe = World.create(world.descriptor, world.nations, partition);
+    const probe = World.create(world.descriptor, world.nations, map);
     const driftChanges = probe.step();
-    expect(driftChanges.length).toBeGreaterThan(0);
-    const [drifted] = driftChanges[0];
+    expect(driftChanges.control.length).toBeGreaterThan(0);
+    const [drifted] = driftChanges.control[0];
 
     const owner = world.ownerOf(drifted);
-    const claimant = partition.neighbours[drifted]
+    const claimant = map.provinces[drifted].neighbours
       .map((n) => world.ownerOf(n))
       .find((n) => n !== owner && n !== 0);
     expect(claimant).toBeDefined();
@@ -231,14 +274,14 @@ describe("World commands", () => {
       body: { kind: "claim_province", provinceId: drifted },
     });
     world.step();
-    expect(world.ownerOf(drifted)).toBe(claimant);
+    expect(world.controllerOf(drifted)).toBe(claimant);
   });
 
   test("a long run keeps every invariant", () => {
-    const { world, partition } = fixture();
+    const { world, map } = fixture();
     for (let i = 0; i < 200; i++) {
       world.step();
-      assertInvariants(world, partition);
+      assertInvariants(world, map);
     }
     expect(world.currentTick()).toBe(200);
   });

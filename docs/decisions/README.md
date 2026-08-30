@@ -67,3 +67,4 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0003](0003-tick-anchored-time.md)                         | Time is tick-anchored; downtime is never re-simulated                     | Accepted |
 | [0004](0004-renderer-owns-its-vocabulary.md)               | The renderer owns its own vocabulary                                      | Accepted |
 | [0005](0005-resume-at-the-last-durable-record.md)          | A world resumes at its last durable record, not at the tick it died on    | Accepted |
+| [0006](0006-the-partition-is-checked-in-map-data.md)       | The province partition is checked-in map data, not a startup computation  | Accepted |

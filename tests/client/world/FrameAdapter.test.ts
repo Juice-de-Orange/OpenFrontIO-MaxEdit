@@ -18,7 +18,11 @@ const SEEDS = [
 /** All land, split between four seeds in the corners. */
 function index(): ProvinceTileIndex {
   const terrain = new Uint8Array(W * H).fill(LAND);
-  return new ProvinceTileIndex(computeProvincePartition(terrain, W, H, SEEDS));
+  const partition = computeProvincePartition(terrain, W, H, SEEDS);
+  return new ProvinceTileIndex({
+    provinceOfTile: partition.provinceOfTile,
+    provinceCount: partition.count,
+  });
 }
 
 /**
@@ -192,15 +196,18 @@ describe("ProvinceTileIndex", () => {
   test("covers every land tile exactly once", () => {
     const terrain = new Uint8Array(W * H);
     for (let i = 0; i < terrain.length; i++) if (i % 3 !== 0) terrain[i] = LAND;
-    const grid = computeProvincePartition(terrain, W, H, SEEDS);
-    const idx = new ProvinceTileIndex(grid);
+    const partition = computeProvincePartition(terrain, W, H, SEEDS);
+    const idx = new ProvinceTileIndex({
+      provinceOfTile: partition.provinceOfTile,
+      provinceCount: partition.count,
+    });
 
     const seen = new Set<number>();
     for (let p = 0; p < idx.provinceCount; p++) {
       for (const tile of idx.tilesOf(p)) {
         expect(seen.has(tile)).toBe(false);
         seen.add(tile);
-        expect(grid.provinceOfTile[tile]).toBe(p);
+        expect(partition.provinceOfTile[tile]).toBe(p);
       }
     }
     const landTiles = [...terrain].filter((b) => (b & LAND) !== 0).length;

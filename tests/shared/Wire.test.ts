@@ -48,12 +48,15 @@ describe("the wire protocol", () => {
           height: 4,
           provinceCount: 2,
           terrainHash: 99,
+          partitionHash: 1234,
         },
         nations: [{ smallID: 1, name: "One" }],
         nation: 1,
         owners: [1, 0],
+        controllers: [1, 2],
       },
-      { t: "delta", tick: 8, changes: [[0, 1]] },
+      { t: "delta", tick: 8, control: [[0, 1]], owner: [] },
+      { t: "delta", tick: 9, control: [], owner: [[0, 1]] },
     ];
     for (const message of messages) {
       expect(decodeServerMessage(encodeServer(message))).toEqual(message);
@@ -99,8 +102,10 @@ describe("the wire protocol", () => {
 
   test("the version is an integer both sides compare, not a range", () => {
     expect(Number.isInteger(PROTOCOL_VERSION)).toBe(true);
-    // Bumped from 1 when commands, acks and nation identity arrived: a v1
-    // client would read a v2 welcome and then never understand an ack.
-    expect(PROTOCOL_VERSION).toBe(2);
+    // Bumped from 1 when commands, acks and nation identity arrived, and from
+    // 2 when a province gained a controller distinct from its owner: a v2
+    // client would find no `changes` in a delta and draw a map that never
+    // moves again.
+    expect(PROTOCOL_VERSION).toBe(3);
   });
 });

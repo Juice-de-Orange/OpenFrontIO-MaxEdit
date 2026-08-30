@@ -22,13 +22,16 @@ import { createRenderSettings } from "src/client/render/gl/RenderSettings";
 import type { RenderRules } from "src/client/render/types";
 import { ALL_UNIT_TYPES, PlayerTypeEnum } from "src/client/render/types";
 import { TICK_MS } from "src/shared/config/time";
-import { computeProvincePartition } from "src/shared/map/ProvincePartition";
-import { terrainHashFnv1a } from "src/shared/map/TerrainHash";
 import type { FullState } from "src/shared/protocol/Wire";
 import { CameraController } from "./CameraController";
 import { FrameAdapter } from "./FrameAdapter";
 import { loadWorldMap } from "./MapAssets";
 import { buildPalette } from "./Palette";
+import {
+  borderLayerImages,
+  PROVINCE_BORDER_LAYER,
+  PROVINCE_BORDER_LAYERS,
+} from "./ProvinceBorders";
 import { ProvinceTileIndex } from "./ProvinceTileIndex";
 import { WorldSocket } from "./WorldSocket";
 
@@ -151,17 +154,20 @@ export async function startWorldClient(
           void buildFrom(state, pickProvince).then((built) => {
             view = built.view;
             adapter = built.adapter;
-            adapter.applyFullState(state.owners, state.tick);
+            adapter.applyFullState(state.controllers, state.tick);
             uploadFrameData(view, adapter.frameData());
           });
           return;
         }
-        adapter.applyFullState(state.owners, state.tick);
+        adapter.applyFullState(state.controllers, state.tick);
         uploadFrameData(view, adapter.frameData());
       },
       onDelta: (delta) => {
         if (!view || !adapter) return; // full state still loading
-        adapter.applyDelta(delta.changes, delta.tick);
+        // Control, not ownership: the map shows where the line is, not who
+        // holds the title deeds (docs/decisions/0002). Ownership changes come
+        // down the same delta and belong to the economy screens in phase 3.
+        adapter.applyDelta(delta.control, delta.tick);
         uploadFrameData(view, adapter.frameData());
       },
       onAck: (ack) => {
@@ -179,9 +185,9 @@ export async function startWorldClient(
 /**
  * Build the renderer for the map the world named.
  *
- * The terrain hash is checked here and nowhere else. Province ids are derived
- * on both sides from the same bytes and never travel, so a mismatch — one
- * side on map.bin, the other on map4x.bin — has nothing on the wire to
+ * The two hashes are checked here and nowhere else. Province ids never travel,
+ * so a mismatch — this client on a stale provinces.bin out of its HTTP cache,
+ * or on map.bin where the world read map4x.bin — has nothing on the wire to
  * disagree about and shows up only as quietly mis-coloured regions.
  */
 async function buildFrom(
@@ -189,28 +195,26 @@ async function buildFrom(
   onProvince: (province: number) => void,
 ): Promise<{ view: MapRenderer; adapter: FrameAdapter }> {
   const map = await loadWorldMap(state.map.id);
+  const grid = map.provinces;
 
-  if (terrainHashFnv1a(map.terrain) !== state.map.terrainHash) {
+  if (grid.terrainHash !== state.map.terrainHash) {
     throw new Error(
       `Map mismatch on ${state.map.id}: the world's terrain hash is ` +
-        `${state.map.terrainHash.toString(16)}, this client computed ` +
-        `${terrainHashFnv1a(map.terrain).toString(16)}. Province ids would not line up.`,
+        `${state.map.terrainHash.toString(16)}, this client loaded ` +
+        `${grid.terrainHash.toString(16)}. Province ids would not line up.`,
     );
   }
-
-  // Derived, not received: the province -> tile mapping is static map data.
-  // The server ran the same function over the same bytes, and the terrain
-  // hash above is what proves the two agree.
-  const grid = computeProvincePartition(
-    map.terrain,
-    map.width,
-    map.height,
-    map.nations.map((n) => ({ x: n.coordinates[0], y: n.coordinates[1] })),
-  );
-  if (grid.count !== state.map.provinceCount) {
+  if (grid.partitionHash !== state.map.partitionHash) {
+    throw new Error(
+      `Province artefact mismatch on ${state.map.id}: the world is running ` +
+        `${state.map.partitionHash.toString(16)}, this client loaded ` +
+        `${grid.partitionHash.toString(16)}. Reload with the cache cleared.`,
+    );
+  }
+  if (grid.provinceCount !== state.map.provinceCount) {
     throw new Error(
       `Province count mismatch: the world has ${state.map.provinceCount}, ` +
-        `this client derived ${grid.count}`,
+        `this client loaded ${grid.provinceCount}`,
     );
   }
 
@@ -253,6 +257,27 @@ async function buildFrom(
     y: map.height / 2,
     zoom: 1,
   };
+  // Province borders as a map layer, drawn over the terrain and under the
+  // territory. Awaited rather than fired off: the renderer keeps the bitmap,
+  // and handing it one that is still decoding is a race with no error
+  // message. It costs one decode of a full-map image at startup.
+  view.setMapLayers(
+    PROVINCE_BORDER_LAYERS,
+    await borderLayerImages(grid.borderTiles, map.width, map.height),
+  );
+
+  // A border overlay that cannot be turned off is a border overlay somebody
+  // will ask to have removed. `b`, and nothing else — this is not a settings
+  // screen, and phase 3 brings the HUD that would own one.
+  let bordersVisible = true;
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "b" || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+    bordersVisible = !bordersVisible;
+    view.setLayerVisible(PROVINCE_BORDER_LAYER, bordersVisible);
+  });
+
   new CameraController(
     canvas,
     initialCamera,

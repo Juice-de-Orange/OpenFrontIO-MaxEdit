@@ -34,14 +34,14 @@ import type { CommandBody } from "src/shared/protocol/Wire";
 import type { WorldStore } from "../db/Store";
 import type { CommandResult } from "../net/WsServer";
 import { TickLoop } from "./TickLoop";
-import type { World } from "./World";
+import type { World, WorldChanges } from "./World";
 
 export interface WorldRunnerOptions {
   world: World;
   store: WorldStore;
   worldId: string;
   /** Called after every tick with what changed. */
-  onChanges?: (tick: number, changes: [number, number][]) => void;
+  onChanges?: (tick: number, changes: WorldChanges) => void;
   snapshotEvery?: number;
   tickMs?: number;
 }
@@ -52,7 +52,7 @@ export class WorldRunner {
   private readonly worldId: string;
   private readonly snapshotEvery: number;
   private readonly tickMs: number;
-  private onChanges: (tick: number, changes: [number, number][]) => void;
+  private onChanges: (tick: number, changes: WorldChanges) => void;
 
   private loop: TickLoop | undefined;
   private chain: Promise<unknown> = Promise.resolve();
@@ -68,7 +68,7 @@ export class WorldRunner {
     this.onChanges = options.onChanges ?? ((): void => {});
   }
 
-  setOnChanges(fn: (tick: number, changes: [number, number][]) => void): void {
+  setOnChanges(fn: (tick: number, changes: WorldChanges) => void): void {
     this.onChanges = fn;
   }
 

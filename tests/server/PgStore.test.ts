@@ -20,53 +20,31 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { PgStore } from "../../src/server/db/PgStore";
 import { World } from "../../src/server/world/World";
 import { WorldRunner } from "../../src/server/world/WorldRunner";
-import {
-  computeProvincePartition,
-  type ProvincePartition,
-} from "../../src/shared/map/ProvincePartition";
-import type {
-  MapDescriptor,
-  NationStatic,
-} from "../../src/shared/protocol/Wire";
+import { mapFixture } from "../util/worldFixture";
 
 const URL = process.env.TEST_DATABASE_URL;
-const LAND = 0x80;
 
-const nations: NationStatic[] = [
-  { smallID: 1, name: "One" },
-  { smallID: 2, name: "Two" },
-  { smallID: 3, name: "Three" },
-  { smallID: 4, name: "Four" },
-  { smallID: 5, name: "Five" },
-];
-
-/** The same fixture the memory-store restore test uses: 48 provinces, five
- * nations, big enough that the border drift does not eat the world. */
-const descriptor: MapDescriptor = {
-  id: "fixture",
+/**
+ * Big enough that the border drift does not eat the world.
+ *
+ * Provinces are cut at roughly 900 tiles, so this gives 48 of them across five
+ * nations. A smaller fixture collapses to one owner inside thirty ticks, and a
+ * world with one nation left cannot demonstrate anything about commands.
+ */
+const fixture = mapFixture({
   width: 320,
   height: 140,
-  provinceCount: 0,
-  terrainHash: 0xabcdef,
-};
-
-function partition(): ProvincePartition {
-  const { width, height } = descriptor;
-  const terrain = new Uint8Array(width * height);
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) terrain[y * width + x] = LAND | 3;
-  }
-  return computeProvincePartition(terrain, width, height, [
+  capitals: [
     { x: 40, y: 40 },
     { x: 280, y: 40 },
     { x: 40, y: 100 },
     { x: 280, y: 100 },
     { x: 160, y: 70 },
-  ]);
-}
+  ],
+});
 
-function newWorld(p: ProvincePartition): World {
-  return World.create({ ...descriptor, provinceCount: p.count }, nations, p);
+function newWorld(): World {
+  return World.create(fixture.descriptor, fixture.nations, fixture.map);
 }
 
 let unique = 0;
@@ -147,8 +125,12 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
 
   test("a snapshot survives the round trip through gzip and bytea", async () => {
     const id = worldId();
-    await store.ensureWorld(id, descriptor.id, descriptor.terrainHash);
-    const world = newWorld(partition());
+    await store.ensureWorld(
+      id,
+      fixture.descriptor.id,
+      fixture.descriptor.terrainHash,
+    );
+    const world = newWorld();
     world.step();
     world.step();
     const state = world.snapshot();
@@ -166,8 +148,12 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
 
   test("latestSnapshot returns the newest, not the last written", async () => {
     const id = worldId();
-    await store.ensureWorld(id, descriptor.id, descriptor.terrainHash);
-    const world = newWorld(partition());
+    await store.ensureWorld(
+      id,
+      fixture.descriptor.id,
+      fixture.descriptor.terrainHash,
+    );
+    const world = newWorld();
     const first = world.snapshot();
     while (world.currentTick() < 10) world.step();
     const later = world.snapshot();
@@ -212,8 +198,7 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
 
   test("a crashed world comes back from Postgres with its commands intact", async () => {
     const id = worldId();
-    const p = partition();
-    const live = newWorld(p);
+    const live = newWorld();
     const runner = new WorldRunner({
       world: live,
       store,
@@ -227,10 +212,18 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
     while (live.currentTick() < 47) {
       if (claimOn.has(live.currentTick())) {
         let target = -1;
-        for (let province = 0; province < p.count && target < 0; province++) {
-          const owner = live.ownerOf(province);
-          if (owner === 1 || owner === 0) continue;
-          if (p.neighbours[province].some((n) => live.ownerOf(n) === 1)) {
+        for (
+          let province = 0;
+          province < fixture.map.provinceCount && target < 0;
+          province++
+        ) {
+          const holder = live.controllerOf(province);
+          if (holder === 1 || holder === 0) continue;
+          if (
+            fixture.map.provinces[province].neighbours.some(
+              (n) => live.controllerOf(n) === 1,
+            )
+          ) {
             target = province;
           }
         }
@@ -255,7 +248,7 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
       ownersAt41.set(claim.province, 1);
     }
 
-    const restored = newWorld(p);
+    const restored = newWorld();
     const restoredRunner = new WorldRunner({
       world: restored,
       store,
@@ -272,7 +265,7 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
     // And the same world reached without the log lands somewhere else.
     const snapshot = await store.latestSnapshot(id);
     expect(snapshot?.tick).toBe(40);
-    const snapshotOnly = newWorld(p);
+    const snapshotOnly = newWorld();
     snapshotOnly.restoreFrom((snapshot as NonNullable<typeof snapshot>).state);
     while (snapshotOnly.currentTick() < 41) snapshotOnly.step();
     expect(snapshotOnly.ownerSnapshot()).not.toEqual(restored.ownerSnapshot());

@@ -35,7 +35,7 @@ import {
   type ServerMessage,
 } from "src/shared/protocol/Wire";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { World } from "../world/World";
+import type { World, WorldChanges } from "../world/World";
 
 /** How long a connection may stay silent before sending `hello`. */
 const HELLO_TIMEOUT_MS = 5000;
@@ -306,12 +306,18 @@ export class WorldSocketServer {
       nations: this.world.nations,
       nation: session.nation,
       owners: this.world.ownerSnapshot(),
+      controllers: this.world.controllerSnapshot(),
     });
   }
 
   /** Push this tick's changes to every client past the handshake. */
-  broadcastDelta(tick: number, changes: [number, number][]): void {
-    const payload = encodeServer({ t: "delta", tick, changes });
+  broadcastDelta(tick: number, changes: WorldChanges): void {
+    const payload = encodeServer({
+      t: "delta",
+      tick,
+      control: changes.control,
+      owner: changes.owner,
+    });
     for (const s of this.sessions) {
       if (s.ready) s.socket.send(payload);
     }

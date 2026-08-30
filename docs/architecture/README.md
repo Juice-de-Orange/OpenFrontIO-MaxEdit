@@ -4,7 +4,7 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-30, end of phase 1. A world server ticks, persists
+**Last verified:** 2026-08-30, end of phase 2. A world server ticks, persists
 to Postgres, accepts commands and survives being killed; the renderer draws
 what it sends. `src/core` and upstream's match server are deleted and the rest
 of the inherited client is quarantined. Current status is in
@@ -20,13 +20,18 @@ A world server owns the simulation and ticks it every five seconds. Clients
 connect over a WebSocket, receive a full state view on connect and deltas
 afterwards, send commands, and render. The client never simulates anything.
 
-**That is what runs.** `src/server/Main.ts` loads a map, partitions it into
-provinces, takes an advisory lock on its world id, replays whatever the
-database remembers, and starts a clock. `index.html` boots
-`src/client/world/WorldClient.ts`, which connects over a WebSocket, derives
-the same partition from the same terrain bytes, and hands province ownership
-to the inherited renderer through one long-lived `FrameData` object. A click
-on a province sends a `claim_province` command.
+**That is what runs.** `src/server/Main.ts` loads a map and its province
+artefact, takes an advisory lock on its world id, replays whatever the database
+remembers, and starts a clock. `index.html` boots
+`src/client/world/WorldClient.ts`, which connects over a WebSocket, loads the
+same artefact, and hands province control to the inherited renderer through one
+long-lived `FrameData` object — plus a province-border overlay as a map layer,
+toggled with `b`. A click on a province sends a `claim_province` command.
+
+A province has a **controller** and an **owner**. The controller moves the tick
+it is taken; the owner follows only after 336 ticks — fourteen in-game days —
+of unbroken control (docs/decisions/0002). The map is coloured by controller,
+because that is where the line is.
 
 What is not there yet is everything that makes it a _game_: no economy, no
 units, no diplomacy. Besides commands, the world's only behaviour is that one
@@ -36,18 +41,18 @@ because it is what makes the replay test hard enough to be worth running.
 
 ## The tree, and where it came from
 
-| Path                        | Origin   | State                                                                                                                                                                                                                    |
-| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                           |
-| `src/client/world/`         | new      | The world client: entry point, map loading, palette, province tile index, frame adapter, camera, socket.                                                                                                                 |
-| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                    |
-| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                  |
-| `src/server/`               | new      | The world server: `world/` (World, TickLoop, WorldRunner), `db/` (store interface, memory and Postgres store), `net/` (socket and health). Upstream's match server of the same name was deleted; nothing of it survives. |
-| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, GameMap, TileSet, Maps.gen, ProvincePartition, TerrainHash), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`.                                             |
-| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs.                                                                                                                                                 |
-| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                   |
-| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                               |
-| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                    |
+| Path                        | Origin   | State                                                                                                                                                                                                                                |
+| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                                       |
+| `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                         |
+| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                |
+| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                              |
+| `src/server/`               | new      | The world server: `world/` (World, TickLoop, WorldRunner), `db/` (store interface, memory and Postgres store), `net/` (socket and health). Upstream's match server of the same name was deleted; nothing of it survives.             |
+| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`. |
+| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                |
+| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                               |
+| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                                           |
+| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                                |
 
 What was rescued from `src/core` before it went: `GameMap`, `TileSet`,
 `EventBus`, `PseudoRandom`, `DebugSpan`, `Maps.gen`, and 19 of 23 pathfinding
@@ -163,19 +168,56 @@ national border**: the national borders are province borders. An ownership
 change therefore moves one province, and a front is a set of province edges.
 
 Europe at quarter resolution: 529 provinces, mean node degree 3.27, no
-isolated provinces, 368 ms. (The plan measured 2.66 with 160 isolated for a
-naive partition, and warned it would give "corridors instead of fronts".)
+isolated provinces. (The plan measured 2.66 with 160 isolated for a naive
+partition, and warned it would give "corridors instead of fronts".)
 
-The partition is **static map data**, not world state. It is never sent, never
-snapshotted, and never in a delta — both sides derive it from the same terrain
-bytes. `FullState.map.terrainHash` is what makes that agreement checkable; a
-mismatch (one side on `map.bin`, the other on `map4x.bin`) would otherwise
-show up only as quietly mis-coloured regions.
+### It is generated once, not at startup
 
-Phase 2 moves the generator offline and ships the result as a checked-in file,
-so a generator bugfix cannot repartition a running season. The invariants the
-tests assert — determinism, connectivity, no province spanning two nations —
-carry over unchanged.
+The partition is **static map data**, not world state. Since phase 2 it is not
+recomputed either: `npm run gen-provinces` writes it next to the terrain bytes
+and everything else loads it (docs/decisions/0006). Nothing on a startup path
+calls `computeProvincePartition` any more.
+
+```
+resources/maps/europe/
+  map4x.bin       1.2 MB   terrain, one byte per tile
+  provinces.bin   2.3 MB   32-byte header + one Uint16 per tile
+  provinces.json  213 kB   one record per province
+```
+
+The `Uint16` carries two partitions at once: a land tile holds its province id,
+a water tile holds its sea zone with bit 15 set. Land ids never approach 0x8000
+— a nation is capped at 40 provinces.
+
+`FullState.map.partitionHash` (FNV-1a over the whole binary) is what makes the
+two sides' agreement checkable, with `terrainHash` beside it because the
+artefact and the terrain are two files that can also drift apart. A client on a
+stale `provinces.bin` out of its HTTP cache is refused; without the hash it
+would simply mis-colour regions and say nothing.
+
+### What a province knows
+
+Everything below is derived by the generator and never changes while a season
+runs. Ownership is not in here — that is world state, and lives in `World`.
+
+| Field                               | How it is derived                                             |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `terrain`                           | majority `TerrainType` of the province's land tiles           |
+| `infrastructure` (0–10)             | terrain, +1 coastal, +2 capital                               |
+| `buildingSlots`                     | land tiles / 250, clamped, +2 capital                         |
+| `resourceDeposits`                  | seeded roll per `(terrainHash, provinceId)`, terrain-weighted |
+| `airZone`                           | capacity-limited growth over the province graph, ~22 each     |
+| `seaZone`                           | the ocean zone most of its coastline touches, or null         |
+| `neighbours`, `centre`, `tileCount` | from the partition                                            |
+
+The deposit roll is keyed on the map's terrain hash rather than on a world
+seed, on purpose: deposits are geography, so two worlds on Europe find their
+coal in the same mountains. Every number the derivation uses is in
+`src/shared/config/provinces.ts`.
+
+Sea zones are cut from the **ocean**, not from water in general — an inland
+lake is not a theatre, and zoning it gave landlocked provinces a navy. Water
+provinces as such are phase 9; the format has a version field for it.
 
 ## Time, and what a restart costs
 
@@ -222,7 +264,7 @@ and afterwards the log would describe a run neither of them had.
 
 ## The protocol
 
-JSON behind `shared/protocol/Wire.ts`, version 2, with `protocolVersion` in the
+JSON behind `shared/protocol/Wire.ts`, version 3, with `protocolVersion` in the
 handshake. The inherited `zbin` is positional and has no version field; its
 own docs warn that mismatched builds decode each other _silently wrong_, which
 for a world running six weeks while we deploy into it is the most expensive
@@ -243,6 +285,10 @@ Every command gets exactly one ack — including the ones a dropped connection
 ate, which the client fails locally rather than leaving a click that produced
 nothing and explained nothing.
 
+A delta carries two lists, `control` and `owner`. The second is empty on almost
+every tick, which is the point: a front moves constantly and a map changes
+hands rarely.
+
 `/health` shares the socket's port. It reports the tick, the lag, the age of
 the newest snapshot and the state hash, and returns 503 when the world is up
 and stuck — which is the failure a status-code check cannot see.
@@ -256,6 +302,11 @@ bit 5 ocean, bits 0–4 elevation, with 31 meaning impassable.
 `manifest.json` also carries a `nations` list with coordinates and flags — 52 of
 them on the Europe map. Those are the seeds for province generation and the
 starting nations of a world.
+
+The byte layout is stated once, in `src/shared/map/TerrainBits.ts`.
+`GameMapImpl` keeps its own copy private; `tests/shared/TerrainBits.test.ts`
+compares the two over all 256 possible bytes, because a wrong bit here does not
+throw — it puts the mountains somewhere else.
 
 ## Where the numbers live
 
