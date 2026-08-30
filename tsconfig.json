@@ -29,6 +29,16 @@
     "generated/**/*",
     "tests/**/*",
     "src/scripts",
+    // Build-time scripts, top level only. Without this, eslint's project
+    // service refuses any script that no test happens to import and aborts on
+    // the file instead of reporting anything -- the same shape as the
+    // four-exclusion-list trap, from the other direction.
+    //
+    // Not "scripts/**/*.ts": that pulls in upstream's GitHub automation under
+    // issue-lifecycle/ and pr-gate/, which needs @octokit/rest and is not a
+    // dependency of this fork. The parts of it a test actually imports are
+    // already in the program through tests/.
+    "scripts/*.ts",
     "vite.config.ts",
     "drizzle.config.ts"
   ],

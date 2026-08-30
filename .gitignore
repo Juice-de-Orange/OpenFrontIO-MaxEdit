@@ -1,4 +1,8 @@
-build/
+# Anchored to the repository root. Unanchored, `build/` also matches
+# `src/build/`, which is source: PublicAssetManifest.ts only survives there
+# because it was already tracked when the pattern arrived, and the next file
+# added beside it was silently left out of its commit.
+/build/
 node_modules
 .worktrees/
 out/

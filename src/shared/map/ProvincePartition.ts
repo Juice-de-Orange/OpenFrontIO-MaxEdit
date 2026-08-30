@@ -18,8 +18,7 @@
  * passes are linear in tiles and complete in well under a second.
  */
 
-/** Land bit in the engine's terrain byte layout. */
-const LAND_BIT = 0x80;
+import { LAND_BIT } from "./TerrainBits";
 
 /**
  * Target tiles per province.
@@ -87,7 +86,7 @@ function growNations(
   seeds.forEach((seed, nation) => {
     const x = Math.min(width - 1, Math.max(0, Math.round(seed.x)));
     const y = Math.min(height - 1, Math.max(0, Math.round(seed.y)));
-    const start = nearestLand(terrain, width, height, x, y);
+    const start = nearestLandTile(terrain, width, height, x, y);
     // A capital that resolves onto a tile another seed already took keeps the
     // earlier claim; the later nation simply starts from its next free tile.
     if (start >= 0 && owner[start] === -1) {
@@ -115,8 +114,15 @@ function growNations(
   return owner;
 }
 
-/** The nearest land tile to (x, y), searched in rings. -1 if the map has none. */
-function nearestLand(
+/**
+ * The nearest land tile to (x, y), searched in rings. -1 if the map has none.
+ *
+ * Exported because the attribute derivation has to resolve a capital to the
+ * same tile the partition resolved it to. Two ring searches that disagree by
+ * one tile would put the capital bonus on the wrong province, and nothing
+ * would report it.
+ */
+export function nearestLandTile(
   terrain: Uint8Array,
   width: number,
   height: number,
