@@ -125,8 +125,10 @@ npm run lint         # Oxlint + ESLint
 npm run format       # Prettier
 ```
 
-> Note: `npm run dev` currently starts **upstream's** match server. The
-> persistent world server arrives in phase 1.
+> Note: `npm run start:client` is all you need right now. The client boots the
+> world renderer and takes its world from a local stand-in, so `npm run dev`'s
+> second half — **upstream's** match server — is started but never contacted.
+> The persistent world server arrives in phase 1.
 
 ## 🏗️ Project structure
 
@@ -135,7 +137,10 @@ src/
   shared/     pure rules, map primitives, protocol schemas — no I/O,
               used by both sides
   server/     the authoritative world: tick loop, systems, persistence
-  client/     renderer and UI; applies server deltas, simulates nothing
+  client/
+    render/   the inherited WebGL2 renderer, kept
+    world/    entry point, map loading, province index, frame adapter
+  build/      build-time code (asset manifest and hashing)
 resources/    maps, flags, fonts, translations
 docs/         architecture notes and the decision log
 zbin/         compact binary wire format for zod schemas (from upstream)
@@ -143,7 +148,9 @@ zbin/         compact binary wire format for zod schemas (from upstream)
 
 Upstream's `src/core` (the lockstep simulation) is being dismantled: the parts
 worth keeping — map primitives, water pathfinding, the seeded PRNG — move to
-`src/shared`, the rest is deleted.
+`src/shared`, the rest is deleted. The renderer no longer imports any of it,
+and it is no longer part of the shipped bundle; the rest of the inherited
+client still compiles against it and is next in line.
 
 ## 🙏 Credits and license
 
