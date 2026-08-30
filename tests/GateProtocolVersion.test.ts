@@ -10,7 +10,7 @@ import { PROTOCOL_VERSION } from "../src/shared/protocol/Wire";
  * gate failing rather than the world, which is the failure that wastes the
  * most time because it looks like a real one.
  */
-const GATES = ["phase1-gate.mjs", "phase2-gate.mjs"];
+const GATES = ["phase1-gate.mjs", "phase2-gate.mjs", "phase3-gate.mjs"];
 
 describe("gate scripts speak the current protocol", () => {
   for (const gate of GATES) {

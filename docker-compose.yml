@@ -45,6 +45,9 @@ services:
       WORLD_ID: ${WORLD_ID:-world-0}
       MAP_ID: ${MAP_ID:-europe}
       PORT: 3000
+      # Only ever set by a gate. A real world ticks every five seconds; see
+      # the note on TICK_INTERVAL_MS in src/server/Main.ts.
+      WORLD_TICK_MS: ${WORLD_TICK_MS:-}
     ports:
       - "3000:3000"
     # No restart policy on purpose: the phase-1 gate is to kill this container

@@ -14,20 +14,26 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 2 of 11 — the province graph. Complete.** Europe is 529 provinces, and
-each of them now knows its terrain, infrastructure, building slots, resource
-deposits, air zone and sea zone. All of it is **generated once and checked in**
-next to the terrain bytes rather than recomputed at startup, so a generator fix
-can no longer repartition a running season (decision 0006). A province has a
-**controller** and an **owner**: control moves the tick it is taken, ownership
-follows a fortnight later. The client loads the same artefact, colours the map
-by controller, and draws province borders as an overlay you can toggle with
-`b`.
+**Phase 3 of 11 — factories and construction. Complete.** The world has an
+economy. Provinces extract from their deposits, civilian factories make
+construction points, military factories and dockyards draw resources to run,
+synthetic refineries convert steel at a bad rate, and a construction queue
+turns points into buildings over a few hundred ticks. A shortage scales every
+consumer down together instead of stopping anything — invariant 2, end to end,
+and the thing the phase-3 gate actually measures. There is a HUD: a province
+panel with a build menu, the construction queue with progress bars, and the
+nation's stockpiles and rates.
 
-Phase 1 underneath it is unchanged and still passes: a world ticks every five
-seconds on an epoch-anchored deadline, writes every command to Postgres before
-acting on it, snapshots every 60 ticks, and comes back where it was after being
-killed.
+Underneath it, **phase 2** put 529 provinces on the map, each knowing its
+terrain, infrastructure, building slots, deposits, air zone and sea zone, all
+**generated once and checked in** rather than recomputed at startup (decision
+0006). A province has a **controller** and an **owner**: control moves the tick
+it is taken, ownership follows a fortnight later.
+
+And **phase 1** underneath that is unchanged and still passes: a world ticks
+every five seconds on an epoch-anchored deadline, writes every command to
+Postgres before acting on it, snapshots every 60 ticks, and comes back where it
+was after being killed.
 
 **Start it with three commands:**
 
@@ -43,8 +49,94 @@ line.
 
 ### The gates, run rather than described
 
-Both against `docker compose up -d`. **`node scripts/phase2-gate.mjs`**, last
-run:
+All three against `docker compose up -d`. **`node scripts/phase3-gate.mjs`**
+needs a faster clock — see below — and last ran:
+
+```
+phase-3 gate
+  world world-0 at tick 61, 50 ms a tick
+  playing nation 17
+  ok    a nation is sent its own economy; a spectator is not
+  queued a civilian factory in province 167 (0 refused on the way)
+  ok    progress was observed moving on 102 separate ticks
+  ok    it only ever went up, and never by more than a tenth of the project
+  ok    province 167 has one more civilian factory (0 -> 1)
+  ok    the completion was seen on tick 492, with the tick before it
+  ok    construction output rose on the tick it finished: 2.700 -> 3.200 a tick
+  ok    and the queue emptied itself when it was done
+  building military factories until the mines cannot keep up...
+  ok    5 more military factories now demand 1.20 steel a tick against 0.36 mined
+  waiting for the stockpile to run out...
+  ok    sufficiency fell to 56.4%
+  ok    industry kept running at 0.541 a tick rather than stopping
+  ok    and it ran at exactly the share of demand that was covered — 56.4% of 0.960
+  ok    the factories are still there and still asking for resources
+  ok    and construction was untouched — civilian factories draw nothing
+  ok    the world stayed healthy throughout (0 ms behind at tick 4288)
+PASS
+```
+
+The last five lines are the gate. Everything above them is the gate putting the
+nation in a position where invariant 2 can be observed: it builds military
+factories until they demand two and a half times what the mines produce, and
+then waits for the stockpile to go. What the economy must not do is stop — and
+it did not; it ran at 56.4% of what it asked for, exactly the share of its
+demand that was covered, and construction, which draws no resources, was
+untouched.
+
+A queued order whose province has been lost **waits** — that is the
+construction system working as designed, and a queue that cancelled itself
+while a player was offline would be far worse. It does mean a gate that waits
+for "the queue is empty" waits forever, which is what happened: seven minutes
+in a build loop with nothing to show for it. Each item now has its own
+deadline, and a stalled one is cancelled and tried somewhere else.
+
+**Both halves were checked against themselves being broken:**
+
+```
+$ node scripts/phase3-gate.mjs --break=progress
+  FAIL  it only ever went up, and never by more than a tenth of the project
+$ node scripts/phase3-gate.mjs --break=shortage
+  --break=shortage: skipping the build-up
+  FAIL  the nation never ran short, so the degradation rule was not exercised
+```
+
+A counter-proof stops at its first failure, which is the whole answer it exists
+to give; the first version ran on afterwards and spent ten minutes stuck in a
+build loop it had no reason to enter. `--break=shortage` skips the build-up
+entirely for the same reason — its question is whether the check fires when
+sufficiency is forced to 1, and building an over-extended industry first only
+adds ten minutes and more ways for the drift to interfere.
+
+**Run it against a fresh world** (`docker compose down -v` first). The
+"output rose" check is measured across the single tick the factory appears on
+rather than across the two hundred it takes to build — the border drift moves a
+province every tick, so a nation's total output over that span says as much
+about what it conquered and lost as about what it built. A run against an
+already-played world reported `3.200 -> 3.100` and failed for a reason that had
+nothing to do with what it was testing; that is what led to the per-tick
+measurement.
+
+**It needs a world with a faster clock.** A civilian factory is 360
+construction points and a young nation makes about two a tick, so watching one
+finish is 200 ticks — seventeen minutes at the real rate, and the shortage half
+takes longer still:
+
+```bash
+WORLD_TICK_MS=50 docker compose up -d # 100x, and it says so on every start
+node scripts/phase3-gate.mjs
+docker compose up -d # back to a real world
+```
+
+That override is not a hack bolted on for this gate. §8's **phase-10** gate asks
+for 2,000 ticks under regent control, which is two hours and forty-seven minutes
+of wall clock at five seconds a tick. Nothing in the simulation depends on the
+interval — the schedule is anchored to the tick (decision 0003) and every rate
+is per tick — so a faster clock runs the same world sooner rather than a
+different world. `/health` reports `tickMs`, and the lag threshold is measured
+against it rather than against `TICK_MS`.
+
+**`node scripts/phase2-gate.mjs`**, last run:
 
 ```
 phase-2 gate
@@ -152,7 +244,7 @@ Phase 0's commits are in the history of this file before this rewrite.
 
 ### The whole plan, and how far along it is
 
-Three of twelve gates passed. The gate is the unit of progress here, not the
+Four of twelve gates passed. The gate is the unit of progress here, not the
 code: a phase is done when its gate has been demonstrated, not when it
 compiles.
 
@@ -161,8 +253,8 @@ compiles.
 | 0 · Fork triage                | The inherited renderer draws a map from server-pushed state, no client simulation   | ✅ passed                                                          |
 | 1 · World persistence          | Kill the container mid-run; it resumes at the correct tick with no lost commands    | ✅ passed                                                          |
 | 2 · Province graph             | A province changes hands, ownership propagates from tiles, the client renders it    | ✅ passed server-side; the rendering half is the morning checklist |
-| 3 · Factories and construction | Queue a factory, watch it build over ticks, see output rise; shortage degrades it   | ⬜ next                                                            |
-| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ⬜                                                                 |
+| 3 · Factories and construction | Queue a factory, watch it build over ticks, see output rise; shortage degrades it   | ✅ passed                                                          |
+| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ⬜ next                                                            |
 | 5 · Research                   | A completed tech measurably changes a production or combat number                   | ⬜                                                                 |
 | 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ⬜                                                                 |
 | 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ⬜                                                                 |
@@ -171,10 +263,10 @@ compiles.
 | 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜                                                                 |
 | 11 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜                                                                 |
 
-Phases 3 to 10 are the game. Phases 0 to 2 were the ground it stands on: a
-renderer with no simulation behind it, a world that survives being killed, and
-a map with provinces that mean something. From here every gate is something a
-player could watch happen.
+Phases 4 to 10 are the rest of the game. Phases 0 to 2 were the ground it
+stands on — a renderer with no simulation behind it, a world that survives
+being killed, and a map with provinces that mean something — and phase 3 is the
+first one a player can watch happen.
 
 ## What you have to look at yourself
 
@@ -191,55 +283,74 @@ Then open `http://localhost:9000/?nation=17` (or any nation number) and check:
 1. **The map draws territory** — coloured regions, not a blank canvas.
 2. **Province borders are visible** as dark seams inside each nation, and
    `b` turns them off and on again.
-3. **Clicking a neighbouring province changes its colour**, and the notice in
-   the bottom-left says the order was accepted for a tick.
-4. **Clicking a province far away is refused**, with a reason.
-5. **The map keeps moving on its own** — one province changes hands per tick.
+3. **The panels are there** — economy top-left, construction queue beside it,
+   and a province panel on the right when you click a province.
+4. **Clicking a province you hold** shows its terrain, slots, deposits and a
+   build menu; clicking one you do not shows a claim button instead.
+5. **Queue a civilian factory** in a province you own. The queue panel should
+   show a bar that moves every five seconds and a "days left" that counts down.
+   It takes about 200 ticks — a quarter of an hour — so it is enough to see the
+   bar move rather than to watch it finish.
+6. **The numbers are all per day**, never per tick, and the stockpiles move.
+7. **The map keeps moving on its own** — one province changes hands per tick.
 
 If 1 or 2 fail, open the console: a map or artefact mismatch is thrown with
 both hashes in the message, and a stale `provinces.bin` out of the HTTP cache
 is the likely cause — hard-reload.
 
+The HUD's German is picked from `navigator.language`; it has no picker yet.
+
 ## What to do next
 
-**Phase 3 is factories and construction.** CLAUDE.md §8 has the gate: a player
-queues a factory, watches it build over ticks, sees output rise, and a resource
-shortage degrades that output proportionally rather than blocking it.
+**Phase 4 is production and equipment.** CLAUDE.md §8: a sustained fight
+visibly drains a stockpile and weakens units, and switching a production line
+visibly costs the player output for a long time.
 
-It is the first phase that is a _game_, and the first with its own UI. The
-order to build it in:
+Phase 3 left the seam it plugs into deliberately. `measureNation` already
+computes an **industry** figure — assigned factories times a base rate, scaled
+by resource sufficiency — and the HUD already shows it. Phase 4 turns that
+number into equipment:
 
-1. **The system framework first** (§6). `run(world, tick): Event[]`, a fixed
-   order, and a reducer that applies events after every system has run. Phase 3
-   fills `economy` and `construction`; the other slots exist empty so the order
-   is the specification's from the start. This is the investment phases 4 to 10
-   live on, and it is cheaper to get right now than to retrofit.
-2. **`shared/config/rates.ts`** — every balance number, deliberately low.
-3. **Buildings, the construction queue and resource extraction.** Invariant 1:
-   everything is a rate. Invariant 2: shortage scales output down and never
-   blocks. The second is what the gate actually tests.
-4. **State growth.** Nation resources, construction queues and per-province
-   buildings all go into `WorldSnapshot` _and_ into `stateHash`. A field left
-   out of the hash is a field the restore test cannot see, and it will pass
-   over a world that came back half right.
-5. **Two new commands**, `queue_construction` and `cancel_construction`. That
-   also settles the "a command set of one hides what the second one needs"
-   worry from phase 1 without writing anything throwaway.
-6. **The first own screen**, in `src/client/world/ui/` — outside `render/`, or
-   the RenderBoundary test breaks. English source strings in `en.json` with the
-   German alongside in the same commit. Per invariant 9, rates are shown **per
-   in-game day**, never per tick.
+1. **Production lines** (§6.2). A military factory is assigned to exactly one
+   line producing one equipment type. Output is `assigned factories × base rate
+× efficiency`, and `industryPerTick` is that expression with efficiency
+   held at one.
+2. **The efficiency ramp**, from a 10% floor to a 100% cap, climbing slowly
+   every tick a line runs uninterrupted. **Switching a line's equipment type
+   resets it to the floor**; adding or removing factories does not. This is
+   the mechanic the whole game's pace rests on, and it is cheap to build.
+3. **The stockpile** (§6.3). Lines deposit equipment; units draw from it;
+   losses destroy it permanently. Units are not built directly, ever.
+4. **The regent warning is already load-bearing**: §6.10 forbids the regent
+   from ever changing an existing line's type, because that would reset the
+   efficiency a player spent days building. Write that rule down in phase 4,
+   next to the reset, rather than in phase 10 next to the regent.
+
+Things phase 3 did that phase 4 should reuse rather than rebuild:
+
+- **The system framework.** Fill the `production` slot in
+  `src/server/systems/index.ts`; it already runs in the right place.
+- **`measureNation`.** Pure, cheap, called from three places, and the pattern
+  for anything else that has to be both a per-tick decision and a wire field.
+- **The state hash grows with the state.** Equipment stockpiles and line
+  assignments go into `WorldSnapshot` _and_ into `stateHash`. A field left out
+  of the hash is a field the restore test cannot see.
+- **The gate script shape.** `scripts/phase3-gate.mjs` plays the nation into
+  the situation it needs to measure rather than waiting for one; phase 4's
+  should do the same, and it will need `WORLD_TICK_MS` too.
 
 Still worth doing, and still deferred:
 
 - **The four pathfinding files that did not survive phase 0** (`PathFinder.ts`,
-  `.Air`, `.Station`, `spatial/SpatialQuery`). They need a province graph,
-  which now exists — but their real consumer is supply in phase 6, and writing
-  them before there is anything to route would be guessing at the interface.
+  `.Air`, `.Station`, `spatial/SpatialQuery`). Their real consumer is supply in
+  phase 6.
 - **Water provinces.** Phase 2 partitions the ocean into sea zones and stores
-  them in the spare bit of the tile array, which is what §6.7's zone
-  abstraction needs. Phase 9 will want water _provinces_ as well; that is a
-  `provinces.bin` format bump, and the format has a version field for it.
+  them in the spare bit of the tile array. Phase 9 will want water _provinces_
+  as well; that is a `provinces.bin` format bump, and the format has a version
+  field for it.
+- **A language picker.** The HUD has its own English/German catalogue in
+  `client/world/ui/strings.ts` and reads `navigator.language`. It merges into
+  `resources/lang/` when there is a settings screen to hang a picker on.
 - **Deployment to a real host** (phase 11) and **accounts**. The nation still
   comes from `?nation=` in the URL.
 
@@ -341,6 +452,56 @@ tests, not equality.
 
 **`systemctl reload nginx` lies** (relevant from phase 11). Covered in
 [`docs/deploy/README.md`](docs/deploy/README.md).
+
+### From phase 3
+
+**`pkill -f` matches the shell you typed it in — including through a heredoc.**
+This file already warned that `pkill -f "Main.ts"` kills its own shell. It
+happened again anyway, from a new direction: a command that ran
+`pkill -f 'phase3-gate[.]mjs'` and _then_ patched a file whose name appears in
+the same command line. The bracket does not help — `[.]` matches `.`. The whole
+command died at the first step, silently, and the twelve minutes after it were
+spent wondering why a patch had not applied. Kill by pid, or by container.
+
+**An accepted command takes effect on the _next_ tick, so the queue is still
+empty when the ack arrives.** A gate that queued a building and then waited for
+"the queue is empty" returned instantly, queued sixteen orders in a second, and
+measured the demand of the three that happened to have finished. Wait for the
+thing to appear before waiting for it to be gone.
+
+**A gate that waits for the world to reach a state will wait forever.** The
+border drift moves a province every tick, so a nation built to exactly its own
+extraction loses a mine or a factory and drifts back into balance — measured,
+with steel demand falling from 1.40 back to 0.80 while the gate watched. Play
+the world into the state you want to measure, with margin, rather than waiting
+for it: the phase-3 gate builds twelve military factories against a target of
+two and a half times extraction.
+
+**`; echo "exit=$?"` reports the echo, not the command.** The same shape as the
+`build-prod | tail` trap from phase 0. A gate run as
+`node gate.mjs > log 2>&1; echo "gate=$?"` reported success while the log held
+a stack trace. Write the exit code into the log from inside the redirection.
+
+**An empty environment variable is not an unset one.** `docker-compose.yml`
+passes `WORLD_TICK_MS: ${WORLD_TICK_MS:-}`, which sets it to the empty string
+when it is not supplied. `??` does not catch that and `Number("")` is 0 — a
+world with no delay between ticks at all. Parse it, do not coalesce it.
+
+**A shared fixture that a test mutates is an order-dependent suite.** Two of
+the economy tests strip a province's deposits to force a shortage. With one
+module-level `ProvinceMap` they passed, and would have failed the day somebody
+added a test above them. Building the map per test costs two milliseconds.
+
+**A `Uint8Array` wraps at 256 without complaint.** Nothing in the building
+counts can reach it — slots cap at ten — but the saturating add costs nothing
+and a wrapped building count is the kind of bug that looks like a UI fault for
+an hour.
+
+**Rounding a float into a hash makes the hash lie.** The state hash grew to
+cover stockpiles and construction progress, which are doubles. Rounding them to
+three decimals would leave a world that came back 0.0001 short hashing
+identically to the one that left — and the restore gate's whole content is that
+hash. Both words of the double go in, through a shared `Float64Array` view.
 
 ### From phase 2
 
@@ -515,7 +676,7 @@ gate shows a world that survives.
 
 ### Test baseline
 
-**437 passed, 7 skipped, in one run — no tolerated failures.** `npm run test` is
+**455 passed, 7 skipped, in one run — no tolerated failures.** `npm run test` is
 a single `vitest run`. The seven skipped are the Postgres integration tests,
 which run under `npm run test:db` against `docker compose up -d db`; a unit
 suite that needs a container is a unit suite people stop running.
@@ -527,7 +688,8 @@ rule is now **every failure is yours**, not every third one. If you are
 looking for two red tests because you read an older version of this file,
 stop looking.
 
-The count moved from 412 at the end of phase 1, and from 4012 before that
+The count moved from 437 at the end of phase 2, from 412 at the end of phase
+1, and from 4012 before that
 because ~300 test files test code that no longer exists and are in
 `tests/_legacy/`, excluded from the run. They were moved
 rather than deleted: `AttackLogicGolden`, `tests/pathfinding` and

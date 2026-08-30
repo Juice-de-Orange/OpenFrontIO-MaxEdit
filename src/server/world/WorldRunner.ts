@@ -212,6 +212,7 @@ export class WorldRunner {
 
   status(): {
     tick: number;
+    tickMs: number;
     lagMs: number;
     lastSnapshotTick: number;
     snapshotFailures: number;
@@ -219,6 +220,7 @@ export class WorldRunner {
   } {
     return {
       tick: this.world.currentTick(),
+      tickMs: this.tickMs,
       lagMs: this.loop?.lagMs() ?? 0,
       lastSnapshotTick: this.lastSnapshotTick,
       snapshotFailures: this.snapshotFailures,

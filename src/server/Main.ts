@@ -19,9 +19,46 @@ import { WorldSocketServer } from "./net/WsServer";
 import { World } from "./world/World";
 import { WorldRunner } from "./world/WorldRunner";
 
+import { TICK_MS } from "src/shared/config/time";
+
 const PORT = Number(process.env.PORT ?? 3000);
 const WORLD_ID = process.env.WORLD_ID ?? "world-0";
 const MAP_ID = process.env.MAP_ID ?? "europe";
+
+/**
+ * The tick interval, overridable for gates.
+ *
+ * A real world ticks every five seconds (`TICK_MS`), and nothing about the
+ * simulation depends on that number — the schedule is anchored to the tick
+ * (decision 0003) and every rate is per tick, so a faster clock runs the same
+ * world sooner rather than a different world.
+ *
+ * It exists because the later gates are otherwise unrunnable. §8's phase-10
+ * gate asks for 2,000 ticks under regent control; at five seconds that is two
+ * hours and forty-seven minutes, and a gate nobody has time to run is a gate
+ * nobody runs. Phase 3's asks to watch a factory finish, which is 200 ticks.
+ *
+ * A world running at anything but TICK_MS says so on every start, loudly,
+ * because a production world that quietly ticks twenty times too fast would
+ * burn a six-week season in three days.
+ */
+const TICK_INTERVAL_MS = tickInterval();
+
+function tickInterval(): number {
+  // Compose passes `WORLD_TICK_MS: ${WORLD_TICK_MS:-}`, which sets the
+  // variable to the empty string when it is not supplied. `??` does not catch
+  // that and `Number("")` is 0, which would give a world with no delay between
+  // ticks at all.
+  const raw = process.env.WORLD_TICK_MS;
+  if (raw === undefined || raw.trim() === "") return TICK_MS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(
+      `WORLD_TICK_MS=${raw} is not a positive number of milliseconds`,
+    );
+  }
+  return parsed;
+}
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RESOURCES = path.resolve(here, "..", "..", "resources");
@@ -74,7 +111,20 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const runner = new WorldRunner({ world, store, worldId: WORLD_ID });
+  if (TICK_INTERVAL_MS !== TICK_MS) {
+    console.warn(
+      `[world] WORLD_TICK_MS=${TICK_INTERVAL_MS} overrides the ${TICK_MS} ms ` +
+        `tick. This world runs ${(TICK_MS / TICK_INTERVAL_MS).toFixed(1)}x ` +
+        `real time and is not a production world.`,
+    );
+  }
+
+  const runner = new WorldRunner({
+    world,
+    store,
+    worldId: WORLD_ID,
+    tickMs: TICK_INTERVAL_MS,
+  });
   const resumedAt = await runner.restore();
   console.info(`[world] resuming at tick ${resumedAt}`);
 

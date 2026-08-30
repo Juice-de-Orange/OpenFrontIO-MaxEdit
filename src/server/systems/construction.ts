@@ -11,10 +11,13 @@
  * every project finish late; a queue that finishes its front item is a queue a
  * player can plan against.
  *
- * An order whose province has been lost **waits**. It does not fail, it does
- * not refund, and it does not quietly vanish: the province may be retaken, and
- * a queue that empties itself while a player is offline is a queue they cannot
- * trust. Nothing irreversible happens without the player (invariant 7).
+ * An order whose province has been lost **waits**, and the points go to the
+ * next item that can use them. It does not fail, it does not refund, and it
+ * does not quietly vanish: the province may be retaken, and a queue that
+ * empties itself while a player is offline is a queue they cannot trust.
+ * Nothing irreversible happens without the player (invariant 7). Stalling the
+ * whole queue behind it would be the other way to be wrong — one lost frontier
+ * province would stop a nation building anything, anywhere.
  */
 
 import {

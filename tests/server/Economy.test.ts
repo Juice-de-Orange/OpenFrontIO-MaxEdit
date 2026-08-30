@@ -8,7 +8,7 @@ import {
   RESOURCE_CAP,
   STARTING_CAPITAL_BUILDINGS,
 } from "../../src/shared/config/rates";
-import { BUILDINGS } from "../../src/shared/economy/Buildings";
+import { BUILDING_TYPES, BUILDINGS } from "../../src/shared/economy/Buildings";
 import { mapFixture, type Fixture } from "../util/worldFixture";
 
 /**
@@ -298,5 +298,97 @@ describe("the construction system", () => {
         },
       }),
     ).not.toBeNull();
+  });
+});
+
+/**
+ * CLAUDE.md §9 asks every system for a test that runs it over a fixture world
+ * for N ticks and asserts invariants. This is that test for phase 3's two: it
+ * makes no assertion about what the economy *should* do, only about what it
+ * must never do, and it checks all of them on every one of five hundred ticks.
+ */
+describe("five hundred ticks of invariants", () => {
+  test("nothing ever goes negative, over cap, or past a limit", () => {
+    const { world, map, nation } = build();
+    const state = world.view();
+    const stride = BUILDING_TYPES.length;
+
+    // One nation is put into a permanent shortage on purpose. Left alone, no
+    // nation in this fixture runs out of anything in five hundred ticks — and
+    // then every "output was never blocked" count is zero for the wrong
+    // reason, which is the shape of a green test that checks nothing. The
+    // guard at the bottom is what caught it.
+    for (const province of map.provinces) {
+      if (province.nation !== nation) continue;
+      province.resourceDeposits.steel = undefined;
+    }
+    state.nations[nation].resources.steel = 1;
+
+    let slotOverruns = 0;
+    let negative = 0;
+    let overCap = 0;
+    let overbuilt = 0;
+    let longQueue = 0;
+    let blocked = 0;
+    let sufficiencyOutOfRange = 0;
+    let sawShortage = false;
+
+    for (let tick = 0; tick < 500; tick++) {
+      world.step();
+
+      for (
+        let nation = 1;
+        nation <= map.provinces.length && nation <= 5;
+        nation++
+      ) {
+        const economy = world.economyOf(nation);
+        if (economy.sufficiency < 0 || economy.sufficiency > 1) {
+          sufficiencyOutOfRange++;
+        }
+        // Invariant 2: a shortage is a number that got worse. Output may only
+        // be zero when there was nothing at all to work with.
+        if (economy.sufficiency < 1) {
+          sawShortage = true;
+          if (economy.sufficiency > 0 && economy.industry <= 0) blocked++;
+        }
+
+        const nationState = state.nations[nation];
+        for (const resource of RESOURCES) {
+          const held = nationState.resources[resource];
+          if (held < 0) negative++;
+          if (held > RESOURCE_CAP) overCap++;
+        }
+        if (nationState.constructionQueue.length > 24) longQueue++;
+        for (const order of nationState.constructionQueue) {
+          // Progress never runs past the cost: the last tick takes only what
+          // is still needed.
+          if (order.progress > BUILDINGS[order.building].cost) overbuilt++;
+          if (order.progress < 0) negative++;
+        }
+      }
+
+      // Buildings never exceed the province's slots. Levels do not take one.
+      for (const province of map.provinces) {
+        let used = 0;
+        for (let i = 0; i < stride; i++) {
+          if (BUILDINGS[BUILDING_TYPES[i]].takesSlot) {
+            used += state.buildings[province.id * stride + i];
+          }
+        }
+        if (used > province.buildingSlots) slotOverruns++;
+      }
+    }
+
+    expect(negative).toBe(0);
+    expect(overCap).toBe(0);
+    expect(overbuilt).toBe(0);
+    expect(slotOverruns).toBe(0);
+    expect(longQueue).toBe(0);
+    expect(sufficiencyOutOfRange).toBe(0);
+    expect(blocked).toBe(0);
+    // Not an invariant — a guard against the test being vacuous. Without a
+    // shortage somewhere in the run, `blocked` is zero because nothing was
+    // ever tested.
+    expect(sawShortage).toBe(true);
   });
 });

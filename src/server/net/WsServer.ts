@@ -70,19 +70,13 @@ export type SubmitCommand = (
 /** What the world tells the health endpoint about itself. */
 export interface WorldStatus {
   tick: number;
+  /** The interval this world is actually ticking at. Usually TICK_MS. */
+  tickMs: number;
   lagMs: number;
   lastSnapshotTick: number;
   snapshotFailures: number;
   stateHash: number;
 }
-
-/**
- * How far behind schedule the world may fall before it counts as stuck.
- *
- * Three ticks. One late tick is a slow snapshot write or a garbage collection;
- * three in a row is something that is not going to fix itself.
- */
-const MAX_LAG_MS = 3 * TICK_MS;
 
 /** And how stale the newest snapshot may be. Three intervals, same reasoning. */
 const MAX_SNAPSHOT_AGE_TICKS = 3 * SNAPSHOT_INTERVAL_TICKS;
@@ -114,6 +108,7 @@ export class WorldSocketServer {
     port: number,
     private readonly status: () => WorldStatus = () => ({
       tick: 0,
+      tickMs: TICK_MS,
       lagMs: 0,
       lastSnapshotTick: 0,
       snapshotFailures: 0,
@@ -141,8 +136,12 @@ export class WorldSocketServer {
 
     const status = this.status();
     const snapshotAge = status.tick - status.lastSnapshotTick;
+    // Measured against the interval this world is actually running at, not
+    // against TICK_MS: a world under WORLD_TICK_MS would otherwise report
+    // itself healthy while twenty ticks behind.
+    const maxLag = 3 * status.tickMs;
     const healthy =
-      status.lagMs <= MAX_LAG_MS &&
+      status.lagMs <= maxLag &&
       status.snapshotFailures === 0 &&
       snapshotAge <= MAX_SNAPSHOT_AGE_TICKS;
 
@@ -151,6 +150,7 @@ export class WorldSocketServer {
         worldId: this.worldId,
         healthy,
         tick: status.tick,
+        tickMs: status.tickMs,
         lagMs: status.lagMs,
         lastSnapshotTick: status.lastSnapshotTick,
         snapshotAgeTicks: snapshotAge,

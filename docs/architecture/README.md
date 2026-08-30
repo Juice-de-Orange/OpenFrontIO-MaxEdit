@@ -4,7 +4,7 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-30, end of phase 2. A world server ticks, persists
+**Last verified:** 2026-08-31, end of phase 3. A world server ticks, persists
 to Postgres, accepts commands and survives being killed; the renderer draws
 what it sends. `src/core` and upstream's match server are deleted and the rest
 of the inherited client is quarantined. Current status is in
@@ -33,26 +33,75 @@ it is taken; the owner follows only after 336 ticks — fourteen in-game days �
 of unbroken control (docs/decisions/0002). The map is coloured by controller,
 because that is where the line is.
 
-What is not there yet is everything that makes it a _game_: no economy, no
-units, no diplomacy. Besides commands, the world's only behaviour is that one
-province changes hands per tick, at a border, deterministically — a heartbeat,
-kept because a persistent world has to look alive with nobody online, and
-because it is what makes the replay test hard enough to be worth running.
+Since phase 3 there is an economy underneath that: provinces extract from their
+deposits, factories consume and produce, and a construction queue turns
+construction points into buildings over hundreds of ticks. What is still not
+there is everything military and everything diplomatic — no units, no supply,
+no agreements.
+
+The border drift remains: one province changes hands per tick, at a border,
+deterministically. A heartbeat, kept because a persistent world has to look
+alive with nobody online, and because it is what makes the replay test hard
+enough to be worth running. Combat replaces it in phase 9.
+
+## Systems, and the order they run in
+
+`src/server/systems/` holds one module per simulation system, with the
+signature `run(world, tick): Event[]`. All eleven of CLAUDE.md §6's systems are
+in the list from the start; nine are empty placeholders. An empty slot in the
+right place is worth more than a short list that has to be reordered later,
+because reordering is how a dependency gets inverted without anyone noticing.
+
+```
+economy → construction → production → research → trade → supply →
+air → naval → combat → regent → victory
+```
+
+**Events are the only mutation.** A system returns events; nothing outside the
+reducer in `world/WorldState.ts` writes to world state. Each system's events
+are applied before the next system runs (docs/decisions/0007) — the order only
+encodes real dependencies if a later system can see what an earlier one did.
+
+**No system does I/O, reads a clock, or calls `Math.random()`.** That is what
+makes a tick a pure function of `(state, tick)`, which is what the whole
+persistence design rests on.
+
+### What phase 3 fills in
+
+- **economy** — provinces extract from their deposits, scaled by
+  infrastructure, extraction upgrades and whether the province is occupied.
+  Military factories and dockyards draw resources; synthetic refineries convert
+  steel at a deliberately unfavourable rate.
+- **construction** — civilian factories make construction points, points accrue
+  into the front item of the nation's queue, and a building appears when the
+  accrued progress passes its cost.
+
+One **sufficiency** figure per nation, the worst of the per-resource ratios,
+scales every consumer down together. That is invariant 2 — _everything
+degrades, never hard-blocks_ — and taking the worst ratio rather than one per
+resource is deliberate: a factory needs all of its inputs, so scaling each
+input separately would let a nation with plenty of aluminium and no steel keep
+producing on nothing.
+
+Civilian factories draw no resources, so construction points do not depend on
+the stockpile. That is what lets the construction system recompute them rather
+than have them handed down, and it removes the one place the two could
+disagree.
 
 ## The tree, and where it came from
 
-| Path                        | Origin   | State                                                                                                                                                                                                                                |
-| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                                       |
-| `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                         |
-| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                |
-| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                              |
-| `src/server/`               | new      | The world server: `world/` (World, TickLoop, WorldRunner), `db/` (store interface, memory and Postgres store), `net/` (socket and health). Upstream's match server of the same name was deleted; nothing of it survives.             |
-| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`. |
-| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                |
-| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                               |
-| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                                           |
-| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                                |
+| Path                        | Origin   | State                                                                                                                                                                                                                                                                     |
+| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                                                                            |
+| `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                                                              |
+| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                                                     |
+| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                                                                   |
+| `src/server/`               | new      | The world server: `world/` (World, TickLoop, WorldRunner), `db/` (store interface, memory and Postgres store), `net/` (socket and health). Upstream's match server of the same name was deleted; nothing of it survives.                                                  |
+| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `economy/` (the building catalogue), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`. |
+| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                                                     |
+| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                                                                    |
+| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                                                                                |
+| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                                                                     |
 
 What was rescued from `src/core` before it went: `GameMap`, `TileSet`,
 `EventBus`, `PseudoRandom`, `DebugSpan`, `Maps.gen`, and 19 of 23 pathfinding
@@ -285,9 +334,15 @@ Every command gets exactly one ack — including the ones a dropped connection
 ate, which the client fails locally rather than leaving a click that produced
 nothing and explained nothing.
 
-A delta carries two lists, `control` and `owner`. The second is empty on almost
-every tick, which is the point: a front moves constantly and a map changes
-hands rarely.
+A delta carries `control`, `owner` and `buildings`. The second is empty on
+almost every tick, which is the point: a front moves constantly and a map
+changes hands rarely.
+
+**An economy is private.** The map half of a delta is identical for everybody
+and is encoded once; the economy half is built per session and carries only
+that nation's own stockpile, rates and construction queue. A spectator gets
+`null`. Trust and agreement terms in phase 7 get the same treatment, with the
+public/private line where §7 puts it.
 
 `/health` shares the socket's port. It reports the tick, the lag, the age of
 the newest snapshot and the state hash, and returns 503 when the world is up
@@ -313,3 +368,13 @@ throw — it puts the mountains somewhere else.
 Every balance value belongs in `src/shared/config/`, never inline in a system.
 Simulation code has no I/O, no wall-clock reads and no `Math.random()`; all
 randomness derives from a seeded PRNG keyed on `(worldSeed, tick, contextId)`.
+
+- `config/time.ts` — the tick, the day, the snapshot interval.
+- `config/provinces.ts` — everything the province generator derives.
+- `config/rates.ts` — every per-tick rate in the economy.
+- `economy/Buildings.ts` — what can be built, and what it costs.
+
+And per invariant 9, no player ever sees a per-tick figure.
+`client/world/ui/Format.ts` is the only place a rate becomes a per-day one, a
+capacity becomes a filled fraction, or a modifier gets its sign — one place it
+can be got wrong, with a test for each rule.
