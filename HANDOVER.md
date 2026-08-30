@@ -302,6 +302,15 @@ Then open `http://localhost:9000/?nation=17` (or any nation number) and check:
 6. **The numbers are all per day**, never per tick, and the stockpiles move.
 7. **The map keeps moving on its own** — one province changes hands per tick.
 
+**Everything the browser needs was checked from outside it**, so a blank page
+means the rendering and nothing else. Through the Vite proxy on port 9000:
+`index.html`, `manifest.json`, `map4x.bin`, `provinces.bin` and
+`provinces.json` all return 200 at their full sizes, the WebSocket handshake
+completes, and the opening state arrives with 529 controllers, 529 owners,
+5,290 building entries and nation 17's private economy. 104 of those building
+entries are above zero — 52 capitals with a civilian and a military factory
+each, exactly what `STARTING_CAPITAL_BUILDINGS` says.
+
 If 1 or 2 fail, open the console: a map or artefact mismatch is thrown with
 both hashes in the message, and a stale `provinces.bin` out of the HTTP cache
 is the likely cause — hard-reload.
