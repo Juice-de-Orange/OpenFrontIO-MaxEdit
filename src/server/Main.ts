@@ -5,17 +5,18 @@
  * `simpleHash(gameID) % NUM_WORKERS` sharding is gone with the match server it
  * belonged to.
  *
- * The loop itself is in TickLoop: deadlines are absolute, a tick is awaited
- * before the next is scheduled, and the epoch is derived from the tick the
- * world resumes at so downtime is never re-simulated.
+ * This file is assembly only: load the map, take the world's lock, put the
+ * world back where it was, open the socket, start the clock. The rules live in
+ * World, the persistence in WorldRunner, the schedule in TickLoop.
  */
 
 import path from "path";
-import { TICK_MS } from "src/shared/config/time";
 import { fileURLToPath } from "url";
-import { WorldSocketServer, type CommandResult } from "./net/WsServer";
-import { TickLoop } from "./world/TickLoop";
+import { MemoryStore } from "./db/MemoryStore";
+import type { WorldStore } from "./db/Store";
+import { WorldSocketServer } from "./net/WsServer";
 import { World } from "./world/World";
+import { WorldRunner } from "./world/WorldRunner";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const WORLD_ID = process.env.WORLD_ID ?? "world-0";
@@ -23,6 +24,21 @@ const MAP_ID = process.env.MAP_ID ?? "europe";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RESOURCES = path.resolve(here, "..", "..", "resources");
+
+/**
+ * A world with no database keeps its history in memory and loses it on exit.
+ *
+ * That is the right default for the client development loop, which is run
+ * many times a day and should not need a container. It is emphatically not the
+ * right default for anything else, so it says so.
+ */
+function createStore(): WorldStore {
+  console.warn(
+    "[world] no DATABASE_URL: this world is not persisted and will be lost " +
+      "when the process ends",
+  );
+  return new MemoryStore();
+}
 
 async function main(): Promise<void> {
   const world = await World.load(MAP_ID, RESOURCES);
@@ -34,48 +50,35 @@ async function main(): Promise<void> {
       `terrain ${world.descriptor.terrainHash.toString(16)}`,
   );
 
-  // Phase 1 accepts a command straight into the world. The next commit puts
-  // the log write in front of it, which is where this function earns its
-  // keep: nothing may be queued that has not been recorded first.
-  const submit = async (
-    nation: number,
-    body: Parameters<typeof world.rejectionFor>[0]["body"],
-  ): Promise<CommandResult> => {
-    const command = { nation, body };
-    const rejection = world.rejectionFor(command);
-    if (rejection !== null) return { accepted: false, reason: rejection };
-    const { tick } = world.queueCommand(command);
-    return { accepted: true, tick };
-  };
+  const store = createStore();
+  if (!(await store.acquireWorldLock(WORLD_ID))) {
+    console.error(
+      `[world] ${WORLD_ID} is already being ticked by another process. ` +
+        "Two processes on one world would both write to its command log, and " +
+        "the log would then describe a run neither of them had.",
+    );
+    process.exit(1);
+  }
 
-  const server = new WorldSocketServer(world, submit, WORLD_ID, PORT);
+  const runner = new WorldRunner({ world, store, worldId: WORLD_ID });
+  const resumedAt = await runner.restore();
+  console.info(`[world] resuming at tick ${resumedAt}`);
+
+  const server = new WorldSocketServer(
+    world,
+    (nation, body) => runner.submit(nation, body),
+    WORLD_ID,
+    PORT,
+  );
+  runner.setOnChanges((tick, changes) => server.broadcastDelta(tick, changes));
+  runner.start();
   console.info(`[world] listening on ws://localhost:${PORT}/ws`);
-
-  const loop = new TickLoop({
-    tickMs: TICK_MS,
-    startTick: world.currentTick(),
-    onTick: async (tick) => {
-      const changes = world.step();
-      // Two clocks that can disagree are two clocks too many. If they ever do,
-      // the world's tick and the log's tick mean different things, and every
-      // replay after this point is wrong in a way nothing would report.
-      if (world.currentTick() !== tick) {
-        throw new Error(
-          `tick mismatch: loop at ${tick}, world at ${world.currentTick()}`,
-        );
-      }
-      server.broadcastDelta(tick, changes);
-    },
-    onError: (tick, error) => {
-      console.error(`[world] tick ${tick} failed`, error);
-    },
-  });
-  loop.start();
 
   const shutdown = async (signal: string): Promise<void> => {
     console.info(`[world] ${signal}, stopping at tick ${world.currentTick()}`);
-    loop.stop();
+    runner.stop();
     await server.close();
+    await store.close();
     process.exit(0);
   };
   process.on("SIGTERM", () => void shutdown("SIGTERM"));

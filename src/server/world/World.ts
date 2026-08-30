@@ -58,6 +58,24 @@ export interface QueuedAt {
   seq: number;
 }
 
+/**
+ * Everything needed to put the world back, and nothing that can be derived.
+ *
+ * The province partition is not in here. It is static map data both sides
+ * compute from the same terrain bytes, so storing it would only create a
+ * second version of it that could disagree. What *is* stored is enough to
+ * detect that disagreement: a snapshot restored against a different map, or a
+ * repartitioned one, is refused rather than loaded into a world that would
+ * then be quietly wrong everywhere.
+ */
+export interface WorldSnapshot {
+  tick: number;
+  mapId: string;
+  terrainHash: number;
+  provinceCount: number;
+  owners: number[];
+}
+
 export class World {
   private tick = 0;
   private readonly owners: number[];
@@ -135,6 +153,77 @@ export class World {
     return this.tick;
   }
 
+  snapshot(): WorldSnapshot {
+    return {
+      tick: this.tick,
+      mapId: this.descriptor.id,
+      terrainHash: this.descriptor.terrainHash,
+      provinceCount: this.partition.count,
+      owners: [...this.owners],
+    };
+  }
+
+  /**
+   * Load a snapshot into this world.
+   *
+   * Every field but `owners` exists to be checked. A snapshot taken on one map
+   * and restored onto another has nothing to disagree about on the way in —
+   * province ids are just numbers — and the only symptom would be a world that
+   * looks plausible and is wrong.
+   */
+  restoreFrom(snapshot: WorldSnapshot): void {
+    if (snapshot.mapId !== this.descriptor.id) {
+      throw new Error(
+        `snapshot is from map ${snapshot.mapId}, this world is on ${this.descriptor.id}`,
+      );
+    }
+    if (snapshot.terrainHash !== this.descriptor.terrainHash) {
+      throw new Error(
+        `snapshot terrain hash ${snapshot.terrainHash.toString(16)} does not ` +
+          `match this world's ${this.descriptor.terrainHash.toString(16)}`,
+      );
+    }
+    if (snapshot.provinceCount !== this.partition.count) {
+      throw new Error(
+        `snapshot has ${snapshot.provinceCount} provinces, this world has ${this.partition.count}`,
+      );
+    }
+    if (snapshot.owners.length !== this.owners.length) {
+      throw new Error(
+        `snapshot owner list is ${snapshot.owners.length} long, expected ${this.owners.length}`,
+      );
+    }
+    for (let i = 0; i < this.owners.length; i++)
+      this.owners[i] = snapshot.owners[i];
+    this.tick = snapshot.tick;
+    this.pending.clear();
+  }
+
+  /**
+   * A hash of everything the simulation owns.
+   *
+   * Two worlds with the same hash are the same world. That is the whole
+   * assertion a restore has to make, and comparing owner arrays element by
+   * element in a log line is not something anyone does twice. FNV-1a, the same
+   * function the terrain hash uses.
+   */
+  stateHash(): number {
+    let hash = 0x811c9dc5;
+    const mix = (value: number): void => {
+      hash ^= value & 0xff;
+      hash = Math.imul(hash, 0x01000193);
+      hash ^= (value >>> 8) & 0xff;
+      hash = Math.imul(hash, 0x01000193);
+      hash ^= (value >>> 16) & 0xff;
+      hash = Math.imul(hash, 0x01000193);
+      hash ^= (value >>> 24) & 0xff;
+      hash = Math.imul(hash, 0x01000193);
+    };
+    mix(this.tick);
+    for (const owner of this.owners) mix(owner);
+    return hash >>> 0;
+  }
+
   ownerSnapshot(): number[] {
     return [...this.owners];
   }
@@ -187,6 +276,18 @@ export class World {
    */
   queueCommand(command: WorldCommand): QueuedAt {
     return this.enqueueAt(this.tick + 1, command);
+  }
+
+  /**
+   * Where the next command would land, without placing it there.
+   *
+   * The runner writes a command to the log before queueing it, and the two
+   * have to agree on tick and seq — the log is the only record of the order
+   * commands are applied in.
+   */
+  peekNextSlot(): QueuedAt {
+    const tick = this.tick + 1;
+    return { tick, seq: this.pending.get(tick)?.length ?? 0 };
   }
 
   /** Place a command on a specific tick. Used by queueCommand and by replay. */
