@@ -19,7 +19,7 @@ export class MemoryStore implements WorldStore {
   private readonly snapshots = new Map<string, StoredSnapshot[]>();
   private readonly worlds = new Map<
     string,
-    { mapId: string; terrainHash: number }
+    { mapId: string; terrainHash: number; partitionHash: number }
   >();
 
   async acquireWorldLock(worldId: string): Promise<boolean> {
@@ -32,11 +32,19 @@ export class MemoryStore implements WorldStore {
     worldId: string,
     mapId: string,
     terrainHash: number,
+    partitionHash: number,
   ): Promise<void> {
     const known = this.worlds.get(worldId);
     if (known === undefined) {
-      this.worlds.set(worldId, { mapId, terrainHash });
+      this.worlds.set(worldId, { mapId, terrainHash, partitionHash });
       return;
+    }
+    if (known.partitionHash !== partitionHash) {
+      throw new Error(
+        `world ${worldId} was created on province artefact ` +
+          `${known.partitionHash.toString(16)}, not ` +
+          `${partitionHash.toString(16)}`,
+      );
     }
     if (known.mapId !== mapId || known.terrainHash !== terrainHash) {
       throw new Error(

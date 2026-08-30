@@ -83,6 +83,7 @@ export class WorldRunner {
       this.worldId,
       this.world.descriptor.id,
       this.world.descriptor.terrainHash,
+      this.world.descriptor.partitionHash,
     );
 
     const snapshot = await this.store.latestSnapshot(this.worldId);

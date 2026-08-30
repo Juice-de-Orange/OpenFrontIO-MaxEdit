@@ -48,11 +48,18 @@ export interface WorldStore {
    */
   acquireWorldLock(worldId: string): Promise<boolean>;
 
-  /** Record the world's identity, or check it against what is already there. */
+  /**
+   * Record the world's identity, or check it against what is already there.
+   *
+   * Both hashes, because either can change without the other: new map bytes
+   * with an old artefact, or a regenerated artefact over unchanged terrain.
+   * The second is the one that has no other symptom.
+   */
   ensureWorld(
     worldId: string,
     mapId: string,
     terrainHash: number,
+    partitionHash: number,
   ): Promise<void>;
 
   latestSnapshot(worldId: string): Promise<StoredSnapshot | null>;

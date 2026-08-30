@@ -472,6 +472,22 @@ tests, not equality.
 
 ### From phase 3
 
+**`npm run test` does not run the Postgres tests, and they rot.** They are
+`describe.skipIf(!TEST_DATABASE_URL)`, so a green suite says nothing about
+them. Phase 2 split a province's owner from its controller and updated every
+assertion in `Restore.test.ts`; `PgStore.test.ts` asserts the same things
+against a real database and was still checking the phase-1 shape a day later,
+because nothing ran it. **`npm run test:db` is part of finishing a phase**, not
+an optional extra — and it is the only thing that runs the migrations.
+
+**The terrain hash does not identify a world.** The `worlds` table recorded the
+map and its terrain hash, and a regenerated artefact over _unchanged terrain_ —
+a fix to the partition, a tuned number in `shared/config/provinces.ts` — passed
+every check and then meant something different by every province id in the
+command log. The snapshot check catches it once a snapshot exists; before tick
+60 there is none. `partition_hash` is now a column, checked on every start, and
+backfilled for a world created before it existed.
+
 **`pkill -f` matches the shell you typed it in — including through a heredoc.**
 This file already warned that `pkill -f "Main.ts"` kills its own shell. It
 happened again anyway, from a new direction: a command that ran

@@ -65,20 +65,34 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
 
   test("records a world's identity and refuses a different map for it", async () => {
     const id = worldId();
-    await store.ensureWorld(id, "europe", 0x1234);
+    await store.ensureWorld(id, "europe", 0x1234, 0xabcd);
     // Idempotent: every start calls this.
-    await store.ensureWorld(id, "europe", 0x1234);
-    await expect(store.ensureWorld(id, "asia", 0x1234)).rejects.toThrow(
+    await store.ensureWorld(id, "europe", 0x1234, 0xabcd);
+    await expect(store.ensureWorld(id, "asia", 0x1234, 0xabcd)).rejects.toThrow(
       /created on map europe/,
     );
-    await expect(store.ensureWorld(id, "europe", 0x9999)).rejects.toThrow(
-      /terrain/,
-    );
+    await expect(
+      store.ensureWorld(id, "europe", 0x9999, 0xabcd),
+    ).rejects.toThrow(/terrain/);
+  });
+
+  /**
+   * The one the terrain hash cannot catch. A regenerated artefact over
+   * unchanged terrain — a fix to the partition, or a tuned number in
+   * shared/config/provinces.ts — passes every other check and then means
+   * something different by every province id in the command log.
+   */
+  test("refuses a different province artefact over the same terrain", async () => {
+    const id = worldId();
+    await store.ensureWorld(id, "europe", 0x1234, 0xabcd);
+    await expect(
+      store.ensureWorld(id, "europe", 0x1234, 0xbeef),
+    ).rejects.toThrow(/province artefact/);
   });
 
   test("returns commands in (tick, seq) order, whatever order they arrived in", async () => {
     const id = worldId();
-    await store.ensureWorld(id, "europe", 1);
+    await store.ensureWorld(id, "europe", 1, 1);
     const written = [
       {
         tick: 9,
@@ -112,7 +126,7 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
 
   test("refuses to log two commands in the same slot", async () => {
     const id = worldId();
-    await store.ensureWorld(id, "europe", 1);
+    await store.ensureWorld(id, "europe", 1, 1);
     const command = {
       tick: 3,
       seq: 0,
@@ -129,6 +143,7 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
       id,
       fixture.descriptor.id,
       fixture.descriptor.terrainHash,
+      fixture.descriptor.partitionHash,
     );
     const world = newWorld();
     world.step();
@@ -152,6 +167,7 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
       id,
       fixture.descriptor.id,
       fixture.descriptor.terrainHash,
+      fixture.descriptor.partitionHash,
     );
     const world = newWorld();
     const first = world.snapshot();
@@ -260,7 +276,14 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
 
     // The command logged at 41 is after the last snapshot, so it exists only
     // in the log. If the log were not read, this province would not be ours.
-    expect(restored.ownerOf(claimed[1].province)).toBe(1);
+    //
+    // Control, not ownership. A claim moves the controller at once and the
+    // owner only after OCCUPATION_TICKS, which is longer than this whole run
+    // — so asserting ownership here asserts something the commands were never
+    // going to change. This test is skipped without TEST_DATABASE_URL, which
+    // is why it was still asserting the phase-1 shape after phase 2 split the
+    // two: `npm run test` does not run it. `npm run test:db` does.
+    expect(restored.controllerOf(claimed[1].province)).toBe(1);
 
     // And the same world reached without the log lands somewhere else.
     const snapshot = await store.latestSnapshot(id);
@@ -268,6 +291,8 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
     const snapshotOnly = newWorld();
     snapshotOnly.restoreFrom((snapshot as NonNullable<typeof snapshot>).state);
     while (snapshotOnly.currentTick() < 41) snapshotOnly.step();
-    expect(snapshotOnly.ownerSnapshot()).not.toEqual(restored.ownerSnapshot());
+    expect(snapshotOnly.controllerSnapshot()).not.toEqual(
+      restored.controllerSnapshot(),
+    );
   });
 });

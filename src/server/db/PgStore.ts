@@ -90,6 +90,7 @@ export class PgStore implements WorldStore {
     worldId: string,
     mapId: string,
     terrainHash: number,
+    partitionHash: number,
   ): Promise<void> {
     const existing = await this.db
       .select()
@@ -97,7 +98,9 @@ export class PgStore implements WorldStore {
       .where(eq(worlds.id, worldId));
 
     if (existing.length === 0) {
-      await this.db.insert(worlds).values({ id: worldId, mapId, terrainHash });
+      await this.db
+        .insert(worlds)
+        .values({ id: worldId, mapId, terrainHash, partitionHash });
       return;
     }
 
@@ -108,6 +111,28 @@ export class PgStore implements WorldStore {
           `(terrain ${world.terrainHash.toString(16)}), not ${mapId} ` +
           `(terrain ${terrainHash.toString(16)}). Its province ids would mean ` +
           "different places.",
+      );
+    }
+
+    if (world.partitionHash === null) {
+      // A world from before this column existed. Adopt what it is running on
+      // now rather than refusing to start it — there is nothing to compare
+      // against, and refusing would strand a season on an old build.
+      await this.db
+        .update(worlds)
+        .set({ partitionHash })
+        .where(eq(worlds.id, worldId));
+      return;
+    }
+
+    if (world.partitionHash !== partitionHash) {
+      throw new Error(
+        `world ${worldId} was created on province artefact ` +
+          `${world.partitionHash.toString(16)}, not ` +
+          `${partitionHash.toString(16)}. The terrain is unchanged, so nothing ` +
+          "else would have noticed — but every province id in its command log " +
+          "would mean a different place. Restore the artefact, or start a new " +
+          "world (docs/decisions/0006).",
       );
     }
   }

@@ -48,6 +48,22 @@ export const worlds = pgTable("worlds", {
    * world rather than an error.
    */
   terrainHash: bigint("terrain_hash", { mode: "number" }).notNull(),
+  /**
+   * The province artefact the world was created against.
+   *
+   * Nullable, and only because worlds created before this column existed do
+   * not have one; `ensureWorld` fills it in the first time such a world
+   * starts. Every new world writes it immediately.
+   *
+   * The terrain hash above is not enough on its own. A regenerated artefact
+   * over *unchanged terrain* — a fix to the partition, or a tuned number in
+   * `shared/config/provinces.ts` — passes the terrain check and then means
+   * something different by every province id in the command log. The snapshot
+   * check catches it once a snapshot exists; this catches it in the first
+   * sixty ticks, before one does, and it is the record of the world's identity
+   * rather than an incidental consequence of one.
+   */
+  partitionHash: bigint("partition_hash", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

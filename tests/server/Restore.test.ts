@@ -240,6 +240,7 @@ describe("restore", () => {
       WORLD_ID,
       fixture.descriptor.id,
       fixture.descriptor.terrainHash,
+      fixture.descriptor.partitionHash,
     );
     const state = world.snapshot();
     state.owners[0] = state.owners[0] === 1 ? 2 : 1;
