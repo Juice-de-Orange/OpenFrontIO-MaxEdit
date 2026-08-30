@@ -63,4 +63,48 @@ export default [
       ],
     },
   },
+  // Package boundaries. tests/architecture/RenderBoundary.test.ts checks the
+  // same thing over the whole tree and gives better messages; these two zones
+  // catch it in the editor, before the test runs.
+  {
+    files: ["src/client/render/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/core/*", "**/core/**", "src/core/*", "src/core/**"],
+              message:
+                "render/ must not import core/ — the client renders, the server simulates. See docs/decisions/0004-renderer-owns-its-vocabulary.md.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/shared/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "**/client/**",
+                "**/server/**",
+                "**/core/**",
+                "src/client/**",
+                "src/server/**",
+                "src/core/**",
+              ],
+              message:
+                "shared/ imports nothing from client/, server/ or core/. It is the layer both sides depend on, so a single edge out of it inverts the dependency.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

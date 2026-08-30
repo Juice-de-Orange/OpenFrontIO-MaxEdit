@@ -5,8 +5,10 @@ It is not the plan. The plan — every system, the build phases and their gates 
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
 **Last verified:** 2026-08-30, phase 0 in progress — import cycle cut,
-proprietary assets removed, nine renderer→core couplings still open.
-Current step-by-step status is in [`../../HANDOVER.md`](../../HANDOVER.md).
+proprietary assets removed, **renderer fully severed from `src/core`**.
+`src/core` and `src/server` still exist and the client outside the renderer
+still depends on them. Current step-by-step status is in
+[`../../HANDOVER.md`](../../HANDOVER.md).
 
 > ⚠️ The fork is mid-surgery. Large parts of this tree are inherited upstream
 > code that is being dismantled. Where that is the case, this document says so
@@ -22,18 +24,19 @@ upstream's match server. Phase 0 is the demolition that makes room for it.
 
 ## What is inherited, and what happens to it
 
-| Path                                              | Origin   | Fate                                                                                                                    |
-| ------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `src/client/render/`                              | upstream | **Kept.** WebGL2 renderer, ~180 files. The most valuable inherited asset.                                               |
-| `src/client/hud/`, `components/`                  | upstream | Mostly quarantined, then replaced. A few files are skeletons for later phases.                                          |
-| `src/client/view/`                                | upstream | **Replaced** by a store that applies server deltas.                                                                     |
-| `src/core/pathfinding/`                           | upstream | **Moves to `shared/`.** Water pathfinding and connected components are needed for sea routes and province partitioning. |
-| `src/core/game/GameMap.ts`                        | upstream | **Moves to `shared/map/`.** Tile geometry and terrain queries.                                                          |
-| `src/core/execution/`, `worker/`, `GameRunner.ts` | upstream | **Deleted.** This is the lockstep simulation.                                                                           |
-| `src/server/`                                     | upstream | **Deleted.** Ephemeral master/worker match server; replaced by the world server.                                        |
-| `src/shared/`                                     | new      | Pure rules and types used by both sides. No I/O, ever.                                                                  |
-| `zbin/`                                           | upstream | Kept as a library. Currently unused by our own protocol.                                                                |
-| `proprietary/`                                    | upstream | **Removed.** Logo, brand font and music, All Rights Reserved. Replaced by own marks in `resources/images/`.             |
+| Path                                              | Origin   | Fate                                                                                                                                                       |
+| ------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/client/render/`                              | upstream | **Kept.** WebGL2 renderer, ~180 files. The most valuable inherited asset.                                                                                  |
+| `src/client/hud/`, `components/`                  | upstream | Mostly quarantined, then replaced. A few files are skeletons for later phases.                                                                             |
+| `src/client/view/`                                | upstream | **Replaced** by a store that applies server deltas.                                                                                                        |
+| `src/core/pathfinding/`                           | upstream | **Moves to `shared/`.** Water pathfinding and connected components are needed for sea routes and province partitioning.                                    |
+| `src/core/game/GameMap.ts`                        | upstream | **Moves to `shared/map/`.** Tile geometry and terrain queries.                                                                                             |
+| `src/core/execution/`, `worker/`, `GameRunner.ts` | upstream | **Deleted.** This is the lockstep simulation.                                                                                                              |
+| `src/server/`                                     | upstream | **Deleted.** Ephemeral master/worker match server; replaced by the world server.                                                                           |
+| `src/shared/`                                     | new      | Pure rules and types used by both sides. No I/O, ever. Currently `map/Terrain`, `map/Maps.gen`, `util/AssetPath`, `util/PatternDecoder`, `util/Veterancy`. |
+| `src/build/`                                      | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs and which used to live in `src/server/`.                                           |
+| `zbin/`                                           | upstream | Kept as a library. Currently unused by our own protocol.                                                                                                   |
+| `proprietary/`                                    | upstream | **Removed.** Logo, brand font and music, All Rights Reserved. Replaced by own marks in `resources/images/`.                                                |
 
 ## The renderer, and why it survives the surgery
 
@@ -91,21 +94,51 @@ the cut and 1 after — the remaining one is `GameMap.ts`, which has not moved
 yet. The exact commands are in [`../../HANDOVER.md`](../../HANDOVER.md). This
 will become a permanent test.
 
-That measurement covers the _type_ graph reachable from `FrameData`. The
-renderer still has value imports into `src/core` beyond it — nine modules,
-about thirty call sites, as of 2026-08-30:
+That measurement covers the _type_ graph reachable from `FrameData`, which is
+the narrowest thing one can measure. Two wider probes matter more, and both now
+read zero:
 
-| Module                       | Sites | Weight                                                        |
-| ---------------------------- | ----- | ------------------------------------------------------------- |
-| `core/configuration/Config`  | 10    | Only 7 methods are used; replaced by a narrow `RenderConfig`. |
-| `core/AssetUrls`             | 10    | 116 lines, no imports. Trivial to move.                       |
-| `core/CosmeticSchemas`       | 3     | 575 lines. Two uses are the debug effect editor.              |
-| `core/game/TerrainMapLoader` | 2     | Type-only (`MapLayer`).                                       |
-| `core/game/Game`             | 2     | Two enums.                                                    |
-| `core/game/GameUpdates`      | 2     | Only `RailroadCache.ts`, which gets quarantined.              |
-| `core/game/Veterancy`        | 1     | 23 lines, no imports.                                         |
-| `core/PatternDecoder`        | 1     | Used by the preview pass.                                     |
-| `core/game/GameMap`          | 1     | Moves last, once `execution/` is deleted.                     |
+| Probe from                                  | Before phase 0 | Now |
+| ------------------------------------------- | -------------- | --- |
+| `render/types/FrameData.ts`                 | 54             | 0   |
+| `render/gl/Renderer.ts`                     | 56             | 0   |
+| `render/gl/MapRenderer.ts`                  | —              | 0   |
+| `render/preview/CosmeticPreviewRenderer.ts` | —              | 0   |
+
+The renderer's only edges outside `src/client/render/` are
+`client/util/AssetUrl` and `client/i18n/Translate` (both reach nothing but
+`shared/`), plus `components/WebGLGate`, which imports nothing but `lit`.
+
+**How it is held.** Two mechanisms, deliberately different in kind:
+
+- `tests/architecture/RenderBoundary.test.ts` scans every `.ts` under
+  `render/`, resolves both the `src/…` alias and relative path forms, and
+  asserts no `src/core` edge and no edge out of `render/` beyond a named list.
+- `no-restricted-imports` zones in `eslint.config.js` for `render/` and for
+  `shared/`, so a violation shows up in the editor before the test runs.
+
+Both were verified by introducing a violation on purpose and watching them
+fail — in both directions for the lint zones.
+
+The nine couplings that were resolved, and how:
+
+| Module                       | Resolution                                                                  |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `core/configuration/Config`  | Replaced by `RenderRules` in `render/types/` — 7 methods, structurally met. |
+| `core/AssetUrls`             | Split into `shared/util/AssetPath` and `client/util/AssetUrl`.              |
+| `core/CosmeticSchemas`       | Effect editor deleted; palette attribute union written out locally.         |
+| `core/game/TerrainMapLoader` | `MapLayer` duplicate collapsed onto the generated catalog.                  |
+| `core/game/Game`             | `GameMapType` via `shared/map/Maps.gen`; `UnitType` via the renderer's own. |
+| `core/game/GameUpdates`      | `computeRailTiles` split out; the accumulator moved to `client/view/`.      |
+| `core/game/Veterancy`        | Moved to `shared/util/`.                                                    |
+| `core/PatternDecoder`        | Moved to `shared/util/`, constructor typed structurally.                    |
+| `core/game/GameMap`          | `TileRef` is `number` in the renderer.                                      |
+
+Plus two transitive leaks the count above missed, because they were not
+`src/core` imports at all: `client/Utils.ts` (reached by three passes for
+`translateText`, `renderNumber`, `renderTroops`) and
+`client/TerrainMapFileLoader` (reached by the cosmetic preview). See
+[decision 0004](../decisions/0004-renderer-owns-its-vocabulary.md).
 
 ## Map data
 
