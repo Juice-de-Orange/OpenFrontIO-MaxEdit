@@ -1,151 +1,160 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="proprietary/images/OpenFrontLogoDark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="proprietary/images/OpenFrontLogo.svg">
-    <img src="proprietary/images/OpenFrontLogo.svg" alt="OpenFrontIO Logo" width="300">
-  </picture>
-</p>
+# OpenFront MaxEdit
 
-[OpenFront.io](https://openfront.io/) is an online real-time strategy game focused on territorial control and alliance building. Players compete to expand their territory, build structures, and form strategic alliances in various maps based on real-world geography.
+**A persistent-world fork of [OpenFront.io](https://openfront.io/) — the same map, a
+completely different game underneath.**
 
-This is a fork/rewrite of WarFront.io. Credit to https://github.com/WarFrontIO.
-
-![CI](https://github.com/openfrontio/OpenFrontIO/actions/workflows/ci.yml/badge.svg)
-[![Crowdin](https://badges.crowdin.net/openfront-mls/localized.svg)](https://crowdin.com/project/openfront-mls)
-[![CLA assistant](https://cla-assistant.io/readme/badge/openfrontio/OpenFrontIO)](https://cla-assistant.io/openfrontio/OpenFrontIO)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Assets: CC BY-SA 4.0](https://img.shields.io/badge/Assets-CC%20BY--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-sa/4.0/)
+[![Upstream: OpenFrontIO](https://img.shields.io/badge/fork%20of-openfrontio%2FOpenFrontIO-informational.svg)](https://github.com/openfrontio/OpenFrontIO)
 
-## License
+> This is **not** official OpenFront, and it is not affiliated with the OpenFront
+> project or its maintainers. It is an independent hard fork.
 
-OpenFront source code is licensed under the **GNU Affero General Public License v3.0**
+## 💛 Why this exists
 
-Current copyright notices appear in:
+Because I love the original. OpenFront gets something right that most browser
+strategy games don't — a map you actually want to look at, and expansion that
+feels physical. This is a hobby project that asks a different question with the
+same ingredients: _what if the world never stopped?_
 
-- Footer: "© OpenFront and Contributors"
-- Loading screen: "© OpenFront and Contributors"
+Not a competitor, not a replacement. A weekend experiment that got out of hand,
+built to be played by a couple of friends. If you find the idea interesting,
+you are very welcome to join in — see [Contributing](#-contributing).
 
-Modified versions must preserve these notices in reasonably visible locations.
+## 🌍 What is different
 
-See the [LICENSE](LICENSE) for complete requirements.
+Upstream OpenFront is a fast, ephemeral match: a lobby fills, twenty minutes of
+real-time expansion happen, someone wins, the game is deleted. The simulation
+runs **on every client** in deterministic lockstep, and the server only relays
+intents.
 
-For asset licensing, see [LICENSE-ASSETS](LICENSE-ASSETS).  
-For license history, see [LICENSING.md](LICENSING.md).
+MaxEdit inverts almost all of that.
 
-## 🌟 Features
+|                         | OpenFront                   | OpenFront MaxEdit                                                    |
+| ----------------------- | --------------------------- | -------------------------------------------------------------------- |
+| **World lifetime**      | one match, ~20 minutes      | one continuous world, running for weeks                              |
+| **Who simulates**       | every client, in lockstep   | the server, alone                                                    |
+| **The client is**       | a peer running the game     | a renderer with a state store                                        |
+| **Time**                | real-time, ~10 ticks/second | one tick per 5 seconds = one in-game hour                            |
+| **Unit of interaction** | tiles                       | provinces (300–800 per map)                                          |
+| **Economy**             | gold and troops             | factories, construction points, four resources, equipment stockpiles |
+| **Combat**              | tile-by-tile expansion      | front-based, at province borders, limited by combat width            |
+| **When you log off**    | the match ends              | the world keeps running; a regent holds your nation                  |
+| **Persistence**         | none                        | Postgres: append-only command log + periodic world snapshots         |
 
-- **Real-time Strategy Gameplay**: Expand your territory and engage in strategic battles
-- **Alliance System**: Form alliances with other players for mutual defense
-- **Multiple Maps**: Play across various geographical regions including Europe, Asia, Africa, and more
-- **Resource Management**: Balance your expansion with defensive capabilities
-- **Cross-platform**: Play in any modern web browser
+The design goal is a game you check on twice a day rather than play for twenty
+minutes — closer to Hearts of Iron IV's economy than to an .io game, but with
+the mechanics cut down to the few that carry their weight.
 
-## 📋 Prerequisites
+Three rules shape every system:
 
-- [npm](https://www.npmjs.com/) (v10.9.2 or higher)
-- A modern web browser (Chrome, Firefox, Edge, etc.)
+- **Everything is a rate, never a lump sum.** Factories produce per tick,
+  construction accrues per tick. Nothing completes instantly.
+- **Everything degrades, never hard-blocks.** A resource shortage scales output
+  down proportionally. No system ever refuses to run; it runs worse.
+- **You allocate, you don't micromanage.** Wings go to zones, factories go to
+  production lines. You never command an individual aircraft.
 
-## 🚀 Installation
+The full design — every system, every invariant, and the reasoning behind the
+ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
-1. **Clone the repository**
+## 🚧 Status
 
-   ```bash
-   git clone https://github.com/openfrontio/OpenFrontIO.git
-   cd OpenFrontIO
-   ```
+**Early. Phase 0 of 11.** The fork currently boots upstream's client; the
+persistent world server does not exist yet.
 
-2. **Install dependencies**
+The build order and the gate each phase has to pass are in
+[CLAUDE.md § 8](CLAUDE.md). Progress so far:
 
-   ```bash
-   npm run inst
-   ```
-
-   Do NOT use `npm install` nor `npm i` but instead use our `npm run inst`. It runs the safer `npm ci --ignore-scripts` to install dependencies exactly according to the versions in `package-lock.json` and doesn't run scripts. This can prevent being hit by a supply chain attack.
-
-## 🎮 Running the Game
-
-### Development Mode
-
-Run both the client and server in development mode with live reloading:
-
-```bash
-npm run dev
-```
-
-This will:
-
-- Start the webpack dev server for the client
-- Launch the game server with development settings
-- Open the game in your default browser (to disable this behavior, set `SKIP_BROWSER_OPEN=true` in your environment)
-
-### Client Only
-
-To run just the client with hot reloading:
-
-```bash
-npm run start:client
-```
-
-### Server Only
-
-To run just the server with development settings:
-
-```bash
-npm run start:server-dev
-```
-
-### Connecting to staging or production backends
-
-Sometimes it's useful to connect to production servers when replaying a game, testing user profiles, purchases, or login flow.
-
-> To replay a production game, make sure you're on the same commit that the game you want to replay was executed on, you can find the `gitCommit` value via `https://api.openfront.io/game/[gameId]`.
-> Unfinished games cannot be replayed on localhost.
-
-To connect to staging api servers:
-
-```bash
-npm run dev:staging
-```
-
-To connect to production api servers:
-
-```bash
-npm run dev:prod
-```
-
-## 🛠️ Development Tools
-
-- **Format code**:
-
-  ```bash
-  npm run format
-  ```
-
-- **Lint code with Oxlint and ESLint**:
-
-  ```bash
-  npm run lint
-  ```
-
-- **Lint and fix code with Oxlint and ESLint**:
-
-  ```bash
-  npm run lint:fix
-  ```
-
-- **Testing**
-  ```bash
-  npm test
-  ```
-
-## 🏗️ Project Structure
-
-- `/src/client` - Frontend game client
-- `/src/core` - Deterministic game simulation
-- `/src/server` - Backend game server
-- `/resources` - Static assets (images, maps, etc.)
-- `/zbin` - Compact binary wire format for zod schemas (self-contained, zod-only)
+- [x] Fork triage — break the `core` ↔ `client` import cycle _(in progress)_
+- [ ] World persistence — tick loop, snapshots, crash recovery
+- [ ] Province graph
+- [ ] Factories and construction
+- [ ] Production and equipment
+- [ ] Research · Supply · Diplomacy · Air · Naval · Regent · Deployment
 
 ## 🤝 Contributing
 
-Contributions and translations are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, the approved-issue process, project governance, and translation info.
+Genuinely welcome. This is a small hobby project, so the bar is "does it fit the
+design", not "is it perfect".
+
+Useful things to know before you start:
+
+- **Read [CLAUDE.md](CLAUDE.md) first**, especially § 2 (design invariants). A
+  mechanic that needs an exception to those is the wrong mechanic, however good
+  it is on its own — that constraint is what keeps the game coherent.
+- **Phases are built in order** and each has a gate. A pull request for phase 7
+  while phase 3 is unbuilt has nothing to attach to.
+- Docs live in [`docs/`](docs/) — architecture notes, and a decision log
+  explaining _why_ things are the way they are.
+- Conventional commits, phase number in the body.
+
+Bug reports, balance opinions, and "this system is more complicated than it
+needs to be" are all useful. So is telling me the design is wrong.
+
+## 📋 Prerequisites
+
+- [Node.js](https://nodejs.org/) 24 and npm 10.9.2+
+- A browser with WebGL2
+- Docker (from phase 1 onward, for Postgres)
+
+## 🚀 Installation
+
+```bash
+git clone https://github.com/Juice-de-Orange/OpenFrontIO-MaxEdit.git
+cd OpenFrontIO-MaxEdit
+npm run inst
+```
+
+Use `npm run inst`, **not** `npm install`. It runs `npm ci --ignore-scripts`,
+which installs exactly the locked versions and runs no lifecycle scripts — a
+cheap defence against supply-chain attacks. (Inherited from upstream, and worth
+keeping.)
+
+## 🎮 Running
+
+```bash
+npm run dev          # client + server, http://localhost:9000
+npm run start:client # client only
+npm test             # test suite (Vitest)
+npm run lint         # Oxlint + ESLint
+npm run format       # Prettier
+```
+
+> Note: `npm run dev` currently starts **upstream's** match server. The
+> persistent world server arrives in phase 1.
+
+## 🏗️ Project structure
+
+```
+src/
+  shared/     pure rules, map primitives, protocol schemas — no I/O,
+              used by both sides
+  server/     the authoritative world: tick loop, systems, persistence
+  client/     renderer and UI; applies server deltas, simulates nothing
+resources/    maps, flags, fonts, translations
+docs/         architecture notes and the decision log
+zbin/         compact binary wire format for zod schemas (from upstream)
+```
+
+Upstream's `src/core` (the lockstep simulation) is being dismantled: the parts
+worth keeping — map primitives, water pathfinding, the seeded PRNG — move to
+`src/shared`, the rest is deleted.
+
+## 🙏 Credits and license
+
+This project exists because of the work of the OpenFront team and its
+contributors, and before them [WarFront.io](https://github.com/WarFrontIO).
+
+**© OpenFront and Contributors.** Source code is licensed under the
+[GNU Affero General Public License v3.0](LICENSE); the licence requires that
+this notice stays visible in modified versions, and that they are not presented
+as the official project. Assets inherited from upstream are
+[CC BY-SA 4.0](LICENSE-ASSETS). Licence history is in [LICENSING.md](LICENSING.md).
+
+Upstream's proprietary assets — the OpenFront logo, brand font and music — are
+**not** part of this fork and are not redistributed here.
+
+Because MaxEdit is run as a network service, the AGPL requires its source to be
+available to the people playing it. That is why this repository is public and
+will stay public.

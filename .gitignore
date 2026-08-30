@@ -26,3 +26,49 @@ tests/perf/output/
 # Locally built Go binary (gen-maps uses `go run .`)
 map-generator/map-generator
 map-generator/map-generator.exe
+
+# ---------------------------------------------------------------------------
+# MaxEdit: this repository is PUBLIC (AGPL-3.0 requires it — we run the fork
+# as a network service). Nothing below may ever reach it.
+# ---------------------------------------------------------------------------
+
+# Anything ending in .local.* is private by construction. Deployment notes for
+# a specific host, personal scratch files, machine-specific overrides. The
+# committed docs stay generic so other people can host this too; the concrete
+# hostnames, ports and paths of *your* server live in these files only.
+*.local.md
+*.local.json
+*.local.yml
+*.local.yaml
+.local/
+
+# Secrets and credentials. `.env*` is covered above, these are the rest.
+*.pem
+*.key
+!resources/**/*.key
+id_rsa*
+id_ed25519*
+*.p12
+*.pfx
+secrets/
+.ssh/
+
+# Live world data. Snapshots and command logs contain player accounts and
+# session state; database dumps contain password hashes.
+/data/
+/backups/
+*.sql
+*.sql.gz
+*.dump
+snapshots/
+world-state/
+
+# Generated province artefacts are checked in deliberately (see CLAUDE.md
+# phase 2) — but the intermediate scratch of the generator is not.
+scripts/**/out/
+*.provinces.tmp
+
+# Backup copies made while editing (`cp file file.bak-<date>`).
+*.bak-*
+*.orig
+*.rej

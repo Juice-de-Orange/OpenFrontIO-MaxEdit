@@ -5,8 +5,11 @@ slow economic simulation with Hearts of Iron IV mechanics reduced to their
 essentials.
 
 Repo: `https://github.com/Juice-de-Orange/OpenFrontIO-MaxEdit`
-Local: `C:\Projekte\OpenFrontIO-MaxEdit`
-Deploy target: Docker Compose on Geoffrey, behind the existing host nginx.
+Deploy target: Docker Compose on a Linux host, behind a reverse proxy that
+terminates TLS. See `docs/deploy/` for a generic self-hosting guide. Notes for
+the specific machine this world runs on are deliberately **not** in this
+repository — the repo is public, so host names, ports and paths live in a
+git-ignored `docs/deploy/HOST.local.md`.
 
 ---
 
@@ -38,7 +41,7 @@ is the sole authority; the client is a renderer.
 
 ### What we remove
 
-- `src/core` deterministic lockstep simulation as used *on the client*
+- `src/core` deterministic lockstep simulation as used _on the client_
 - Turn distribution and desync detection
 - Master-worker ephemeral `GameServer` lifecycle
 - Match lobby (replaced by world selection and nation registration)
@@ -122,10 +125,11 @@ Postgres
 - Server: TypeScript on Node, `ws` for WebSocket
 - Database: PostgreSQL with Drizzle ORM
 - Container: Docker Compose
-- Ingress: existing nginx on Geoffrey. Port 443 is an SNI `stream` router, so
-  the vhost terminates TLS on a private loopback port behind `proxy_protocol`
-  and adds itself to the router's SNI map. `Upgrade`/`Connection` headers are
-  set there; no such WebSocket config existed on the host before this project.
+- Ingress: a reverse proxy terminating TLS and forwarding the WebSocket with
+  `Upgrade`/`Connection` headers and a long read timeout. If port 443 on the
+  host is already taken by an SNI `stream` router (as on the machine this world
+  runs on), the vhost listens on a private loopback port behind
+  `proxy_protocol` instead and registers itself in that router's SNI map.
 
 ### Package layout
 
@@ -153,7 +157,7 @@ client-computed value.
 - One tick every **5 seconds** of wall clock.
 - One tick represents **one in-game hour**. 24 ticks = one in-game day = two
   minutes real time.
-- Tick rate is a *resolution* choice, not a speed choice. How fast the world
+- Tick rate is a _resolution_ choice, not a speed choice. How fast the world
   feels is controlled entirely by per-tick production and construction rates in
   `shared/config/rates.ts`. Start these deliberately low. They are the primary
   balance lever and will be retuned repeatedly.
@@ -208,9 +212,9 @@ interface Province {
   tiles: TileId[];
   neighbours: ProvinceId[];
   airZone: ZoneId;
-  seaZone: ZoneId | null;      // coastal and water provinces only
+  seaZone: ZoneId | null; // coastal and water provinces only
   terrain: Terrain;
-  infrastructure: number;      // 0..10, affects supply and construction
+  infrastructure: number; // 0..10, affects supply and construction
   buildingSlots: number;
   resourceDeposits: Partial<Record<Resource, number>>;
   owner: NationId | null;
@@ -242,7 +246,7 @@ interface Nation {
   unlockedTechs: TechId[];
   relations: Map<NationId, Relation>;
   agreements: AgreementId[];
-  trust: number;               // 0..100, see 6.6
+  trust: number; // 0..100, see 6.6
   regent: RegentConfig;
 }
 ```
@@ -261,6 +265,7 @@ Order: `economy → construction → production → research → trade → suppl
 air → naval → combat → regent → victory`.
 
 Rationale for the order, since it encodes real dependencies:
+
 - Trade runs before supply because imported resources must be available before
   supply consumption is computed.
 - Air runs before naval because air superiority modifies naval combat.
@@ -487,16 +492,16 @@ basics.
 ```ts
 interface RegentConfig {
   enabled: boolean;
-  focus: 'economy' | 'military' | 'defence' | 'expansion';
-  marketBudget: number;        // max construction points/tick it may spend
-                               // on the world market to cover lost imports
+  focus: "economy" | "military" | "defence" | "expansion";
+  marketBudget: number; // max construction points/tick it may spend
+  // on the world market to cover lost imports
 }
 ```
 
 - Rule-based. No search, no planning, no learning.
 - Runs every 12 ticks, not every tick.
 - Baseline behaviour regardless of focus: keep units supplied, retreat units
-  that are collapsing, keep the construction queue non-empty, assign *idle*
+  that are collapsing, keep the construction queue non-empty, assign _idle_
   military factories to a production line, keep research slots filled.
 - **It must never change an existing production line's equipment type.** That
   would reset efficiency to the floor (6.2) and destroy in one decision what
@@ -546,6 +551,7 @@ Do not start a phase before its predecessor's gate passes. Each gate is a
 demonstrable, tested state, not a code-complete state.
 
 ### Phase 0 — Fork triage
+
 Strip lockstep from the client. Remove turn distribution, desync detection,
 and the master-worker lobby. Replace with a stub server that pushes a static
 hand-written world state over WebSocket.
@@ -553,12 +559,14 @@ hand-written world state over WebSocket.
 state, with no simulation running on the client.
 
 ### Phase 1 — World persistence
+
 Tick loop at 5s. Postgres schema, command log, snapshot every 60 ticks,
 restore-on-startup, advisory lock. Reconnect returns correct state.
 **Gate**: kill the server container mid-run; it resumes at the correct tick
 with no lost commands.
 
 ### Phase 2 — Province graph
+
 Generate the province partition over the existing tile map. Ownership
 derivation, adjacency, terrain, infrastructure, resource deposits, air and sea
 zone membership. Render province borders as an overlay.
@@ -566,22 +574,26 @@ zone membership. Render province borders as an overlay.
 client renders it correctly.
 
 ### Phase 3 — Factories and construction
+
 Building slots, all factory types including dockyards and refineries,
 construction queue, construction points, resource extraction and consumption.
 **Gate**: a player can queue a factory, watch it build over ticks, and see it
 increase output. Resource shortage degrades output proportionally.
 
 ### Phase 4 — Production and equipment
+
 Production lines, efficiency ramp and reset-on-switch, stockpile accumulation,
 units drawing equipment, losses destroying equipment, strength scaling.
 **Gate**: a sustained fight visibly drains a stockpile and weakens units.
 Switching a production line visibly costs the player output for a long time.
 
 ### Phase 5 — Research
+
 Slots, tech list with prerequisites, modifiers, equipment tier unlocks.
 **Gate**: a completed tech measurably changes a production or combat number.
 
 ### Phase 6 — Supply
+
 Supply hubs, flow computation over the province graph, caching and recompute
 triggers, attrition and combat penalties. Land supply only; the sea supply
 path is stubbed until Phase 9.
@@ -589,6 +601,7 @@ path is stubbed until Phase 9.
 action. Full supply recompute stays under 50ms on the largest map.
 
 ### Phase 7 — Diplomacy and trade
+
 Agreement types, proposal and acceptance flow, indefinite persistence, notice
 period on cancellation, trust, dead-partner dissolution, world market,
 per-tick trade flows in construction points. Land routes only.
@@ -597,19 +610,22 @@ renewal action from either player. Breaking it costs the visible trust the
 spec says it should, and the other side is notified before the flow stops.
 
 ### Phase 8 — Air zones
+
 Zone partition, air bases, wing assignment, missions, per-tick air combat
 resolution, superiority effects on ground combat, supply, and production.
 **Gate**: air superiority in a zone measurably shifts a ground battle there.
 
 ### Phase 9 — Naval zones and convoys
+
 Sea zone partition, naval bases, fleet assignment and missions, naval combat
 resolution. Activate convoy consumption in both sea supply and seaborne trade.
 Convoy raiding, naval invasion over upstream's water pathfinding.
 **Gate**: cutting an opponent's convoy routes starves an overseas province of
-supply *and* cuts their trade income, without any land engagement. A naval
+supply _and_ cuts their trade income, without any land engagement. A naval
 invasion successfully lands and holds a beachhead.
 
 ### Phase 10 — Regent
+
 Focus config, allocation weights, baseline competence behaviours, idle-factory
 rule, world market trade fallback.
 **Gate**: a nation left under regent control for 2,000 ticks against an active
@@ -617,29 +633,28 @@ opponent still holds its capital, has a non-empty construction queue, and has
 not reset a single production line.
 
 ### Phase 11 — Deployment
+
 Docker Compose, nginx vhost with WebSocket upgrade, an in-stack backup sidecar,
-and a systemd watchdog that alerts via ntfy.
+and a systemd watchdog that pushes an alert when the world stops ticking.
 
-*Environment corrections, verified on Geoffrey 2026-08-30 — the three claims
-this section used to make were all wrong:*
+_Three things the deployment environment is likely to get wrong, and did on
+the machine this world runs on. Verify each on yours rather than assuming:_
 
-- *There is **no Restic schedule** on Geoffrey. The actual practice is a backup
-  sidecar container per stack (nightly `pg_dump`, integrity check as a hard
-  abort, rotation), with Contabo VM snapshots underneath. No restore has ever
-  been tested on this host.*
-- ***Uptime Kuma does not run on Geoffrey.** It runs on pete2, is reachable
-  only from the home network, and its monitors are created by hand in the web
-  UI. The Geoffrey-side pattern is a systemd watchdog timer; `ntfy` is reachable
-  from Geoffrey (HTTP 200) and already used by another stack.*
-- *Port 443 is **not** an HTTP server. It belongs to an nginx `stream` block
-  doing SNI passthrough to pete2. A `listen 443` in the http context passes
-  `nginx -t` and then fails the reload with "still could not bind()", while
-  systemd reports success and the old config keeps running. Our vhost must
-  listen on a private loopback port with `proxy_protocol`, and one line must be
-  added to the SNI map — without it the domain is simply unreachable.*
+- _Whatever backup mechanism the host "already has" may not exist. Prefer a
+  backup sidecar inside this stack (nightly `pg_dump`, integrity check as a
+  hard abort, rotation) — a stack that carries its own backup moves with you.
+  And test a restore once, before it matters._
+- _A monitoring system elsewhere on your network may not be reachable from the
+  world server. Check before relying on it. A systemd watchdog on the host
+  plus a push alert is the fallback that always works._
+- _Port 443 may not be an HTTP server. If a `stream`/SNI block owns it, an
+  http-context `listen 443` passes `nginx -t` and then fails the **reload**
+  with "still could not bind()" — while systemd reports success and the old
+  config keeps serving. After every reload, prove the socket is really
+  listening instead of trusting the exit code._
 
-**Gate**: a world runs uninterrupted for seven days on Geoffrey with snapshot
-restore verified at least once.
+**Gate**: a world runs uninterrupted for seven days on the deployment host,
+with snapshot restore verified at least once.
 
 ---
 
@@ -672,12 +687,12 @@ Flag these when they become blocking rather than deciding them early:
 
 **Deliberately excluded, with reasons:**
 
-- *Economy laws and consumer goods.* This is the obvious next HoI4 economic
+- _Economy laws and consumer goods._ This is the obvious next HoI4 economic
   lever, but it only works if it is gated by something — political power,
   stability, war support — and none of those systems exist here. Ungated it is
   a free lunch, and adding a politics layer to gate it would touch nothing else
   in the game. It fails invariant 6.
-- *Division templates and equipment designers.* Adds a design minigame that
+- _Division templates and equipment designers._ Adds a design minigame that
   does not interact with any other system on this list.
-- *Faction-level diplomacy (multi-party pacts).* Bilateral agreements plus
+- _Faction-level diplomacy (multi-party pacts)._ Bilateral agreements plus
   alliances cover the need at a fraction of the state complexity.
