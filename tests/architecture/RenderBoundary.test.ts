@@ -25,7 +25,6 @@ const ALLOWED: Record<string, number> = {
   "src/core/PatternDecoder": 1,
   "src/core/configuration/Config": 10,
   "src/core/game/Game": 2,
-  "src/core/game/GameMap": 1,
   "src/core/game/GameUpdates": 1,
   "src/core/game/TerrainMapLoader": 2,
   "src/core/game/Veterancy": 1,

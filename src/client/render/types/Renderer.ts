@@ -1,4 +1,18 @@
-import type { TileRef } from "../../../core/game/GameMap";
+/**
+ * Tile references are plain numbers here.
+ *
+ * `TileRef` in core/game/GameMap is `type TileRef = number`, and this file
+ * already spells the rest of them out bare — `pos`, `lastPos`, `targetTile`,
+ * `spawnTile`, `upgradeTargetTile`. Importing the alias for two of the
+ * fields bought no type safety and made the renderer's type graph reach into
+ * the simulation. The renderer owns its own vocabulary and will not notice
+ * if core's alias ever changes; if this fork wants a branded tile index, it
+ * belongs next to GameMap in shared/map/ and the renderer imports it there.
+ *
+ * See docs/decisions/0001-break-core-client-import-cycle.md, which rejected
+ * this for a different question: back then the cycle was still standing and
+ * a local alias would have fixed one call site while leaving it intact.
+ */
 
 /** TrainType enum — numeric values matching UnitState.trainType. */
 export enum TrainType {
@@ -237,8 +251,8 @@ export interface GhostPreviewData {
   showCost: boolean;
   /** True if the player has enough gold to afford this build (drives label color). */
   canAfford: boolean;
-  ghostRailPaths: TileRef[][]; // TileRef paths (City/Port only)
-  overlappingRailroads: TileRef[]; // TileRefs containing rails in snap zone
+  ghostRailPaths: number[][]; // TileRef paths (City/Port only)
+  overlappingRailroads: number[]; // TileRefs containing rails in snap zone
   ownerID: number; // Player's smallID (for color)
   /** Tile position of existing structure being upgraded (null if fresh build). */
   upgradeTargetTile: number | null;
