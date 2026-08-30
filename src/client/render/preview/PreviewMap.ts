@@ -8,7 +8,7 @@
  * consume in a match.
  */
 
-import { computeRailTiles } from "../frame/RailroadCache";
+import { computeRailTiles } from "../frame/RailTiles";
 
 /** Dimensions of resources/maps/australia/map4x.bin (checked at load). */
 export const PREVIEW_MAP_W = 1000;

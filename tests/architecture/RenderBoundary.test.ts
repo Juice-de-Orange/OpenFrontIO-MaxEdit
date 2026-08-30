@@ -19,9 +19,7 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const RENDER_DIR = path.join(REPO_ROOT, "src", "client", "render");
 
 /** Module specifier -> number of import statements that still reach it. */
-const ALLOWED: Record<string, number> = {
-  "src/core/game/GameUpdates": 1,
-};
+const ALLOWED: Record<string, number> = {};
 
 interface Edge {
   /** Repo-relative path of the importing file, forward slashes. */

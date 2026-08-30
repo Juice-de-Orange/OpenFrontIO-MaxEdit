@@ -33,13 +33,13 @@ import { extractAttackRings } from "../render/frame/derive/AttackRings";
 import { extractNukeTelegraphs } from "../render/frame/derive/NukeTelegraphs";
 import { computePlayerStatus } from "../render/frame/derive/PlayerStatus";
 import { buildRelationMatrix } from "../render/frame/derive/RelationMatrix";
-import { RailroadCache } from "../render/frame/RailroadCache";
 import type { SpiralParams } from "../render/frame/SpiralTrails";
 import { SpiralTrails } from "../render/frame/SpiralTrails";
 import { TrailManager } from "../render/frame/TrailManager";
 import type { FrameData, NameEntry } from "../render/types";
 import { STRUCTURE_TYPES } from "../render/types";
 import { PlayerView } from "./PlayerView";
+import { RailroadCache } from "./RailroadCache";
 import { UnitView } from "./UnitView";
 
 const TRAIL_TYPES: ReadonlySet<UnitType> = new Set<UnitType>([

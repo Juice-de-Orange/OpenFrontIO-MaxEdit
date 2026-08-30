@@ -5,12 +5,16 @@
  * construction/destruction/snap delta events. This cache accumulates them
  * every tick so consumers that start later can reconstruct the full set.
  *
- * Includes orientation computation, construction animation, and a per-tile
- * Uint8Array ready for GPU upload.
+ * Ported verbatim from openfront-workspace/packages/shim/src/railroad-cache.ts.
  *
- * Ported verbatim from openfront-workspace/packages/shim/src/railroad-cache.ts;
- * only imports changed (types come from src/core/game/GameUpdates instead of
- * the shim's local types module).
+ * Lives in view/ rather than render/frame/: it consumes GameUpdateViewData,
+ * which makes it protocol adaptation, and its only consumer is GameView. The
+ * geometry it uses stays in the renderer as render/frame/RailTiles.ts.
+ *
+ * `railroadState` is handed to the renderer as a live reference —
+ * RailroadPass keeps it and reads it at draw time — so it is allocated once
+ * and mutated in place. Reallocating it per tick renders the first frame and
+ * then silently ignores every update.
  */
 
 import {
@@ -19,22 +23,8 @@ import {
   RailroadConstructionUpdate,
   RailroadDestructionUpdate,
   RailroadSnapUpdate,
-} from "../../../core/game/GameUpdates";
-
-// Regular enum (not const enum) for cross-package use.
-export enum RailType {
-  VERTICAL,
-  HORIZONTAL,
-  TOP_LEFT,
-  TOP_RIGHT,
-  BOTTOM_LEFT,
-  BOTTOM_RIGHT,
-}
-
-export interface RailTile {
-  ref: number;
-  type: RailType;
-}
+} from "../../core/game/GameUpdates";
+import { computeRailTiles, type RailTile } from "../render/frame/RailTiles";
 
 interface RailroadAnim {
   tiles: RailTile[];
@@ -44,73 +34,6 @@ interface RailroadAnim {
 }
 
 const RAIL_INCREMENT = 3;
-
-// ---------------------------------------------------------------------------
-// Orientation helpers
-// ---------------------------------------------------------------------------
-
-function railExtremity(tile: number, next: number, w: number): RailType {
-  const dx = (next % w) - (tile % w);
-  const dy = (next - (next % w)) / w - (tile - (tile % w)) / w;
-  if (dx === 0) return RailType.VERTICAL;
-  if (dy === 0) return RailType.HORIZONTAL;
-  return RailType.VERTICAL;
-}
-
-function railDirection(
-  prev: number,
-  cur: number,
-  next: number,
-  w: number,
-): RailType {
-  const x1 = prev % w,
-    y1 = (prev - x1) / w;
-  const x2 = cur % w,
-    y2 = (cur - x2) / w;
-  const x3 = next % w,
-    y3 = (next - x3) / w;
-  const dx1 = x2 - x1,
-    dy1 = y2 - y1;
-  const dx2 = x3 - x2,
-    dy2 = y3 - y2;
-  if (dx1 === dx2 && dy1 === dy2) {
-    return dx1 !== 0 ? RailType.HORIZONTAL : RailType.VERTICAL;
-  }
-  if ((dx1 === 0 && dx2 !== 0) || (dx1 !== 0 && dx2 === 0)) {
-    if (dx1 === 0 && dx2 === 1 && dy1 === -1) return RailType.BOTTOM_RIGHT;
-    if (dx1 === 0 && dx2 === -1 && dy1 === -1) return RailType.BOTTOM_LEFT;
-    if (dx1 === 0 && dx2 === 1 && dy1 === 1) return RailType.TOP_RIGHT;
-    if (dx1 === 0 && dx2 === -1 && dy1 === 1) return RailType.TOP_LEFT;
-    if (dx1 === 1 && dx2 === 0 && dy2 === -1) return RailType.TOP_LEFT;
-    if (dx1 === -1 && dx2 === 0 && dy2 === -1) return RailType.TOP_RIGHT;
-    if (dx1 === 1 && dx2 === 0 && dy2 === 1) return RailType.BOTTOM_LEFT;
-    if (dx1 === -1 && dx2 === 0 && dy2 === 1) return RailType.BOTTOM_RIGHT;
-  }
-  return RailType.VERTICAL;
-}
-
-export function computeRailTiles(tileRefs: number[], w: number): RailTile[] {
-  if (tileRefs.length === 0) return [];
-  if (tileRefs.length === 1)
-    return [{ ref: tileRefs[0]!, type: RailType.VERTICAL }];
-  const result: RailTile[] = [];
-  result.push({
-    ref: tileRefs[0]!,
-    type: railExtremity(tileRefs[0]!, tileRefs[1]!, w),
-  });
-  for (let i = 1; i < tileRefs.length - 1; i++) {
-    result.push({
-      ref: tileRefs[i]!,
-      type: railDirection(tileRefs[i - 1]!, tileRefs[i]!, tileRefs[i + 1]!, w),
-    });
-  }
-  const last = tileRefs.length - 1;
-  result.push({
-    ref: tileRefs[last]!,
-    type: railExtremity(tileRefs[last]!, tileRefs[last - 1]!, w),
-  });
-  return result;
-}
 
 export class RailroadCache {
   private mapW: number;
