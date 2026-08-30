@@ -140,9 +140,6 @@
   },
   "username": {
     "enter_username": "Unesi korisničko ime",
-    "not_string": "Korisničko ime mora biti string.",
-    "too_short": "Korisničko ime mora imati minimum {min} karaktera.",
-    "too_long": "Korisničko ime ne sme imati više od {max} karaktera.",
     "invalid_chars": "Korisničko ime može sadržati isključivo slova, cifre, prazne prostore, donje crte i [kockaste zagrade]."
   },
   "host_modal": {

@@ -9,7 +9,7 @@
  * rather than running at 1fps.
  */
 
-import type { WebGLGateStatus } from "../../components/WebGLGate";
+import type { WebGLGateStatus } from "./WebGLGate";
 import { getPaletteSize } from "./utils/ColorUtils";
 
 export type GLResult =
@@ -113,13 +113,18 @@ export function trackGLInit(
   renderer: string,
   maxTextureSize?: number,
 ): void {
-  window.gtag?.("event", "gl_init", {
-    status,
-    renderer: status === "ok" ? "" : renderer,
-    ...(maxTextureSize !== undefined && {
-      max_texture_size: maxTextureSize,
-    }),
-  });
+  // Was a gtag event upstream, sizing how many users fall back to software
+  // WebGL. This fork has no analytics and two players, so the number is not
+  // worth collecting -- but the status is worth seeing when a machine renders
+  // nothing, which is the case this exists for.
+  const detail = status === "ok" ? "" : ` (${renderer})`;
+  const size =
+    maxTextureSize !== undefined ? `, max texture ${maxTextureSize}` : "";
+  if (status === "ok") {
+    console.info(`[GL] context ok${size}`);
+  } else {
+    console.warn(`[GL] ${status}${detail}${size}`);
+  }
 }
 
 /**
@@ -131,7 +136,7 @@ export function showGLGate(status: WebGLGateStatus): void {
   if (document.querySelector("webgl-gate")) {
     return;
   }
-  void import("../../components/WebGLGate").then(({ WebGLGate }) => {
+  void import("./WebGLGate").then(({ WebGLGate }) => {
     if (document.querySelector("webgl-gate")) {
       return;
     }

@@ -250,9 +250,6 @@
   },
   "username": {
     "enter_username": "Benutzernamen eingeben",
-    "not_string": "Benutzername muss ein Text sein.",
-    "too_short": "Benutzername muss mindestens {min} Zeichen lang sein.",
-    "too_long": "Benutzername darf {max} Zeichen nicht überschreiten.",
     "invalid_chars": "Benutzername darf nur Buchstaben, Zahlen, Leerzeichen, Unterstriche und [eckige Klammer] enthalten."
   },
   "host_modal": {
@@ -597,10 +594,7 @@
     "focus": "Fokus",
     "accept_alliance": "Annehmen",
     "reject_alliance": "Ablehnen",
-    "alliance_renewed": "Deine Allianz mit {name} wurde erneuert",
-    "wants_to_renew_alliance": "{name} möchte eure Allianz erneuern",
     "ignore": "Ignorieren",
-    "unit_voluntarily_deleted": "Einheit freiwillig gelöscht",
     "betrayal_debuff_ends": "Noch {time} Sekunden, bis der Verrats-Malus endet"
   },
   "unit_info_modal": {

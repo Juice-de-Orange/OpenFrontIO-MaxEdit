@@ -390,12 +390,8 @@
   },
   "username": {
     "enter_username": "Masukkan nama pengguna",
-    "not_string": "Nama pengguna harus berupa string.",
-    "too_short": "Nama pengguna harus memiliki panjang minimal {min} karakter.",
-    "too_long": "Nama pengguna tidak boleh melebihi {max} karakter.",
     "invalid_chars": "Nama pengguna hanya boleh berupa huruf, angka, spasi dan garis bawah.",
     "tag": "Tag",
-    "tag_too_short": "Nama klan harus terdiri dari 2-5 karakter alfanumerik.",
     "tag_invalid_chars": "Tag klan hanya boleh berisi huruf dan angka"
   },
   "host_modal": {
@@ -755,8 +751,6 @@
     "alliance_request_status": "{name} {status} permintaan aliansi Anda",
     "alliance_accepted": "menerima",
     "alliance_rejected": "ditolak",
-    "alliance_nukes_destroyed_outgoing": "{count, plural,other {# nuklir yang diluncurkan menuju {name} dihancurkan karena aliansi}}",
-    "alliance_nukes_destroyed_incoming": "{count, plural,other {# nuklir yang diluncurkan oleh {name} dihancurkan karena aliansi}}",
     "duration_second": "1 detik",
     "betrayal_description": "Kamu memutus aliansi dengan {name}, menjadikanmu PENGKHIANAT ({malusPercent}% pengurangan pertahanan selama {durationText})",
     "duration_seconds_plural": "{seconds} detik",
@@ -770,26 +764,17 @@
     "focus": "Fokus",
     "accept_alliance": "Setuju",
     "reject_alliance": "Tolak",
-    "alliance_renewed": "Aliansi anda dengan {name} sudah di perpanjang",
-    "wants_to_renew_alliance": "{name} ingin memperpanjang aliansi",
     "ignore": "Abaikan",
-    "unit_voluntarily_deleted": "Unit dihapus secara sukarela",
     "betrayal_debuff_ends": "{time} detik tersisa hingga efek negatif pengkhianatan berakhir",
-    "attack_cancelled_retreat": "Penyerangan dibatalkan, {troops} pasukan terbunuh saat mundur",
     "received_gold_from_captured_ship": "Menerima {gold} emas dari kapal yang di tawan dari {name}",
     "received_gold_from_trade": "Menerima {gold} emas dari perdagangan dengan {name}",
-    "received_gold_from_conquest": "Menaklukan {name}, mendapatkan {gold} emas",
-    "conquered_no_gold": "Menaklukan {name} (tidak main, tidak ada emas yang diberikan)",
-    "missile_intercepted": "Rudal dicegat {unit}",
     "mirv_warheads_intercepted": "{count, plural, one {{count} hulu ledak MIRV berhasil dicegat} other {{count} hulu ledak MIRV berhasil dicegat}}",
     "sent_troops_to_player": "Mengirim {troops} pasukan ke {name}",
     "received_troops_from_player": "Menerima {troops} pasukan dari {name}",
     "sent_gold_to_player": "Mengirim {gold} emas ke {name}",
     "received_gold_from_player": "Menerima {gold} emas dari {name}",
     "unit_captured_by_enemy": "{unit} Anda ditangkap oleh {name}",
-    "captured_enemy_unit": "Menangkap {unit} dari {name}",
-    "unit_destroyed": "{unit} Anda dihancurkan",
-    "no_boats_available": "Tidak ada kapal yang tersedia, maksmial {max}"
+    "captured_enemy_unit": "Menangkap {unit} dari {name}"
   },
   "player_type": {
     "player": "Pemain",
@@ -831,10 +816,6 @@
     "arc_up": "Lengkungan ke Atas",
     "arc_down": "Lengkungan ke Bawah",
     "flip_rocket_trajectory": "Balikkan lintasan roket"
-  },
-  "kick_reason": {
-    "duplicate_session": "Dikeluarkan dari permainan (kamu mungkin bermain di tab yang lain)",
-    "lobby_creator": "Dikeluarkan oleh pembuat lobi"
   },
   "send_troops_modal": {
     "title_with_name": "Kirim Pasukan ke {name}",

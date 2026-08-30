@@ -209,9 +209,6 @@
   },
   "username": {
     "enter_username": "Syötä käyttäjänimesi",
-    "not_string": "Käyttäjänimen on oltava merkkijono.",
-    "too_short": "Käyttäjänimen on oltava vähintään {min} merkkiä pitkä.",
-    "too_long": "Käyttäjänimi ei saa ylittää {max} merkkiä.",
     "invalid_chars": "Käyttäjänimi voi sisältää vain kirjaimia, numeroita, välilyöntejä, alaviivoja ja [hakasulkeita]."
   },
   "host_modal": {
@@ -526,9 +523,7 @@
     "focus": "Keskitä",
     "accept_alliance": "Hyväksy",
     "reject_alliance": "Hylkää",
-    "alliance_renewed": "Liittosi pelaajan {name} kanssa sai jatkoa",
-    "ignore": "Sivuuta",
-    "unit_voluntarily_deleted": "Yksikkö poistettu vapaaehtoisesti"
+    "ignore": "Sivuuta"
   },
   "unit_info_modal": {
     "structure_info": "Rakennuksen tiedot",

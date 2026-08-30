@@ -197,9 +197,6 @@
   },
   "username": {
     "enter_username": "Introduce o teu nome de usuario",
-    "not_string": "O nome de usuario debe ser unha cadea de texto.",
-    "too_short": "O nome de usuario debe ter polo menos {min} caracteres.",
-    "too_long": "O nome de usuario non debe superar os {max} caracteres.",
     "invalid_chars": "O nome de usuario só pode ter letras, números, espazos, subliñados e [corchetes]."
   },
   "host_modal": {
@@ -489,9 +486,7 @@
     "focus": "Enfocar",
     "accept_alliance": "Aceptar",
     "reject_alliance": "Rexeitar",
-    "alliance_renewed": "Renovouse a túa alianza con {name}",
-    "ignore": "Ignorar",
-    "unit_voluntarily_deleted": "Unidade eliminada voluntariamente"
+    "ignore": "Ignorar"
   },
   "unit_info_modal": {
     "structure_info": "Información do edificio",

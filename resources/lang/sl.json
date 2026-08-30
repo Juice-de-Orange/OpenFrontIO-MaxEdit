@@ -211,9 +211,6 @@
   },
   "username": {
     "enter_username": "Vnesite uporabniško ime",
-    "not_string": "Uporabniško ime mora biti niz.",
-    "too_short": "Uporabniško ime mora biti dolgo vsaj {min} znakov.",
-    "too_long": "Uporabniško ime ne sme presegati {max} znakov.",
     "invalid_chars": "Uporabniško ime lahko vsebuje samo črke, številke, presledke, podčrtaje in [oglate oklepaje]."
   },
   "host_modal": {
@@ -532,9 +529,7 @@
     "focus": "Fokus",
     "accept_alliance": "Sprejmi",
     "reject_alliance": "Zavrni",
-    "alliance_renewed": "Vaše zavezništvo z {name} je bilo obnovljeno",
-    "ignore": "Prezri",
-    "unit_voluntarily_deleted": "Enota je bila prostovoljno odstranjena"
+    "ignore": "Prezri"
   },
   "unit_info_modal": {
     "structure_info": "Informacije o strukturi",

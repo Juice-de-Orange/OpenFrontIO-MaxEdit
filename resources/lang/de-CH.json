@@ -390,12 +390,8 @@
   },
   "username": {
     "enter_username": "Gib e Benutzername i",
-    "not_string": "Benutzername muss ein Text sein.",
-    "too_short": "Benutzername muss mindestens {min} Zeichen lang sein.",
-    "too_long": "Benutzername darf {max} Zeichen nicht überschreiten.",
     "invalid_chars": "Benutzername darf nur Buchstaben, Zahlen, Leerzeichen und Unterstriche enthalten.",
     "tag": "TAG",
-    "tag_too_short": "Clan-Tag mues us 2-5 alphanumerischen Zeichen bestoh.",
     "tag_invalid_chars": "Clan-Tag darf nume us Buchstaben und Zahlen bestoh."
   },
   "host_modal": {
@@ -755,8 +751,6 @@
     "alliance_request_status": "{name} het dini allianzafrog {status}",
     "alliance_accepted": "agnoh",
     "alliance_rejected": "abglehnt",
-    "alliance_nukes_destroyed_outgoing": "{count, plural, one {# Atombombe i Richtig {name} si ufgrund vor Allianz zerstört worde} other {# Atombombene i Richtig {name} si ufgrund vor Allianz zerstört worde}}",
-    "alliance_nukes_destroyed_incoming": "{count, plural, one {# Atombombe vo {name} si ufgrund vor Allianz zerstört worde} other {# Atombombene vo {name} si ufgrund vor Allianz zerstört worde}}",
     "duration_second": "1 Sekunde",
     "betrayal_description": "Du hesch dini Allianz mit {name} broche, und bisch zum VERRÄTER worde ({malusPercent}% verteidigungs malus für {durationText})",
     "duration_seconds_plural": "{seconds} Sekunde",
@@ -770,26 +764,17 @@
     "focus": "Fokus",
     "accept_alliance": "Akzeptiere",
     "reject_alliance": "Ablehne",
-    "alliance_renewed": "D Allianz mit {name} isch erneuert worde",
-    "wants_to_renew_alliance": "{name} möchti euri Allianz erneuere",
     "ignore": "Ignoriere",
-    "unit_voluntarily_deleted": "Einheit freiwüuig glöscht",
     "betrayal_debuff_ends": "No {time} Sekunde, bis der Verrats-Malus endet",
-    "attack_cancelled_retreat": "Agriff abbroche, {troops} getöteti Soldate bim Rückzug",
     "received_gold_from_captured_ship": "{gold} Gold vo emne Schiff erhalten, wo von {name} erbeutet worde isch",
     "received_gold_from_trade": "{gold} Gold us em Handu mit {name} erhaute",
-    "received_gold_from_conquest": "Du hesch {name} erobert und {gold} Gold erhaute",
-    "conquered_no_gold": "Du hesch {name} erobert. (Kei Gold, het nid gspiut)",
-    "missile_intercepted": "Raggete abgfange {unit}",
     "mirv_warheads_intercepted": "{count, plural, one {{count} abgfangene MIRV-Sprengkopf} other {{count} abgefangeni MIRV-Sprengköpfe}}",
     "sent_troops_to_player": "{troops} Truppe a {name} gsendet",
     "received_troops_from_player": "{troops} Truppe vo {name} erhaute",
     "sent_gold_to_player": "{gold} Gold a {name} gsendet",
     "received_gold_from_player": "{gold} Gold vo {name} erhaute",
     "unit_captured_by_enemy": "Di {unit} isch vo {name} gfange worde",
-    "captured_enemy_unit": "{unit} vo {name} erfasst",
-    "unit_destroyed": "Di {unit} isch zerstört worde",
-    "no_boats_available": "Kei Boot verfüegbar, max. {max}"
+    "captured_enemy_unit": "{unit} vo {name} erfasst"
   },
   "player_type": {
     "player": "Spieler",
@@ -831,10 +816,6 @@
     "arc_up": "Ufwärtsboge",
     "arc_down": "Abwärtsboge",
     "flip_rocket_trajectory": "Raggetebahn umdräie"
-  },
-  "kick_reason": {
-    "duplicate_session": "Du bisch us em Spiel kickt worde. (Du hesch wahrschinlech i em ne angere Tab gspüut)",
-    "lobby_creator": "Du bisch vom Lobby-Ersteller us em Spiel kickt worde"
   },
   "send_troops_modal": {
     "title_with_name": "Truppe a {name} sende",

@@ -21,13 +21,17 @@ import { MapRenderer, preloadAtlasData } from "src/client/render/gl";
 import { createRenderSettings } from "src/client/render/gl/RenderSettings";
 import type { RenderRules } from "src/client/render/types";
 import { ALL_UNIT_TYPES, PlayerTypeEnum } from "src/client/render/types";
-import { computeProvinceGrid } from "src/shared/map/ProvinceGrid";
+import {
+  computeProvinceGrid,
+  terrainHashFnv1a,
+} from "src/shared/map/ProvinceGrid";
+import type { FullState } from "src/shared/protocol/Wire";
 import { CameraController } from "./CameraController";
 import { FrameAdapter } from "./FrameAdapter";
 import { loadWorldMap } from "./MapAssets";
 import { buildPalette } from "./Palette";
 import { ProvinceTileIndex } from "./ProvinceTileIndex";
-import { StaticWorldSource } from "./StaticWorldSource";
+import { WorldSocket } from "./WorldSocket";
 
 /** One in-game hour per tick, five seconds of wall clock. */
 const TICK_MS = 5000;
@@ -35,7 +39,13 @@ const TICK_MS = 5000;
 /** Province grid cell size, in tiles. Phase 2 replaces the whole partition. */
 const PROVINCE_CELL = 64;
 
-const DEFAULT_MAP = "europe";
+const DEFAULT_WORLD = "world-0";
+
+/** Same-origin, so dev and production use one URL shape. */
+function worldSocketUrl(): string {
+  const scheme = location.protocol === "https:" ? "wss" : "ws";
+  return `${scheme}://${location.host}/ws`;
+}
 
 /**
  * Phase-0 rules. Every value here is a placeholder that moves to
@@ -75,13 +85,62 @@ function showFatal(message: string): void {
 }
 
 export async function startWorldClient(
-  mapId: string = DEFAULT_MAP,
+  worldId: string = DEFAULT_WORLD,
 ): Promise<void> {
   // Both before the renderer is constructed, and awaited: NamePass and
   // StructureLevelPass parse the MSDF atlas in their constructors and throw
-  // "Atlas data not loaded" if it has not arrived. Fetched in parallel with
-  // the map because neither depends on the other.
-  const [map] = await Promise.all([loadWorldMap(mapId), preloadAtlasData()]);
+  // "Atlas data not loaded" if it has not arrived.
+  await preloadAtlasData();
+
+  let view: MapRenderer | undefined;
+  let adapter: FrameAdapter | undefined;
+
+  const socket = new WorldSocket(worldSocketUrl(), worldId, {
+    onFullState: (state) => {
+      if (!view || !adapter) {
+        // First full state carries the map identity, so the renderer cannot
+        // be built before it arrives.
+        void buildFrom(state).then((built) => {
+          view = built.view;
+          adapter = built.adapter;
+          adapter.applyFullState(state.owners, state.tick);
+          uploadFrameData(view, adapter.frameData());
+        });
+        return;
+      }
+      adapter.applyFullState(state.owners, state.tick);
+      uploadFrameData(view, adapter.frameData());
+    },
+    onDelta: (delta) => {
+      if (!view || !adapter) return; // full state still loading
+      adapter.applyDelta(delta.changes, delta.tick);
+      uploadFrameData(view, adapter.frameData());
+    },
+    onFatal: (message) => showFatal(message),
+  });
+  void socket;
+}
+
+/**
+ * Build the renderer for the map the world named.
+ *
+ * The terrain hash is checked here and nowhere else. Province ids are derived
+ * on both sides from the same bytes and never travel, so a mismatch — one
+ * side on map.bin, the other on map4x.bin — has nothing on the wire to
+ * disagree about and shows up only as quietly mis-coloured regions.
+ */
+async function buildFrom(
+  state: FullState,
+): Promise<{ view: MapRenderer; adapter: FrameAdapter }> {
+  const map = await loadWorldMap(state.map.id);
+
+  if (terrainHashFnv1a(map.terrain) !== state.map.terrainHash) {
+    throw new Error(
+      `Map mismatch on ${state.map.id}: the world's terrain hash is ` +
+        `${state.map.terrainHash.toString(16)}, this client computed ` +
+        `${terrainHashFnv1a(map.terrain).toString(16)}. Province ids would not line up.`,
+    );
+  }
 
   const grid = computeProvinceGrid(
     map.terrain,
@@ -89,29 +148,29 @@ export async function startWorldClient(
     map.height,
     PROVINCE_CELL,
   );
-  if (grid.count === 0) {
-    throw new Error(`Map ${mapId} has no land tiles`);
+  if (grid.count !== state.map.provinceCount) {
+    throw new Error(
+      `Province count mismatch: the world has ${state.map.provinceCount}, ` +
+        `this client derived ${grid.count}`,
+    );
   }
 
   const index = new ProvinceTileIndex(grid);
-  const adapter = new FrameAdapter(index, map.nations.length);
-  const source = new StaticWorldSource(grid, map.nations, map.width);
+  const adapter = new FrameAdapter(index, state.nations.length);
 
   const canvas = createCanvas();
-  const palette = buildPalette(map.nations.length);
-
   const view = new MapRenderer(
     canvas,
     {
       mapWidth: map.width,
       mapHeight: map.height,
       unitTypes: [...ALL_UNIT_TYPES],
-      // The nation list has to be here at construction: NamePass and the
-      // territory pass read it from the header. addPlayers() is the other
-      // route and wants 4 MB of pattern data phase 0 does not have.
-      players: map.nations.map((n, i) => ({
-        smallID: i + 1,
-        id: `nation-${i + 1}`,
+      // Has to be here at construction: NamePass and the territory pass read
+      // the list from the header. addPlayers() is the other route and wants
+      // 4 MB of pattern data phase 0 does not have.
+      players: state.nations.map((n) => ({
+        smallID: n.smallID,
+        id: `nation-${n.smallID}`,
         name: n.name,
         displayName: n.name,
         clanTag: null,
@@ -123,32 +182,23 @@ export async function startWorldClient(
       maxPlayers: 256,
     },
     () => map.terrain,
-    palette,
+    buildPalette(state.nations.length),
     rules,
     createRenderSettings(),
   );
 
-  // After construction, so the renderer's initial fit has happened and the
-  // controller can continue from it instead of pushing a competing framing.
+  // After construction, so the renderer's own initial fit has happened and
+  // the controller continues from it rather than pushing a competing framing.
   const initialCamera = view.getCameraState() ?? {
     x: map.width / 2,
     y: map.height / 2,
     zoom: 1,
   };
-  const camera = new CameraController(canvas, initialCamera, (x, y, z) =>
+  new CameraController(canvas, initialCamera, (x, y, z) =>
     view.setCameraState(x, y, z),
   );
-  void camera;
 
-  const initial = source.fullState();
-  adapter.applyFullState(initial.owners, initial.tick);
-  uploadFrameData(view, adapter.frameData());
-
-  window.setInterval(() => {
-    const { tick, changes } = source.step();
-    adapter.applyDelta(changes, tick);
-    uploadFrameData(view, adapter.frameData());
-  }, TICK_MS);
+  return { view, adapter };
 }
 
 startWorldClient().catch((e: unknown) => {

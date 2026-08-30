@@ -389,29 +389,19 @@
     "accept_alliance": "Akcepti",
     "alliance_accepted": "akceptis",
     "alliance_expired": "Via alianco kun {name} eksvalidiĝis",
-    "alliance_nukes_destroyed_incoming": "{count, plural, one {# nuklea bombo lanĉita de {name} estis interkaptita de viaj aliancanoj} other {# nukleaj bomboj lanĉitaj de {name} estis interkaptitaj de viaj aliancanoj}}",
-    "alliance_nukes_destroyed_outgoing": "{count, plural, one {# nuklea bombo lanĉita al {name} estis interkaptita de riaj aliancanoj} other {# nukleaj bomboj lanĉitaj al {name} estis interkaptitaj de riaj aliancanoj}}",
     "alliance_rejected": "rifuzis",
-    "alliance_renewed": "Via alianco kun {name} estis renovigita",
     "alliance_request_sent": "Aliancpeto sendita al {name}.",
     "alliance_request_status": "{name} {status} vian aliancpeton",
-    "atom_bomb_detonated": "{name} - atombombo eksplodis",
-    "attack_cancelled_retreat": "Atako nuligita, {troops} soldatoj mortis dum retreto",
     "attack_request": "{name} petas vin ataki {target}",
     "betrayal_debuff_ends": "{time} sekundojn ĝis fino de perfidula malfortigo",
     "betrayal_description": "Vi rompis vian aliancon kun {name}, igante vin PERFIDULO ({malusPercent}%an defendan malfortigon dum {durationText})",
     "betrayed_you": "{name} rompis sian aliancon kun vi",
-    "conquered_no_gold": "Konkeris {name} (kiu ne ludis, neniu oro ricevita)",
     "duration_second": "1 sekundo",
     "duration_seconds_plural": "{seconds} sekundoj",
     "focus": "Fokusi",
-    "hydrogen_bomb_detonated": "{name} - hidrogenbombo eksplodis",
     "ignore": "Ignori",
     "mirv_warheads_intercepted": "{count, plural, one {{count} MIRV-kapo interkaptita} other {{count} MIRV-kapoj interkaptitaj}}",
-    "missile_intercepted": "Misilo interkaptis {unit}",
-    "no_boats_available": "Neniu boato disponebla, maksimume {max}",
     "received_gold_from_captured_ship": "Ricevis {gold} da oro kaptante komercan ŝipon de {name}",
-    "received_gold_from_conquest": "Konkeris {name}, ricevis {gold} da oro",
     "received_gold_from_player": "Ricevis {gold} da oro de {name}",
     "received_troops_from_player": "Ricevis {troops} trupojn de {name}",
     "reject_alliance": "Rifuzi",
@@ -421,9 +411,6 @@
     "sent_emoji": "Sendita al {name}: {emoji}",
     "sent_gold_to_player": "Sendis {gold} da oro al {name}",
     "sent_troops_to_player": "Sendis {troops} trupojn al {name}",
-    "unit_destroyed": "Via {unit} estis detruita",
-    "unit_voluntarily_deleted": "Trupuno libervole forigita",
-    "wants_to_renew_alliance": "{name} volas renovigi aliancon kun vi",
     "unit_captured_by_enemy": "Via {unit} estis kaptita de {name}",
     "captured_enemy_unit": "Kaptis {unit} de {name}"
   },
@@ -702,10 +689,7 @@
     "text": "Por plenekrana reĝimo, aldonu OpenFront al via komenca ekrano"
   },
   "kick_reason": {
-    "admin": "Forpelita de administranto",
-    "duplicate_session": "Forpelita de la ludo (vi eble ludis per alia langeto)",
-    "host_left": "La gastiganto eliris de la ludejo.",
-    "lobby_creator": "Forpelita de la ludeja kreanto"
+    "host_left": "La gastiganto eliris de la ludejo."
   },
   "leaderboard": {
     "cities": "Urboj",
@@ -1356,13 +1340,8 @@
   "username": {
     "enter_username": "Enigu vian uzantnomon",
     "invalid_chars": "Uzantnomo rajtas enhavi nur literojn, ciferojn, spacojn kaj substrekojn.",
-    "not_string": "La uzantnomo devas esti ĉeno de signoj.",
     "tag": "ETIKEDO",
-    "tag_invalid_chars": "Klanetikedo rajtas enhavi nur literojn aŭ ciferojn.",
-    "tag_too_long": "Klanetikedo estas maksimume 5 skribsignoj.",
-    "tag_too_short": "Klanetikedo devas esti litera aŭ cifera kun 2-5 skribsignoj.",
-    "too_long": "La uzantnomo ne rajtas superi {max} signojn.",
-    "too_short": "La uzantnomo devas havi almenaŭ {min} signojn."
+    "tag_invalid_chars": "Klanetikedo rajtas enhavi nur literojn aŭ ciferojn."
   },
   "win_modal": {
     "died": "Vi mortis",

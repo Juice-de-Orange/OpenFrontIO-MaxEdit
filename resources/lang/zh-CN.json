@@ -422,12 +422,8 @@
   },
   "username": {
     "enter_username": "输入用户名",
-    "not_string": "用户名必须是字符串。",
-    "too_short": "用户名最少包含 {min} 个字符。",
-    "too_long": "用户名不得超过 {max} 个字符。",
     "invalid_chars": "用户名只能包含字母、数字、空格、下划线和 [方括号]。",
     "tag": "标签",
-    "tag_too_short": "战队标签必须是 2-5 位字母或数字字符。",
     "tag_invalid_chars": "战队标签只能包含字母和数字。"
   },
   "host_modal": {
@@ -814,8 +810,6 @@
     "alliance_request_status": "{name} {status}你的联盟请求",
     "alliance_accepted": "已接受",
     "alliance_rejected": "已拒绝",
-    "alliance_nukes_destroyed_outgoing": "{count, plural, one {# 发送向 {name} 的核弹已由其盟军拦截} other {# 发送向 {name} 的核弹已由其盟军拦截}}",
-    "alliance_nukes_destroyed_incoming": "{count, plural, one {# 由 {name} 发送的核弹已被目标盟军拦截} other {# 由 {name} 发送的核弹已被目标盟军拦截}}",
     "duration_second": "1 秒",
     "betrayal_description": "你已撕毁和 {name} 的盟约，因而被标记为“叛徒”（你将获得 {durationText} 的 {malusPercent}% 防御降低惩罚）",
     "duration_seconds_plural": "{seconds} 秒",
@@ -830,16 +824,9 @@
     "focus": "聚焦",
     "accept_alliance": "接受",
     "reject_alliance": "拒绝",
-    "alliance_renewed": "你与 {name} 的结盟已续期",
-    "wants_to_renew_alliance": "{name} 想与你续签盟约",
     "ignore": "忽略",
-    "unit_voluntarily_deleted": "单位已自毁",
     "betrayal_debuff_ends": "距离背叛减益效果结束还剩 {time} 秒",
-    "attack_cancelled_retreat": "已取消进攻，在撤退时损失了 {troops} 兵力",
     "received_gold_from_captured_ship": "捕获了 {name} 的商船，获得 {gold} 黄金",
-    "received_gold_from_conquest": "征服了 {name} 并获得 {gold} 黄金",
-    "conquered_no_gold": "征服了 {name} （对方没在玩了，因此未掠夺到黄金）",
-    "missile_intercepted": "已拦截导弹 {unit}",
     "mirv_warheads_intercepted": "{count, plural, one {{count} 个 MIRV 弹头被拦截} other {{count} 个 MIRV 弹头被拦截}}",
     "sent_troops_to_player": "已向 {name} 发送 {troops} 军队",
     "received_troops_from_player": "已从 {name} 收到 {troops} 军队",
@@ -847,8 +834,6 @@
     "received_gold_from_player": "已从 {name} 收到 {gold} 黄金",
     "unit_captured_by_enemy": "你的 {unit} 被 {name} 捕获",
     "captured_enemy_unit": "已捕获 {name} 的 {unit}",
-    "unit_destroyed": "你的 {unit} 已被摧毁",
-    "no_boats_available": "无可用船，最多 {max} 个",
     "events": "事件",
     "received_gold_from_trade": "与 {name} 贸易获得了 {gold} 黄金"
   },
@@ -894,9 +879,6 @@
     "flip_rocket_trajectory": "翻转火箭轨道"
   },
   "kick_reason": {
-    "duplicate_session": "已被踢出游戏（也可能你正在另一个标签页上玩游戏）",
-    "lobby_creator": "已被房主踢出房间",
-    "admin": "被管理员踢出",
     "host_left": "房主已离开房间。"
   },
   "send_troops_modal": {

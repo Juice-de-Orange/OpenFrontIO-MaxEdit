@@ -5,6 +5,8 @@
     "node": true
   },
   "ignorePatterns": [
+    "src/client/_legacy/**",
+    "tests/_legacy/**",
     "src/server/gatekeeper/**",
     "tests/pathfinding/playground/**"
   ],

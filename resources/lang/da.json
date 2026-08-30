@@ -416,29 +416,19 @@
     "accept_alliance": "Acceptér",
     "alliance_accepted": "accepteret",
     "alliance_expired": "Din alliance med {name} er udløbet",
-    "alliance_nukes_destroyed_incoming": "{count, plural, one {# Atombombe affyret af {name} blev ødelagt på grund af alliancen} other {# Atombomber affyret af {name} blev ødelagt på grund af alliancen}}",
-    "alliance_nukes_destroyed_outgoing": "{count, plural, one {# Atombombe affyret mod {name} blev ødelagt på grund af alliancen} other {# Atombomber affyret mod {name} blev ødelagt på grund af alliancen}}",
     "alliance_rejected": "afvist",
-    "alliance_renewed": "Din alliance med {name} er blevet fornyet",
     "alliance_request_sent": "Allianceanmodning sendt til {name}.",
     "alliance_request_status": "{name} {status} din allianceanmodning",
-    "atom_bomb_detonated": "{name} – atombombe detoneret",
-    "attack_cancelled_retreat": "Angreb annulleret, {troops} soldater dræbt under tilbagetrækning",
     "attack_request": "{name} anmoder om, at du angriber {target}",
     "betrayal_debuff_ends": "{time} sekunder tilbage, inden forræderi-debuff udløber",
     "betrayal_description": "Du har brudt din alliance med {name}, og er nu en FORRÆDER (forsvarsstraffe på {malusPercent}% i {durationText})",
     "betrayed_you": "{name} har brudt sin alliance med dig",
-    "conquered_no_gold": "Erobrede {name} (spillede ikke, intet guld tildelt)",
     "duration_second": "1 sekund",
     "duration_seconds_plural": "{seconds} sekunder",
     "focus": "Fokus",
-    "hydrogen_bomb_detonated": "{name} – brintbombe detoneret",
     "ignore": "Ignorér",
     "mirv_warheads_intercepted": "{count, plural, one {{count} MIRV-sprænghoved opfanget} other {{count} MIRV-sprænghoveder opfanget}}",
-    "missile_intercepted": "Missil opsnappet {unit}",
-    "no_boats_available": "Ingen både tilgængelige, maks. {max}",
     "received_gold_from_captured_ship": "Modtog {gold} guld fra skib erobret fra {name}",
-    "received_gold_from_conquest": "Erobrede {name}, modtog {gold} guld",
     "received_gold_from_player": "Modtog {gold} guld fra {name}",
     "received_troops_from_player": "Modtog {troops} tropper fra {name}",
     "reject_alliance": "Afvis",
@@ -447,11 +437,7 @@
     "retreating": "trækker sig tilbage",
     "sent_emoji": "Sendt {name}: {emoji}",
     "sent_gold_to_player": "Sendte {gold} guld til {name}",
-    "sent_troops_to_player": "Sendte {troops} tropper til {name}",
-    "trade_ship_captured": "Din handelsskib blev kapret af {name}",
-    "unit_destroyed": "Din {unit} blev ødelagt",
-    "unit_voluntarily_deleted": "Enhed slettet frivilligt",
-    "wants_to_renew_alliance": "{name} ønsker at forny din alliance."
+    "sent_troops_to_player": "Sendte {troops} tropper til {name}"
   },
   "flag_input": {
     "button_title": "Vælg et flag!",
@@ -788,10 +774,7 @@
     "text": "For fuldskærm, tilføj OpenFront til din startskærm"
   },
   "kick_reason": {
-    "admin": "Smidt ud af en administrator",
-    "duplicate_session": "Smidt ud af spil (du spiller måske på en anden fane)",
-    "host_left": "Vært har forladt lobbyen.",
-    "lobby_creator": "Smidt ud af lobbyvært"
+    "host_left": "Vært har forladt lobbyen."
   },
   "leaderboard": {
     "cities": "Byer",
@@ -1472,14 +1455,9 @@
   "username": {
     "enter_username": "Indtast dit brugernavn",
     "invalid_chars": "Brugernavn må kun indeholde bogstaver, tal, mellemrum og understregninger.",
-    "not_string": "Brugernavn skal være en streng.",
     "tag": "TAG",
     "tag_invalid_chars": "Klantag må kun indeholde bogstaver og tal.",
-    "tag_not_member": "Tilslut dig {tag}-klanen, inden du bruger dens tag. Klik på denne besked for at tilslutte dig.",
-    "tag_too_long": "Klantag må ikke overstige 5 tegn.",
-    "tag_too_short": "Klantag skal have 2-5 alfanumeriske tegn.",
-    "too_long": "Brugernavn må ikke overskride {max} tegn.",
-    "too_short": "Brugernavn skal bestå af mindst {min} tegn."
+    "tag_not_member": "Tilslut dig {tag}-klanen, inden du bruger dens tag. Klik på denne besked for at tilslutte dig."
   },
   "win_modal": {
     "died": "Du døde",

@@ -193,9 +193,6 @@
   },
   "username": {
     "enter_username": "Ange ditt användarnamn",
-    "not_string": "Användarnamnet måste vara en sträng.",
-    "too_short": "Användarnamnet måste innehålla minst {min} tecken.",
-    "too_long": "Användarnamnet får inte vara längre än {max} tecken.",
     "invalid_chars": "Användarnamnet får enbart innehålla bokstäver, siffror, mellanslag, understreck och [hakparenteser]."
   },
   "host_modal": {
@@ -477,7 +474,6 @@
     "focus": "Centrera",
     "accept_alliance": "Acceptera",
     "reject_alliance": "Neka",
-    "alliance_renewed": "Din allians med {name} har förnyats",
     "ignore": "Ignorera"
   },
   "unit_info_modal": {

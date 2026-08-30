@@ -380,12 +380,8 @@
   },
   "username": {
     "enter_username": "Escriu el teu nom d'usuari",
-    "not_string": "El nom d'usuari ha de ser una cadena de caràcters.",
-    "too_short": "El nom d'usuari ha de ser d'almenys {min} caràcters de llargada.",
-    "too_long": "El nom d'usuari no pot ser més llarg que {max} caràcters.",
     "invalid_chars": "El nom d'usuari només pot contenir lletres, números, espais i guions baixos.",
     "tag": "ETIQUETA",
-    "tag_too_short": "L'etiqueta del clan ha de tenir entre 2 i 5 caràcters alfanumèrics.",
     "tag_invalid_chars": "L'etiqueta de clan només pot contenir lletres i números."
   },
   "host_modal": {
@@ -719,8 +715,6 @@
     "alliance_request_status": "{name} ha {status} la teva sol·licitud d'aliança",
     "alliance_accepted": "acceptat",
     "alliance_rejected": "rebutjat",
-    "alliance_nukes_destroyed_outgoing": "{count, plural, one {# bomba llançada contra {name} ha estat destruïda per causa de l'aliança} other {# bombes llençades contra {name} han estrat destruïdes per causa de l'aliança}}",
-    "alliance_nukes_destroyed_incoming": "{count, plural, one {# bomba llançada per {name} ha estat destruïda per causa de l'aliança} other {# bombes llençades per {name} han estrat destruïdes per causa de l'aliança}}",
     "duration_second": "1 segon",
     "betrayal_description": "Has trencat l'aliança amb {name}, el qual et fa un TRAIDOR (defensa {malusPercent} pitjor per {durationText})",
     "duration_seconds_plural": "{seconds} segons",
@@ -734,26 +728,17 @@
     "focus": "Focalitza",
     "accept_alliance": "Accepta",
     "reject_alliance": "Rebutja",
-    "alliance_renewed": "La teva aliança amb {name} ha estat renovada",
-    "wants_to_renew_alliance": "{name} vol renovar la vostra aliança",
     "ignore": "Ignora",
-    "unit_voluntarily_deleted": "Estructura esborrada voluntàriament",
     "betrayal_debuff_ends": "Defenses empitjorades per la traïció per {time}",
-    "attack_cancelled_retreat": "Atac cancel·lat, {troops} soldats morts durant la retirada",
     "received_gold_from_captured_ship": "Has rebut {gold} or d'un vaixell de comerç capturat de {name}",
     "received_gold_from_trade": "Has rebut {gold} or d'un negoci amb {name}",
-    "received_gold_from_conquest": "Has conquerit a {name} i guanyat {gold} or",
-    "conquered_no_gold": "Has conquerit a {name} (no ha jugat, or no donat)",
-    "missile_intercepted": "Un míssil interceptat a {unit}",
     "mirv_warheads_intercepted": "{count, plural, one {{count} míssil de MIRV interceptat} other {{count} míssils de MIRV interceptats}}",
     "sent_troops_to_player": "Enviat {troops} tropes a {name}",
     "received_troops_from_player": "Has rebut {troops} tropes de {name}",
     "sent_gold_to_player": "Enviat {gold} or a{name}",
     "received_gold_from_player": "Has rebut {gold} or de {name}",
     "unit_captured_by_enemy": "{unit} ha estat capturat per {name}",
-    "captured_enemy_unit": "Has capturat {unit} de {name}",
-    "unit_destroyed": "{unit} ha estat destruït",
-    "no_boats_available": "No et queden vaixells, en pots enviar com a molt {max}"
+    "captured_enemy_unit": "Has capturat {unit} de {name}"
   },
   "player_type": {
     "player": "Jugador",
@@ -795,10 +780,6 @@
     "arc_up": "Arc ascendent",
     "arc_down": "Arc descendent",
     "flip_rocket_trajectory": "Invertir la trajectòria del míssil"
-  },
-  "kick_reason": {
-    "duplicate_session": "Desconnectat del joc (potser estaves jugant en una altra pestanya)",
-    "lobby_creator": "Expulsat per l'amfitrió de la partida"
   },
   "send_troops_modal": {
     "title_with_name": "Envia Tropes a {name}",

@@ -236,9 +236,6 @@
   },
   "username": {
     "enter_username": "Wprowadź swoją nazwę użytkownika",
-    "not_string": "Nazwa użytkownika musi być ciągiem znaków.",
-    "too_short": "Nazwa użytkownika musi mieć co najmniej {min} znaków.",
-    "too_long": "Nazwa użytkownika nie może przekraczać {max} znaków.",
     "invalid_chars": "Nazwa użytkownika może zawierać tylko litery, cyfry, spacje, podkreślenia i [nawiasy kwadratowe]."
   },
   "host_modal": {
@@ -569,9 +566,7 @@
     "focus": "Przejdź do miejsca",
     "accept_alliance": "Akceptuj",
     "reject_alliance": "Odrzuć",
-    "alliance_renewed": "Twój sojusz z {name} został przedłużony",
-    "ignore": "Ignoruj",
-    "unit_voluntarily_deleted": "Jednostka została dobrowolnie usunięta"
+    "ignore": "Ignoruj"
   },
   "unit_info_modal": {
     "structure_info": "Informacje o strukturze",

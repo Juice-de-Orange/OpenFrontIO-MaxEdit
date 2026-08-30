@@ -1,5 +1,4 @@
 import tailwindcss from "@tailwindcss/vite";
-import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { defineConfig, loadEnv, type Plugin } from "vite";
@@ -18,107 +17,9 @@ import { buildAssetUrl, type AssetManifest } from "./src/shared/util/AssetPath";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Dev-only stand-in for nginx's `location = /link` blocks (see nginx.conf).
-//
-// The desktop app's account-linking gate prints a short URL for the player to
-// type by hand when it cannot open their browser for them. In production
-// nginx 302s /link to /#steam-link, the client route that shows the code-entry
-// form. Without this middleware the dev server falls through to Vite's SPA
-// fallback and serves the home page instead -- a 200, so it does not look
-// broken, but the printed URL silently would not work locally.
-//
-// A redirect rather than serving index.html directly, so dev matches
-// production exactly and the desktop's siteUrlForAudience can emit one URL
-// shape for every environment.
-function steamLinkAliasRedirect(): Plugin {
-  return {
-    name: "steam-link-alias-redirect",
-    configureServer(server) {
-      // Matches on `originalUrl`, not `url`, and that is load-bearing.
-      //
-      // Whatever the documented middleware ordering, the measured behaviour
-      // in this config is that by the time this handler runs `req.url` has
-      // already been rewritten to "/index.html", while `originalUrl` still
-      // holds what the browser asked for. Logging both showed a request to
-      // /link arriving here as url="/index.html", originalUrl="/link".
-      // Which middleware performs that rewrite was not established, so this
-      // deliberately does not claim one.
-      //
-      // The practical warning: switching this to `req.url` type-checks,
-      // lints, runs, and silently never matches -- the dev server just keeps
-      // serving the home page with a 200. Re-verify against a running server
-      // if you change it, and use a control path (e.g. /linkxyz) to prove a
-      // 200 is not coming from the SPA fallback.
-      server.middlewares.use((req, res, next) => {
-        const requested = (req as { originalUrl?: string }).originalUrl;
-        if (!requested) return next();
-
-        // Decode before comparing, because nginx resolves percent-encoded
-        // bytes before exact `location =` matching but URL.pathname does
-        // not: "/link%2F" reaches production as /link/ and redirects, and
-        // would otherwise fall straight through here. The whole point of
-        // this plugin is that dev and production agree.
-        let pathname: string;
-        try {
-          pathname = decodeURIComponent(
-            new URL(requested, "http://x").pathname,
-          );
-        } catch {
-          // Malformed percent-encoding -- not our route; let Vite answer.
-          return next();
-        }
-
-        // Exact matches only, mirroring nginx's `location =`. A prefix match
-        // would swallow any future /link/* route.
-        if (pathname !== "/link" && pathname !== "/link/") return next();
-        res.writeHead(302, { Location: "/#steam-link" });
-        res.end();
-      });
-    },
-  };
-}
-
-// Dev-only stand-in for the nginx random-worker routing (the openfront_workers
-// upstream). Forwards these prefix-less POSTs to a randomly chosen worker port
-// so the worker can mint a self-owned id. Runs as direct middleware (before
-// vite's /api proxy).
-const RANDOM_WORKER_PATHS = ["/api/create_game", "/api/adminbot/create_game"];
-function randomWorkerCreateProxy(numWorkers: number): Plugin {
-  return {
-    name: "random-worker-create-proxy",
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        if (req.method !== "POST") return next();
-        const path = (req.url ?? "").split("?")[0];
-        if (!RANDOM_WORKER_PATHS.includes(path)) return next();
-        const port = 3001 + Math.floor(Math.random() * numWorkers);
-        const proxyReq = http.request(
-          {
-            host: "localhost",
-            port,
-            path,
-            method: "POST",
-            headers: req.headers,
-          },
-          (proxyRes) => {
-            res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
-            proxyRes.pipe(res);
-          },
-        );
-        proxyReq.on("error", (err) => {
-          res.statusCode = 502;
-          res.end(`create proxy error: ${err.message}`);
-        });
-        req.pipe(proxyReq);
-      });
-    },
-  };
-}
-
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const isProduction = mode === "production";
-  const devNumWorkers = parseInt(env.NUM_WORKERS ?? "2", 10);
   const resourcesDir = getResourcesDir(__dirname);
   // Upstream also served a `proprietary/` directory here. That directory holds
   // the OpenFront logo, brand font and music, which are All Rights Reserved and
@@ -202,29 +103,16 @@ export default defineConfig(({ mode }) => {
   });
 
   // In dev, redirect visits to /w*/game/* to "/" so Vite serves the index.html.
-  const devGameHtmlBypass = (req?: {
-    url?: string;
-    method?: string;
-    headers?: { accept?: string | string[] };
-  }) => {
-    if (req?.method !== "GET") return undefined;
-    const accept = req.headers?.accept;
-    const acceptValue = Array.isArray(accept)
-      ? accept.join(",")
-      : (accept ?? "");
-    if (!acceptValue.includes("text/html")) return undefined;
-    if (!req.url) return undefined;
-    if (/^\/w\d+\/game\/[^/]+/.test(req.url)) {
-      return "/";
-    }
-    return undefined;
-  };
 
   return {
     test: {
       globals: true,
       environment: "jsdom",
       setupFiles: "./tests/setup.ts",
+      // Quarantine. Kept in step with tsconfig's exclude, eslint.config.js
+      // and .oxlintrc.json -- these four have to agree or the tooling
+      // contradicts itself.
+      exclude: ["**/node_modules/**", "**/dist/**", "tests/_legacy/**"],
     },
     root: "./",
     base: "/",
@@ -238,9 +126,6 @@ export default defineConfig(({ mode }) => {
     },
 
     plugins: [
-      ...(!isProduction
-        ? [randomWorkerCreateProxy(devNumWorkers), steamLinkAliasRedirect()]
-        : []),
       ...(isProduction
         ? []
         : [
@@ -302,33 +187,13 @@ export default defineConfig(({ mode }) => {
       // Automatically open the browser when the server starts
       open: process.env.SKIP_BROWSER_OPEN !== "true",
       proxy: {
-        "/lobbies": {
+        // The world server. One relative URL, so dev and production agree —
+        // in production a reverse proxy forwards the same path with the
+        // Upgrade headers.
+        "/ws": {
           target: "ws://localhost:3000",
           ws: true,
           changeOrigin: true,
-        },
-        // Worker proxies
-        "/w0": {
-          target: "ws://localhost:3001",
-          ws: true,
-          secure: false,
-          changeOrigin: true,
-          bypass: (req) => devGameHtmlBypass(req),
-          rewrite: (path) => path.replace(/^\/w0/, ""),
-        },
-        "/w1": {
-          target: "ws://localhost:3002",
-          ws: true,
-          secure: false,
-          changeOrigin: true,
-          bypass: (req) => devGameHtmlBypass(req),
-          rewrite: (path) => path.replace(/^\/w1/, ""),
-        },
-        // API proxies
-        "/api": {
-          target: "http://localhost:3000",
-          changeOrigin: true,
-          secure: false,
         },
       },
     },

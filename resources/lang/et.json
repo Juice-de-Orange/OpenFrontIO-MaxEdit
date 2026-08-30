@@ -380,12 +380,8 @@
   },
   "username": {
     "enter_username": "Sisestage oma kasutajanimi",
-    "not_string": "Kasutajanimi peab olema tekst.",
-    "too_short": "Kasutajanimi peab olema vähemalt {min} tähte pikk.",
-    "too_long": "Kasutajanimi ei tohi pikem olla, kui {max} tähte.",
     "invalid_chars": "Kasutajanimi saab sisaldada ainult tähti, numbreid, tühikuid ja allkriipsusid.",
     "tag": "SILT",
-    "tag_too_short": "Klani silt peab sisaldama 2-5 tähestiku- või numbrimärki.",
     "tag_invalid_chars": "Klani silt saab sisaldada ainult tähte ja numbreid."
   },
   "host_modal": {
@@ -719,8 +715,6 @@
     "alliance_request_status": "{name} {status} sinu liidulepingu",
     "alliance_accepted": "võttis vastu",
     "alliance_rejected": "lükkas tagasi",
-    "alliance_nukes_destroyed_outgoing": "{count, plural,one {# tuumapomm lastud {name} poole hävitati liidu pärast}other {# Tummapommi lastud {name} poole hävitati liidu pärast}}",
-    "alliance_nukes_destroyed_incoming": "{count, plural,one {# tuumapomm lastud {name} poolt hävitati liidu pärast}other {# tummapommi lastud {name} poolt hävitati liidu pärast}}",
     "duration_second": "1 sekund",
     "betrayal_description": "Sa lõpetasid liidu {name}'ga, mis teeb su REETURIKS (sul on nüüd {malusPercent}% kaitsenõrgesus {durationText})",
     "duration_seconds_plural": "{seconds} sekundit",
@@ -734,26 +728,17 @@
     "focus": "Fokuseeri",
     "accept_alliance": "Nõustu",
     "reject_alliance": "Lükka tagasi",
-    "alliance_renewed": "Sinu liiduleping {name}'ga on uuendatud",
-    "wants_to_renew_alliance": "{name} soovib uuendata sinuga liitu",
     "ignore": "Ignoreeri",
-    "unit_voluntarily_deleted": "Üksus kustutati vabatahtlikult",
     "betrayal_debuff_ends": "{time} sekundit veel, kuni reeturi nõrgestus lõpeb",
-    "attack_cancelled_retreat": "Rünnak tühistatud, {troops} sõdurit tapetud taganemise ajal",
     "received_gold_from_captured_ship": "Teenisid {gold} kulda kaubalaevast, mis üle võtsid {name}'lt",
     "received_gold_from_trade": "Teenisid {gold} kulda kaubandusest koos {name}'ga",
-    "received_gold_from_conquest": "Vallutasid {name} ja said {gold} kulda",
-    "conquered_no_gold": "Vallutasid {name} (ei mänginud, kulla auhinda pole)",
-    "missile_intercepted": "Rakett tõkestatud {unit}",
     "mirv_warheads_intercepted": "{count, plural,one {{count} MIRV'i tuumapea tõkestatud}other {{count} MIRV'i tuumapead tõkestatud}}",
     "sent_troops_to_player": "Saatsid {troops} sõdurit {name}'le",
     "received_troops_from_player": "Said {troops} sõdurit {name}'lt",
     "sent_gold_to_player": "Saatsid {gold} kulda {name}'le",
     "received_gold_from_player": "Said {gold} kulda {name}'lt",
     "unit_captured_by_enemy": "Sinu {unit} püüti kinni {name} poolt",
-    "captured_enemy_unit": "Püüdsid kinni {unit} {name} poolt",
-    "unit_destroyed": "Sinu {unit} hävitati",
-    "no_boats_available": "Laevu pole rohkem saadaval, maks. {max}"
+    "captured_enemy_unit": "Püüdsid kinni {unit} {name} poolt"
   },
   "player_type": {
     "player": "Mängija",
@@ -795,10 +780,6 @@
     "arc_up": "Ülespoole kaar",
     "arc_down": "Allapoole kaar",
     "flip_rocket_trajectory": "Pööra raketi trajektoori"
-  },
-  "kick_reason": {
-    "duplicate_session": "Mängust välja visatud (võib-olla mängisid teisel aknal)",
-    "lobby_creator": "Välja visatud lobby tegija poolt"
   },
   "send_troops_modal": {
     "title_with_name": "Saada vägesid {name}'le",

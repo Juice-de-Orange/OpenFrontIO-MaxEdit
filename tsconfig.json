@@ -31,5 +31,11 @@
     "src/scripts",
     "vite.config.ts"
   ],
-  "exclude": ["node_modules"]
+  // _legacy/ holds the inherited client and its tests, kept as reference
+  // until their replacements exist (see src/client/_legacy/README.md).
+  // Note this does not by itself cut them out: exclude only filters the root
+  // set, so an excluded file still enters the program if something included
+  // imports it. Nothing does — tests/architecture/QuarantineBoundary.test.ts
+  // is what actually holds that.
+  "exclude": ["node_modules", "src/client/_legacy", "tests/_legacy"]
 }

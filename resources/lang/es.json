@@ -167,9 +167,6 @@
   },
   "username": {
     "enter_username": "Introduce tu nombre de usuario",
-    "not_string": "El nombre de usuario debe ser una cadena de texto.",
-    "too_short": "El nombre de usuario tiene que tener al menos {min} carácteres.",
-    "too_long": "El nombre de usuario no puede superar los {max} carácteres.",
     "invalid_chars": "El nombre de usuario solamente puede contener letras, números, espacios, barras bajas y [corchetes]."
   },
   "host_modal": {

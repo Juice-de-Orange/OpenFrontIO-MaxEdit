@@ -153,9 +153,6 @@
   },
   "username": {
     "enter_username": "o wile e nimi",
-    "not_string": "nimi o nimi.",
-    "too_short": "nimi o suli {min}.",
-    "too_long": "nimi o suli ala tan {max}.",
     "invalid_chars": "nimi o jo taso e ijo nimi e nanpa e ala e linja e [poki nimi leko]."
   },
   "host_modal": {

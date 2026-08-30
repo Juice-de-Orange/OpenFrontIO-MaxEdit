@@ -197,9 +197,6 @@
   },
   "username": {
     "enter_username": "Zadaj svoje používateľské meno",
-    "not_string": "Používateľské meno musí byť reťazec.",
-    "too_short": "Používateľské meno musí byť aspoň {min} znakov dlhé.",
-    "too_long": "Používateľské meno nesmie prekročiť {max} znakov.",
     "invalid_chars": "Používateľské meno smie obsahovať iba písmená, čísla, medzery, podčiarniky, a [hranaté zátvorky]."
   },
   "host_modal": {
@@ -489,9 +486,7 @@
     "focus": "Zaostriť",
     "accept_alliance": "Prijať",
     "reject_alliance": "Odmietnuť",
-    "alliance_renewed": "Tvoje spojenectvo s {name} bola obnovená",
-    "ignore": "Ignorovať",
-    "unit_voluntarily_deleted": "Jednotka dobrovoľne vymazaná"
+    "ignore": "Ignorovať"
   },
   "unit_info_modal": {
     "structure_info": "Informácie o budove",

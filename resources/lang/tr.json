@@ -335,12 +335,8 @@
   },
   "username": {
     "enter_username": "Kullanıcı adınızı girin",
-    "not_string": "Kullanıcı adı bir metin olmalıdır.",
-    "too_short": "Kullanıcı adı en az {min} karakter uzunluğunda olmalıdır.",
-    "too_long": "Kullanıcı adı {max} karakteri geçmemelidir.",
     "invalid_chars": "Kullanıcı adı sadece harfler, sayılar, boşluklar ve alt çizgi içerebilir.",
     "tag": "ETİKET",
-    "tag_too_short": "Klan etiketi 2-5 harf arasında olmalı.",
     "tag_invalid_chars": "Klan etiketi sadece harf ve sayı içerebilir."
   },
   "host_modal": {
@@ -712,24 +708,17 @@
     "focus": "Odaklan",
     "accept_alliance": "Kabul et",
     "reject_alliance": "Reddet",
-    "alliance_renewed": "{name} ile ittifakın yenilendi",
-    "wants_to_renew_alliance": "{name} ittifakı yenilemek istiyor",
     "ignore": "Yoksay",
-    "unit_voluntarily_deleted": "Birim gönüllü olarak silindi",
     "betrayal_debuff_ends": "İhanet zayıflatmasının bitmesine {time} saniye kaldı",
-    "attack_cancelled_retreat": "Saldırı iptal edildi, {troops} asker geri çekilme sırasında öldürüldü",
     "received_gold_from_captured_ship": "{name}'den ele geçirilen gemiden {gold} altın alındı",
     "received_gold_from_trade": "{name} ile yapılan ticaretten {gold} altın alındı",
-    "missile_intercepted": "{unit} füzesi önlendi",
     "mirv_warheads_intercepted": "{count, plural,one {{count} MIRV başlığı önlendi} other {{count} MIRV başlığı önlendi}}",
     "sent_troops_to_player": "{name}'e {troops} birlik gönderildi",
     "received_troops_from_player": "{name}'den {troops} birlik alındı",
     "sent_gold_to_player": "{name}'e {gold} altın gönderildi",
     "received_gold_from_player": "{name}'den {gold} altın alındı",
     "unit_captured_by_enemy": "{unit} {name} tarafından ele geçirildi",
-    "captured_enemy_unit": "{name}'den {unit} ele geçirildi",
-    "unit_destroyed": "{unit} yok edildi",
-    "no_boats_available": "Bot mevcut değil, maks {max}"
+    "captured_enemy_unit": "{name}'den {unit} ele geçirildi"
   },
   "unit_info_modal": {
     "structure_info": "Bina Bilgisi",

@@ -15,6 +15,11 @@ export default [
   includeIgnoreFile(gitignorePath),
   {
     ignores: [
+      // Quarantine. Must stay in step with tsconfig's exclude and
+      // .oxlintrc.json: a file outside every tsconfig project makes both
+      // linters abort with "not found by the project service".
+      "src/client/_legacy/**",
+      "tests/_legacy/**",
       "src/server/gatekeeper/**",
       "tests/pathfinding/playground/**",
       ".claude/**",
