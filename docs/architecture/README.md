@@ -24,19 +24,19 @@ upstream's match server. Phase 0 is the demolition that makes room for it.
 
 ## What is inherited, and what happens to it
 
-| Path                                              | Origin   | Fate                                                                                                                                                       |
-| ------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/client/render/`                              | upstream | **Kept.** WebGL2 renderer, ~180 files. The most valuable inherited asset.                                                                                  |
-| `src/client/hud/`, `components/`                  | upstream | Mostly quarantined, then replaced. A few files are skeletons for later phases.                                                                             |
-| `src/client/view/`                                | upstream | **Replaced** by a store that applies server deltas.                                                                                                        |
-| `src/core/pathfinding/`                           | upstream | **Moves to `shared/`.** Water pathfinding and connected components are needed for sea routes and province partitioning.                                    |
-| `src/core/game/GameMap.ts`                        | upstream | **Moves to `shared/map/`.** Tile geometry and terrain queries.                                                                                             |
-| `src/core/execution/`, `worker/`, `GameRunner.ts` | upstream | **Deleted.** This is the lockstep simulation.                                                                                                              |
-| `src/server/`                                     | upstream | **Deleted.** Ephemeral master/worker match server; replaced by the world server.                                                                           |
-| `src/shared/`                                     | new      | Pure rules and types used by both sides. No I/O, ever. Currently `map/Terrain`, `map/Maps.gen`, `util/AssetPath`, `util/PatternDecoder`, `util/Veterancy`. |
-| `src/build/`                                      | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs and which used to live in `src/server/`.                                           |
-| `zbin/`                                           | upstream | Kept as a library. Currently unused by our own protocol.                                                                                                   |
-| `proprietary/`                                    | upstream | **Removed.** Logo, brand font and music, All Rights Reserved. Replaced by own marks in `resources/images/`.                                                |
+| Path                                              | Origin   | Fate                                                                                                                                                                      |
+| ------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/client/render/`                              | upstream | **Kept.** WebGL2 renderer, ~180 files. The most valuable inherited asset.                                                                                                 |
+| `src/client/hud/`, `components/`                  | upstream | Mostly quarantined, then replaced. A few files are skeletons for later phases.                                                                                            |
+| `src/client/view/`                                | upstream | **Replaced** by a store that applies server deltas.                                                                                                                       |
+| `src/core/pathfinding/`                           | upstream | **Moves to `shared/`.** Water pathfinding and connected components are needed for sea routes and province partitioning.                                                   |
+| `src/core/game/GameMap.ts`                        | upstream | **Moves to `shared/map/`.** Tile geometry and terrain queries.                                                                                                            |
+| `src/core/execution/`, `worker/`, `GameRunner.ts` | upstream | **Deleted.** This is the lockstep simulation.                                                                                                                             |
+| `src/server/`                                     | upstream | **Deleted.** Ephemeral master/worker match server; replaced by the world server.                                                                                          |
+| `src/shared/`                                     | new      | Pure rules and types used by both sides. No I/O, ever. Currently `map/Terrain`, `map/Maps.gen`, `util/AssetPath`, `util/Format`, `util/PatternDecoder`, `util/Veterancy`. |
+| `src/build/`                                      | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs and which used to live in `src/server/`.                                                          |
+| `zbin/`                                           | upstream | Kept as a library. Currently unused by our own protocol.                                                                                                                  |
+| `proprietary/`                                    | upstream | **Removed.** Logo, brand font and music, All Rights Reserved. Replaced by own marks in `resources/images/`.                                                               |
 
 ## The renderer, and why it survives the surgery
 

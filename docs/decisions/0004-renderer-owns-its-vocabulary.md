@@ -94,8 +94,22 @@ references at all — and it already answers no: `pos`, `lastPos`, `targetTile`,
   over the whole tree, and `no-restricted-imports` zones in `eslint.config.js`
   for `render/` and `shared/`. Both were verified to fail on a deliberately
   introduced violation, in both directions.
-- `src/shared/` has five inhabitants now: `map/Terrain.ts`, `map/Maps.gen.ts`,
-  `util/AssetPath.ts`, `util/PatternDecoder.ts`, `util/Veterancy.ts`.
+- `src/shared/` has six inhabitants now: `map/Terrain.ts`, `map/Maps.gen.ts`,
+  `util/AssetPath.ts`, `util/Format.ts`, `util/PatternDecoder.ts`,
+  `util/Veterancy.ts`.
+
+  **Corrected 2026-08-30, same day.** `util/Format.ts` first went to
+  `render/util/Format.ts`, on the argument that the UI's number vocabulary
+  (invariant 9) belongs to the renderer. That was wrong, and code review
+  caught it: `client/Utils.ts` re-exports those formatters, and four
+  simulation files take them from there to build their message text — so the
+  edge ran `core -> client/render`, the very one this record is about, only
+  reversed. Neither guard saw it, because both watch edges _leaving_ render/.
+  The simulation and the renderer formatting the same numbers is the shared/
+  criterion stated literally, so `shared/util/` is where it belongs. The
+  lesson generalises: "which package does this concept belong to" is the wrong
+  question; "who needs the same answer" is the right one.
+
 - Deleting `src/core` and `src/server` is now blocked only by the client code
   outside the renderer, not by the renderer itself.
 - `RenderRules` will need an implementation when `Config` goes. It is seven
