@@ -1,3 +1,4 @@
+import { maxHealthWithVeterancy } from "../../shared/util/Veterancy";
 import { simpleHash, toInt, withinInt } from "../Util";
 import {
   AllUnitParams,
@@ -19,7 +20,6 @@ import { GameImpl } from "./GameImpl";
 import { TileRef } from "./GameMap";
 import { GameUpdateType, UnitUpdate } from "./GameUpdates";
 import { PlayerImpl } from "./PlayerImpl";
-import { maxHealthWithVeterancy } from "./Veterancy";
 
 export class UnitImpl implements Unit {
   private _active = true;

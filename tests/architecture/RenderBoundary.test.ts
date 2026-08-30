@@ -27,7 +27,6 @@ const ALLOWED: Record<string, number> = {
   "src/core/game/Game": 2,
   "src/core/game/GameUpdates": 1,
   "src/core/game/TerrainMapLoader": 2,
-  "src/core/game/Veterancy": 1,
 };
 
 interface Edge {

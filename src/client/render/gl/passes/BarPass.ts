@@ -12,9 +12,9 @@
  *   UnitState.veterancy → one instance per level (x, y, slot) → solid gold rect
  */
 
+import { maxHealthWithVeterancy } from "src/shared/util/Veterancy";
 import type { Config } from "../../../../core/configuration/Config";
 import { UnitType } from "../../../../core/game/Game";
-import { maxHealthWithVeterancy } from "../../../../core/game/Veterancy";
 import type { RendererConfig, UnitState } from "../../types";
 import { UT_MISSILE_SILO, UT_SAM_LAUNCHER } from "../../types";
 import type { RenderSettings } from "../RenderSettings";
