@@ -8,6 +8,7 @@ import {
   clearPublicAssetManifestCache,
   copyRootPublicFiles,
   createHashedPublicAssetFiles,
+  rewriteAssetsForCdn,
   shouldKeepRootPublicFile,
 } from "../../src/build/PublicAssetManifest";
 
@@ -309,5 +310,54 @@ describe("PublicAssetManifest", () => {
     expect(shouldKeepRootPublicFile("terms-of-service.html")).toBe(true);
     expect(shouldKeepRootPublicFile("pressed/index.html")).toBe(false);
     expect(shouldKeepRootPublicFile("maps/world.bin")).toBe(false);
+  });
+});
+
+describe("rewriteAssetsForCdn", () => {
+  test("rewrites src=/assets/ to EJS placeholder", () => {
+    const out = rewriteAssetsForCdn(
+      `<script type="module" crossorigin src="/assets/index-XXX.js"></script>`,
+    );
+    expect(out).toBe(
+      `<script type="module" crossorigin src="<%- locals.cdnBaseRaw || "" %>/assets/index-XXX.js"></script>`,
+    );
+  });
+
+  test("rewrites href=/assets/ for modulepreload and stylesheet links", () => {
+    const out = rewriteAssetsForCdn(
+      `<link rel="modulepreload" href="/assets/vendor-XXX.js">\n<link rel="stylesheet" href="/assets/index-XXX.css">`,
+    );
+    expect(out).toBe(
+      `<link rel="modulepreload" href="<%- locals.cdnBaseRaw || "" %>/assets/vendor-XXX.js">\n<link rel="stylesheet" href="<%- locals.cdnBaseRaw || "" %>/assets/index-XXX.css">`,
+    );
+  });
+
+  test("supports single-quoted attribute values", () => {
+    expect(rewriteAssetsForCdn(`<script src='/assets/x.js'></script>`)).toBe(
+      `<script src='<%- locals.cdnBaseRaw || "" %>/assets/x.js'></script>`,
+    );
+  });
+
+  test("does not rewrite /_assets/ (underscore manifest paths)", () => {
+    const html = `<link rel="icon" href="/_assets/images/Favicon.hash.svg">`;
+    expect(rewriteAssetsForCdn(html)).toBe(html);
+  });
+
+  test("does not rewrite already-absolute asset URLs", () => {
+    const html = `<script src="https://example.com/assets/foo.js"></script>`;
+    expect(rewriteAssetsForCdn(html)).toBe(html);
+  });
+
+  // Inline scripts containing the literal "/assets/..." string must survive
+  // unrewrite — the regex requires whitespace before src=/href=, and inside a
+  // JS string literal there's no preceding `src=`/`href=` token at all.
+  test("does not mangle /assets/ inside inline script string literals", () => {
+    const html = `<script>const url = "/assets/foo";</script>`;
+    expect(rewriteAssetsForCdn(html)).toBe(html);
+  });
+
+  test("does not match data-src or other custom attributes", () => {
+    const html = `<img data-src="/assets/foo.png">`;
+    expect(rewriteAssetsForCdn(html)).toBe(html);
   });
 });

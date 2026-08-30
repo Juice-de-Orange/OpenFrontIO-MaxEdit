@@ -77,18 +77,24 @@ function toPosix(p: string): string {
   return p.split(path.sep).join("/");
 }
 
-/** Every module specifier a file imports, comments excluded. */
-function importedSpecifiers(file: string): string[] {
-  const source = stripComments(fs.readFileSync(file, "utf-8"));
+/** Every module specifier a source text imports, comments excluded. */
+function importedSpecifiers(source: string): string[] {
+  const stripped = stripComments(source);
   const specifiers: string[] = [];
 
   // `import … from "x"` and `export … from "x"` — the quote must follow
   // `from` directly, which is also what keeps prose out of the results.
-  for (const m of source.matchAll(/\bfrom\s*["']([^"']+)["']/g)) {
+  for (const m of stripped.matchAll(/\bfrom\s*["']([^"']+)["']/g)) {
     specifiers.push(m[1]);
   }
   // Dynamic `import("x")`.
-  for (const m of source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']/g)) {
+  for (const m of stripped.matchAll(/\bimport\s*\(\s*["']([^"']+)["']/g)) {
+    specifiers.push(m[1]);
+  }
+  // Side-effect `import "x"` — no bindings, no `from`. Easy to miss, and it
+  // produces a real dependency in the bundle: this codebase uses the form to
+  // register custom elements.
+  for (const m of stripped.matchAll(/\bimport\s+["']([^"']+)["']/g)) {
     specifiers.push(m[1]);
   }
   return specifiers;
@@ -113,10 +119,18 @@ function resolveSpecifier(file: string, spec: string): string | null {
   return resolved.replace(/\.(ts|js)$/, "");
 }
 
-function edgesIn(file: string): Edge[] {
+/**
+ * Edges out of one module, given its path and its source text.
+ *
+ * Split from edgesIn so the scanner's own test can feed it a fixture without
+ * writing a file: a fixture written into src/client/render/ and left behind by
+ * an interrupted run would break `tsc` (unresolvable imports) and be reported
+ * by these very assertions as a real violation.
+ */
+function edgesFromSource(file: string, source: string): Edge[] {
   const from = toPosix(path.relative(REPO_ROOT, file));
   const edges: Edge[] = [];
-  for (const spec of importedSpecifiers(file)) {
+  for (const spec of importedSpecifiers(source)) {
     const to = resolveSpecifier(file, spec);
     if (to === null) continue;
     edges.push({
@@ -126,6 +140,10 @@ function edgesIn(file: string): Edge[] {
     });
   }
   return edges;
+}
+
+function edgesIn(file: string): Edge[] {
+  return edgesFromSource(file, fs.readFileSync(file, "utf-8"));
 }
 
 function allRendererEdges(): Edge[] {
@@ -150,9 +168,10 @@ describe("src/client/render import boundary", () => {
     const offending = allRendererEdges()
       .filter(
         (e) =>
+          // Bare specifiers (npm packages, and the `resources/*` alias the
+          // atlas metadata uses) are dropped by resolveSpecifier before this.
           !e.to.startsWith("src/client/render/") &&
           !e.to.startsWith("src/shared/") &&
-          !e.to.startsWith("resources/") &&
           !ALLOWED_OUTSIDE_RENDER.includes(e.to),
       )
       .map((e) => `${e.from} -> ${e.to}`)
@@ -175,35 +194,36 @@ describe("src/client/render import boundary", () => {
    * would have reported a clean boundary with a third of the edges unseen.
    * Asserting that both forms appear in the tree only worked while both
    * happened to be present, which stopped being true as the couplings were
-   * resolved. A fixture keeps the check meaningful now that the real edges are
-   * gone.
+   * resolved.
+   *
+   * Covers every form that produces a real dependency, including the
+   * bindings-free `import "x"` — that one is invisible to a `from`-based
+   * matcher and would let a side-effect import of a core module through.
    */
-  test("resolves both the alias and the relative path form", () => {
-    const fixture = path.join(RENDER_DIR, "__scanner_fixture__.ts");
-    fs.writeFileSync(
-      fixture,
-      [
-        'import { a } from "src/core/AliasForm";',
-        'import { b } from "../../core/RelativeForm";',
-        'import { c } from "zod";',
-        'const d = await import("src/core/DynamicForm");',
-        '// import { e } from "src/core/CommentForm";',
-        'export { f } from "src/core/ExportForm";',
-      ].join(String.fromCharCode(10)),
-    );
-    try {
-      const seen = edgesIn(fixture)
-        .filter((e) => e.to.startsWith("src/core/"))
-        .map((e) => `${e.form}:${e.to}`)
-        .sort();
-      expect(seen).toEqual([
-        "alias:src/core/AliasForm",
-        "alias:src/core/DynamicForm",
-        "alias:src/core/ExportForm",
-        "relative:src/core/RelativeForm",
-      ]);
-    } finally {
-      fs.unlinkSync(fixture);
-    }
+  test("resolves every import form the tree can use", () => {
+    // A fictional path inside render/, so relative specifiers resolve the way
+    // they would in a real pass. Nothing is written to disk.
+    const pretendFile = path.join(RENDER_DIR, "gl", "passes", "Fixture.ts");
+    const source = [
+      'import { a } from "src/core/AliasForm";',
+      'import { b } from "../../../../core/RelativeForm";',
+      'import { c } from "zod";',
+      'const d = await import("src/core/DynamicForm");',
+      '// import { e } from "src/core/CommentForm";',
+      'export { f } from "src/core/ExportForm";',
+      'import "src/core/SideEffectForm";',
+    ].join(String.fromCharCode(10));
+
+    const seen = edgesFromSource(pretendFile, source)
+      .map((e) => `${e.form}:${e.to}`)
+      .sort();
+
+    expect(seen).toEqual([
+      "alias:src/core/AliasForm",
+      "alias:src/core/DynamicForm",
+      "alias:src/core/ExportForm",
+      "alias:src/core/SideEffectForm",
+      "relative:src/core/RelativeForm",
+    ]);
   });
 });

@@ -206,7 +206,13 @@ export class CosmeticPreviewRenderer {
     // the world client -- a cast that lies is exactly the wrong thing here.
     const previewRules: RenderRules = {
       msPerTick: () => PREVIEW_TICK_MS,
-      unitInfo: () => ({}),
+      // The preview constructs neither BarPass nor NamePass, so nothing here
+      // reads unit info. Throwing rather than returning {} keeps that honest:
+      // an empty object would let a pass added later render a zero-length
+      // health bar and a default construction time instead of failing.
+      unitInfo: (type: string) => {
+        throw new Error(`preview has no unit info for ${type}`);
+      },
       warshipVeterancyHealthBonus: () => 0,
       deletionMarkDuration: () => 1, // divisor
       SAMCooldown: () => 1, // divisor

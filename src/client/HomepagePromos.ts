@@ -170,18 +170,20 @@ export class HomepagePromos extends LitElement {
   public close(): void {
     this.adLoaded = false;
     // ramp.js is not loaded in this fork (index.html carries no ad scripts),
-    // so there is nothing to destroy. Guarded like every other entry point in
-    // this file rather than relying on the catch below, which would log an
-    // error on every navigation away from the home page.
-    if (!window.ramp) return;
-    try {
-      // Destroy gutter rails; bottom_rail persists into spawn phase. Rails are
-      // no-selector units, registered under pw-oop- ids (see destroyBottomRail).
-      window.ramp.destroyUnits("pw-oop-left_rail");
-      window.ramp.destroyUnits("pw-oop-right_rail");
-      console.log("successfully destroyed gutter rails");
-    } catch (e) {
-      console.error("error destroying gutter rails", e);
+    // so there is nothing to destroy. Scoped to the ramp calls rather than
+    // returning early: the corner-ad cleanup below is unrelated to ramp and
+    // sets a latch that has to be set on every navigation away from here.
+    if (window.ramp) {
+      try {
+        // Destroy gutter rails; bottom_rail persists into spawn phase. Rails
+        // are no-selector units, registered under pw-oop- ids (see
+        // destroyBottomRail).
+        window.ramp.destroyUnits("pw-oop-left_rail");
+        window.ramp.destroyUnits("pw-oop-right_rail");
+        console.log("successfully destroyed gutter rails");
+      } catch (e) {
+        console.error("error destroying gutter rails", e);
+      }
     }
     // Adblock-detected users get NO in-game ads (the AdGatekeeper latch is
     // permanent, surviving the blocker being disabled), so the corner video

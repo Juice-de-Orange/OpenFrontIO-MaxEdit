@@ -1,4 +1,5 @@
 import { assetUrl } from "src/client/util/AssetUrl";
+import { GameMapType } from "src/shared/map/Maps.gen";
 import {
   buildPreviewMap,
   PREVIEW_MAP_H,
@@ -17,7 +18,13 @@ import {
  * already caches the one result that matters.
  */
 
-const PREVIEW_MAP_DIR = "australia";
+/**
+ * Derived from the catalog rather than written as a literal, so removing or
+ * renaming the map is a compile error instead of a 404 in the store preview.
+ * Lowercasing the enum key is how the asset folders are named — the same
+ * derivation core/game/FetchGameMapLoader does.
+ */
+const PREVIEW_MAP_DIR = GameMapType.Australia.toLowerCase();
 
 /** The slice of a map manifest the preview needs. */
 interface PreviewMapManifest {

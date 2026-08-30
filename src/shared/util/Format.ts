@@ -1,11 +1,17 @@
 /**
- * Number formatting for anything the renderer draws.
+ * Number formatting: one vocabulary for every number the game shows.
  *
- * This is the number vocabulary of the UI -- design invariant 9 says one such
- * vocabulary across every screen -- and it belongs to the renderer rather than
- * to a client-wide grab bag. Moving it here is also what stops
- * render/gl/passes from importing client/Utils.ts, which pulls in
- * core/game/Game and core/Schemas.
+ * Design invariant 9 asks for exactly one such vocabulary across every screen,
+ * and both sides need it — the renderer for its labels, and the simulation for
+ * the message text it generates (AttackExecution, TransportShipExecution,
+ * TradeShipExecution and GameImpl all format troop and gold figures). Two
+ * sides needing the same answer is what puts it in shared/.
+ *
+ * It sat in client/Utils.ts, which imports core/game/Game and core/Schemas,
+ * so the renderer could not reach it without dragging the simulation in.
+ * Putting it under render/ instead would have inverted the problem: the four
+ * core files above import these through Utils, so the edge would have run
+ * core -> client/render.
  *
  * Pure: no imports, no DOM, no translation. Duration formatting stays in
  * client/Utils.ts because it needs translateText.

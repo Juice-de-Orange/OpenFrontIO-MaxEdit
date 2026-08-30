@@ -14,14 +14,15 @@ import { GameConfig } from "../core/Schemas";
 import { Platform } from "./Platform";
 
 // Re-exported so the ~200 call sites that reach for these through Utils keep
-// working. The definitions moved: formatting to render/util/Format.ts (it is
-// the renderer's number vocabulary), translation to i18n/Translate.ts.
-export { formatDebugTranslation, translateText } from "./i18n/Translate";
+// working. The definitions moved: formatting to shared/util/Format.ts (both
+// the renderer and the simulation format numbers), translation to
+// i18n/Translate.ts.
 export {
   formatPercentage,
   renderNumber,
   renderTroops,
-} from "./render/util/Format";
+} from "../shared/util/Format";
+export { formatDebugTranslation, translateText } from "./i18n/Translate";
 // Imported as well as re-exported: several helpers in this file call it.
 import { translateText } from "./i18n/Translate";
 

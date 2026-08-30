@@ -63,9 +63,17 @@ export default [
       ],
     },
   },
-  // Package boundaries. tests/architecture/RenderBoundary.test.ts checks the
-  // same thing over the whole tree and gives better messages; these two zones
-  // catch it in the editor, before the test runs.
+  // Package boundaries. tests/architecture/RenderBoundary.test.ts is the
+  // authority — it resolves specifiers and checks the whole tree; these zones
+  // are the fast editor-time half.
+  //
+  // The render zone deliberately covers core/ only, not "any module outside
+  // render/". no-restricted-imports matches the written specifier rather than
+  // the resolved module, so a rule broad enough to catch `../../Utils` also
+  // catches every relative import *within* render/ (measured: 315 false
+  // positives), and `!`-negations do not lift a matched group. The transitive
+  // case — an edge into another client package that drags core in behind it —
+  // is therefore only caught by the test.
   {
     files: ["src/client/render/**/*.ts"],
     rules: {
