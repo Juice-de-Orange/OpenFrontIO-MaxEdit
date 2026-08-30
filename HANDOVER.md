@@ -91,6 +91,32 @@ than _the_ world is caught by exactly one line, which is why that line exists.
 
 Phase 0's commits are in the history of this file before this rewrite.
 
+### The whole plan, and how far along it is
+
+Two of twelve gates passed. The gate is the unit of progress here, not the
+code: a phase is done when its gate has been demonstrated, not when it
+compiles.
+
+| Phase                          | Gate                                                                                | State     |
+| ------------------------------ | ----------------------------------------------------------------------------------- | --------- |
+| 0 · Fork triage                | The inherited renderer draws a map from server-pushed state, no client simulation   | ✅ passed |
+| 1 · World persistence          | Kill the container mid-run; it resumes at the correct tick with no lost commands    | ✅ passed |
+| 2 · Province graph             | A province changes hands, ownership propagates from tiles, the client renders it    | ⬜ next   |
+| 3 · Factories and construction | Queue a factory, watch it build over ticks, see output rise; shortage degrades it   | ⬜        |
+| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ⬜        |
+| 5 · Research                   | A completed tech measurably changes a production or combat number                   | ⬜        |
+| 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ⬜        |
+| 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ⬜        |
+| 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ⬜        |
+| 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ⬜        |
+| 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜        |
+| 11 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜        |
+
+Phases 3 to 10 are the game. Phases 0 and 1 were the ground it stands on:
+nothing in them is visible to a player, and both had to be right before
+anything else could be built on top. From here every gate is something a player
+could watch happen.
+
 ## What to do next
 
 **Phase 2 is the province graph.** CLAUDE.md §8 has the gate: a province
