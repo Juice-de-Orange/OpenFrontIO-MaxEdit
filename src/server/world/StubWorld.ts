@@ -13,15 +13,12 @@
 
 import fs from "fs/promises";
 import path from "path";
+import { terrainHashFnv1a } from "src/shared/map/TerrainHash";
 import {
-  computeProvinceGrid,
-  terrainHashFnv1a,
-  type ProvinceGrid,
-} from "src/shared/map/ProvinceGrid";
+  computeProvincePartition,
+  type ProvincePartition,
+} from "src/shared/map/ProvincePartition";
 import type { MapDescriptor, NationStatic } from "src/shared/protocol/Wire";
-
-/** Grid cell size in tiles. Must match what the client uses. */
-const PROVINCE_CELL = 64;
 
 interface ManifestNation {
   name: string;
@@ -42,11 +39,13 @@ export class StubWorld {
   private constructor(
     readonly descriptor: MapDescriptor,
     readonly nations: NationStatic[],
-    private readonly grid: ProvinceGrid,
-    seeds: { x: number; y: number }[],
+    private readonly partition: ProvincePartition,
   ) {
-    this.owners = assignNearest(grid, seeds);
-    this.neighbours = buildAdjacency(grid, descriptor.width);
+    // Ownership comes straight from the partition: a province belongs to the
+    // nation whose territory it was cut out of, so no province starts split
+    // across a border. Slot 0 stays "unowned".
+    this.owners = Array.from(partition.nationOfProvince, (n) => n + 1);
+    this.neighbours = partition.neighbours;
   }
 
   static async load(mapId: string, resourcesDir: string): Promise<StubWorld> {
@@ -65,15 +64,16 @@ export class StubWorld {
       );
     }
 
-    const grid = computeProvinceGrid(terrain, width, height, PROVINCE_CELL);
-
-    // Manifest coordinates are full-map; the client scales them the same way.
+    // Manifest coordinates are full-map; the client scales them identically,
+    // which it has to — the partition is derived on both sides and never sent.
     const scale = manifest.map.width / width;
     const raw = manifest.nations ?? [];
     const seeds = raw.map((n) => ({
       x: Math.min(width - 1, Math.round(n.coordinates[0] / scale)),
       y: Math.min(height - 1, Math.round(n.coordinates[1] / scale)),
     }));
+
+    const partition = computeProvincePartition(terrain, width, height, seeds);
     const nations: NationStatic[] = raw.map((n, i) => ({
       smallID: i + 1,
       name: n.name,
@@ -83,11 +83,11 @@ export class StubWorld {
       id: mapId,
       width,
       height,
-      provinceCount: grid.count,
+      provinceCount: partition.count,
       terrainHash: terrainHashFnv1a(terrain),
     };
 
-    return new StubWorld(descriptor, nations, grid, seeds);
+    return new StubWorld(descriptor, nations, partition);
   }
 
   currentTick(): number {
@@ -107,12 +107,12 @@ export class StubWorld {
    */
   step(): [number, number][] {
     this.tick++;
-    if (this.grid.count === 0) return [];
+    if (this.partition.count === 0) return [];
 
     const changes: [number, number][] = [];
-    const start = (this.tick * 7919) % this.grid.count;
-    for (let i = 0; i < this.grid.count; i++) {
-      const province = (start + i) % this.grid.count;
+    const start = (this.tick * 7919) % this.partition.count;
+    for (let i = 0; i < this.partition.count; i++) {
+      const province = (start + i) % this.partition.count;
       const mine = this.owners[province];
       const taker = this.neighbours[province].find(
         (n) => this.owners[n] !== mine && this.owners[n] !== 0,
@@ -125,61 +125,4 @@ export class StubWorld {
     }
     return changes;
   }
-}
-
-/** Nearest seed by squared distance; ties go to the lower index. */
-function assignNearest(
-  grid: ProvinceGrid,
-  seeds: { x: number; y: number }[],
-): number[] {
-  const owners = new Array<number>(grid.count).fill(0);
-  if (seeds.length === 0) return owners;
-
-  for (let p = 0; p < grid.count; p++) {
-    const c = grid.centres[p];
-    let best = 0;
-    let bestDist = Infinity;
-    for (let s = 0; s < seeds.length; s++) {
-      const dx = c.x - seeds[s].x;
-      const dy = c.y - seeds[s].y;
-      const d = dx * dx + dy * dy;
-      if (d < bestDist) {
-        bestDist = d;
-        best = s;
-      }
-    }
-    owners[p] = best + 1;
-  }
-  return owners;
-}
-
-/** Provinces sharing a grid edge, from the tile labels. */
-function buildAdjacency(grid: ProvinceGrid, width: number): number[][] {
-  const sets = Array.from({ length: grid.count }, () => new Set<number>());
-  const { provinceOfTile } = grid;
-  const height = provinceOfTile.length / width;
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const a = provinceOfTile[y * width + x];
-      if (a < 0) continue;
-      if (x + 1 < width) {
-        const b = provinceOfTile[y * width + x + 1];
-        if (b >= 0 && b !== a) {
-          sets[a].add(b);
-          sets[b].add(a);
-        }
-      }
-      if (y + 1 < height) {
-        const b = provinceOfTile[(y + 1) * width + x];
-        if (b >= 0 && b !== a) {
-          sets[a].add(b);
-          sets[b].add(a);
-        }
-      }
-    }
-  }
-  // Sorted arrays rather than Sets: Set iteration order is insertion order,
-  // and anything order-dependent has to be reproducible.
-  return sets.map((s) => [...s].sort((p, q) => p - q));
 }

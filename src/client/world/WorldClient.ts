@@ -21,10 +21,8 @@ import { MapRenderer, preloadAtlasData } from "src/client/render/gl";
 import { createRenderSettings } from "src/client/render/gl/RenderSettings";
 import type { RenderRules } from "src/client/render/types";
 import { ALL_UNIT_TYPES, PlayerTypeEnum } from "src/client/render/types";
-import {
-  computeProvinceGrid,
-  terrainHashFnv1a,
-} from "src/shared/map/ProvinceGrid";
+import { terrainHashFnv1a } from "src/shared/map/TerrainHash";
+import { computeProvincePartition } from "src/shared/map/ProvincePartition";
 import type { FullState } from "src/shared/protocol/Wire";
 import { CameraController } from "./CameraController";
 import { FrameAdapter } from "./FrameAdapter";
@@ -35,9 +33,6 @@ import { WorldSocket } from "./WorldSocket";
 
 /** One in-game hour per tick, five seconds of wall clock. */
 const TICK_MS = 5000;
-
-/** Province grid cell size, in tiles. Phase 2 replaces the whole partition. */
-const PROVINCE_CELL = 64;
 
 const DEFAULT_WORLD = "world-0";
 
@@ -142,11 +137,14 @@ async function buildFrom(
     );
   }
 
-  const grid = computeProvinceGrid(
+  // Derived, not received: the province -> tile mapping is static map data.
+  // The server ran the same function over the same bytes, and the terrain
+  // hash above is what proves the two agree.
+  const grid = computeProvincePartition(
     map.terrain,
     map.width,
     map.height,
-    PROVINCE_CELL,
+    map.nations.map((n) => ({ x: n.coordinates[0], y: n.coordinates[1] })),
   );
   if (grid.count !== state.map.provinceCount) {
     throw new Error(

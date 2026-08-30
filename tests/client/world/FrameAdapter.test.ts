@@ -3,17 +3,22 @@ import type { FrameUploadTarget } from "../../../src/client/render/frame/Upload"
 import { uploadFrameData } from "../../../src/client/render/frame/Upload";
 import { FrameAdapter } from "../../../src/client/world/FrameAdapter";
 import { ProvinceTileIndex } from "../../../src/client/world/ProvinceTileIndex";
-import { computeProvinceGrid } from "../../../src/shared/map/ProvinceGrid";
+import { computeProvincePartition } from "../../../src/shared/map/ProvincePartition";
 
 const LAND = 0x80;
 const W = 8;
 const H = 4;
-const CELL = 2;
+const SEEDS = [
+  { x: 0, y: 0 },
+  { x: 7, y: 0 },
+  { x: 0, y: 3 },
+  { x: 7, y: 3 },
+];
 
-/** All land, so every 2x2 cell is a province: 4 x 2 = 8 provinces of 4 tiles. */
+/** All land, split between four seeds in the corners. */
 function index(): ProvinceTileIndex {
   const terrain = new Uint8Array(W * H).fill(LAND);
-  return new ProvinceTileIndex(computeProvinceGrid(terrain, W, H, CELL));
+  return new ProvinceTileIndex(computeProvincePartition(terrain, W, H, SEEDS));
 }
 
 /**
@@ -187,7 +192,7 @@ describe("ProvinceTileIndex", () => {
   test("covers every land tile exactly once", () => {
     const terrain = new Uint8Array(W * H);
     for (let i = 0; i < terrain.length; i++) if (i % 3 !== 0) terrain[i] = LAND;
-    const grid = computeProvinceGrid(terrain, W, H, CELL);
+    const grid = computeProvincePartition(terrain, W, H, SEEDS);
     const idx = new ProvinceTileIndex(grid);
 
     const seen = new Set<number>();

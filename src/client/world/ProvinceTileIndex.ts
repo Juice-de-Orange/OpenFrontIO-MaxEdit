@@ -9,7 +9,7 @@
  * a delta; both sides derive it from the terrain bytes.
  */
 
-import type { ProvinceGrid } from "src/shared/map/ProvinceGrid";
+import type { ProvincePartition } from "src/shared/map/ProvincePartition";
 
 export class ProvinceTileIndex {
   private readonly offsets: Int32Array;
@@ -19,7 +19,7 @@ export class ProvinceTileIndex {
   readonly tileCount: number;
   readonly provinceCount: number;
 
-  constructor(grid: ProvinceGrid) {
+  constructor(grid: ProvincePartition) {
     const { provinceOfTile, count } = grid;
     this.tileCount = provinceOfTile.length;
     this.provinceCount = count;
