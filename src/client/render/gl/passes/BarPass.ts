@@ -13,10 +13,8 @@
  */
 
 import { maxHealthWithVeterancy } from "src/shared/util/Veterancy";
-import type { Config } from "../../../../core/configuration/Config";
-import { UnitType } from "../../../../core/game/Game";
-import type { RendererConfig, UnitState } from "../../types";
-import { UT_MISSILE_SILO, UT_SAM_LAUNCHER } from "../../types";
+import type { RenderRules, RendererConfig, UnitState } from "../../types";
+import { UT_MISSILE_SILO, UT_SAM_LAUNCHER, UT_WARSHIP } from "../../types";
 import type { RenderSettings } from "../RenderSettings";
 import { createProgram } from "../utils/GlUtils";
 
@@ -71,13 +69,13 @@ export class BarPass {
     gl: WebGL2RenderingContext,
     header: RendererConfig,
     settings: RenderSettings,
-    private config: Config,
+    private rules: RenderRules,
   ) {
     this.gl = gl;
     this.settings = settings;
     this.mapW = header.mapWidth;
-    this.warshipMaxHealth = config.unitInfo(UnitType.Warship).maxHealth ?? 0;
-    this.veterancyHealthBonus = config.warshipVeterancyHealthBonus();
+    this.warshipMaxHealth = rules.unitInfo(UT_WARSHIP).maxHealth ?? 0;
+    this.veterancyHealthBonus = rules.warshipVeterancyHealthBonus();
 
     // --- Shader program ---
     this.program = createProgram(gl, barVertSrc, barFragSrc);
@@ -302,15 +300,14 @@ export class BarPass {
       const remaining = unit.markedForDeletion - gameTick;
       return Math.max(
         0,
-        Math.min(1, remaining / this.config.deletionMarkDuration()),
+        Math.min(1, remaining / this.rules.deletionMarkDuration()),
       );
     }
 
     // Construction progress
     if (unit.underConstruction && unit.constructionStartTick !== null) {
       const duration =
-        this.config.unitInfo(unit.unitType as UnitType).constructionDuration ??
-        50;
+        this.rules.unitInfo(unit.unitType).constructionDuration ?? 50;
       const elapsed = gameTick - unit.constructionStartTick;
       return Math.min(1, Math.max(0, elapsed / duration));
     }
@@ -336,8 +333,8 @@ export class BarPass {
 
     const cooldown =
       unit.unitType === UT_SAM_LAUNCHER
-        ? this.config.SAMCooldown()
-        : this.config.SiloCooldown();
+        ? this.rules.SAMCooldown()
+        : this.rules.SiloCooldown();
 
     let readiness = ready / maxMissiles;
     for (const timer of unit.missileTimerQueue) {

@@ -5,8 +5,7 @@
  * draw() is pure GPU: uniforms + one drawArraysInstanced call.
  */
 
-import type { Config } from "src/core/configuration/Config";
-import type { RendererConfig, UnitState } from "../../types";
+import type { RendererConfig, RenderRules, UnitState } from "../../types";
 import {
   SMOOTHED_NUKE_TYPES,
   UT_ATOM_BOMB,
@@ -91,7 +90,7 @@ export class PointLightPass {
   private lightData: Float32Array;
   private lightCount = 0;
 
-  // Type config
+  // Type rules
   private typeToIdx = new Map<string, number>();
   private typeConfigs: (LightConfig | undefined)[];
   private typeNames: string[];
@@ -112,15 +111,15 @@ export class PointLightPass {
     header: RendererConfig,
     paletteData: Float32Array,
     settings: RenderSettings,
-    config: Config,
+    rules: RenderRules,
   ) {
     this.gl = gl;
     this.settings = settings;
     this.paletteData = paletteData;
     this.mapW = header.mapWidth;
-    this.tickIntervalMs = config.msPerTick();
+    this.tickIntervalMs = rules.msPerTick();
 
-    // Build type → light config mapping
+    // Build type → light rules mapping
     this.typeNames = header.unitTypes;
     this.typeConfigs = new Array(header.unitTypes.length);
     for (let i = 0; i < header.unitTypes.length; i++) {

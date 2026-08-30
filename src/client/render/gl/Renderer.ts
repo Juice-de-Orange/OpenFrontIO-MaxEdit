@@ -10,7 +10,6 @@
  */
 
 import type { MapLayer } from "src/shared/map/Maps.gen";
-import type { Config } from "../../../core/configuration/Config";
 import { translateText } from "../../Utils";
 import type { SpiralRibbon } from "../frame/SpiralTrails";
 import type {
@@ -26,6 +25,7 @@ import type {
   PlayerStatic,
   PlayerStatusData,
   RendererConfig,
+  RenderRules,
   TerrainRect,
   UnitState,
 } from "../types";
@@ -216,7 +216,7 @@ export class GPURenderer {
     header: RendererConfig,
     terrainSource: () => Uint8Array,
     paletteData: Float32Array,
-    config: Config,
+    rules: RenderRules,
     settings: RenderSettings,
     raf: typeof requestAnimationFrame = requestAnimationFrame.bind(window),
     caf: typeof cancelAnimationFrame = cancelAnimationFrame.bind(window),
@@ -513,7 +513,7 @@ export class GPURenderer {
       header,
       paletteData,
       this.settings,
-      config,
+      rules,
     );
 
     // --- Fallout light (needs tileTex + heatManager; particle flicker is
@@ -577,18 +577,12 @@ export class GPURenderer {
       this.paletteTex,
       this.effectTex,
       this.settings,
-      config,
+      rules,
     );
-    this.namePass = new NamePass(
-      gl,
-      header,
-      paletteData,
-      this.settings,
-      config,
-    );
-    this.fxPass = new FxPass(gl, header, this.settings, config);
-    this.barPass = new BarPass(gl, header, this.settings, config);
-    this.worldTextPass = new WorldTextPass(gl, this.settings, config);
+    this.namePass = new NamePass(gl, header, paletteData, this.settings, rules);
+    this.fxPass = new FxPass(gl, header, this.settings, rules);
+    this.barPass = new BarPass(gl, header, this.settings, rules);
+    this.worldTextPass = new WorldTextPass(gl, this.settings, rules);
     this.worldTextPass.setMapWidth(this.mapW);
     this.selectionBoxPass = new SelectionBoxPass(gl);
     this.moveIndicatorPass = new MoveIndicatorPass(gl, this.settings);

@@ -33,8 +33,7 @@
  */
 
 import { assetUrl } from "src/client/util/AssetUrl";
-import type { Config } from "src/core/configuration/Config";
-import type { RendererConfig, UnitState } from "../../types";
+import type { RendererConfig, RenderRules, UnitState } from "../../types";
 import {
   SMOOTHED_NUKE_TYPES,
   TrainType,
@@ -268,14 +267,14 @@ export class UnitPass {
     paletteTex: WebGLTexture,
     effectTex: WebGLTexture,
     settings: RenderSettings,
-    config: Config,
+    rules: RenderRules,
   ) {
     this.gl = gl;
     this.settings = settings;
     this.mapW = header.mapWidth;
     this.paletteTex = paletteTex;
     this.effectTex = effectTex;
-    this.tickIntervalMs = config.msPerTick();
+    this.tickIntervalMs = rules.msPerTick();
 
     // Build unitType string → atlas column mapping
     for (let i = 0; i < header.unitTypes.length; i++) {

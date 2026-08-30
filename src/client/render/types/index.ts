@@ -20,6 +20,8 @@ export type {
   PlayerState,
   PlayerStatic,
   PlayerStatusData,
+  RenderRules,
+  RenderUnitInfo,
   RendererConfig,
   TerrainRect,
   UnitState,

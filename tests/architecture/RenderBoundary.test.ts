@@ -20,8 +20,6 @@ const RENDER_DIR = path.join(REPO_ROOT, "src", "client", "render");
 
 /** Module specifier -> number of import statements that still reach it. */
 const ALLOWED: Record<string, number> = {
-  "src/core/configuration/Config": 10,
-  "src/core/game/Game": 1,
   "src/core/game/GameUpdates": 1,
 };
 
@@ -141,23 +139,48 @@ describe("src/client/render -> src/core import boundary", () => {
     expect(actual).toEqual(ALLOWED);
   });
 
-  /**
-   * Counter-check for the scanner itself. The renderer writes core imports in
-   * two forms — bare `src/core/...` alias and relative `../../core/...` — and
-   * a matcher that only understands one of them would report a clean boundary
-   * while a third of the edges sit unseen.
-   */
-  test("sees both the alias and the relative path form", () => {
-    const edges = allCoreEdges();
-    const byForm = {
-      alias: edges.filter((e) => e.form === "alias").length,
-      relative: edges.filter((e) => e.form === "relative").length,
-    };
-
-    expect(byForm.alias).toBeGreaterThan(0);
-    expect(byForm.relative).toBeGreaterThan(0);
-    expect(edges.length).toBe(
+  test("counts exactly as many edges as the allowlist budgets", () => {
+    expect(allCoreEdges().length).toBe(
       Object.values(ALLOWED).reduce((a, b) => a + b, 0),
     );
+  });
+
+  /**
+   * Counter-check for the scanner itself, run against a fixture rather than
+   * against the tree.
+   *
+   * The renderer wrote core imports two ways — bare `src/core/...` alias and
+   * relative `../../core/...` — and a matcher that understood only one of
+   * them would have reported a clean boundary with a third of the edges
+   * unseen. Asserting that both forms appear in the tree checked this only
+   * for as long as both happened to be present; with the allowlist nearly
+   * empty that assertion starts failing for the right reason at the wrong
+   * time. Feeding the scanner a file that contains both keeps the check
+   * meaningful after the last real edge is gone.
+   */
+  test("resolves both the alias and the relative path form", () => {
+    const fixture = path.join(RENDER_DIR, "__scanner_fixture__.ts");
+    fs.writeFileSync(
+      fixture,
+      [
+        'import { a } from "src/core/AliasForm";',
+        'import { b } from "../../core/RelativeForm";',
+        'import { c } from "zod";',
+        'const d = await import("src/core/DynamicForm");',
+        '// import { e } from "src/core/CommentForm";',
+        'export { f } from "src/core/ExportForm";',
+      ].join(String.fromCharCode(10)),
+    );
+    try {
+      const edges = coreEdgesIn(fixture);
+      expect(edges.map((e) => `${e.form}:${e.to}`).sort()).toEqual([
+        "alias:src/core/AliasForm",
+        "alias:src/core/DynamicForm",
+        "alias:src/core/ExportForm",
+        "relative:src/core/RelativeForm",
+      ]);
+    } finally {
+      fs.unlinkSync(fixture);
+    }
   });
 });

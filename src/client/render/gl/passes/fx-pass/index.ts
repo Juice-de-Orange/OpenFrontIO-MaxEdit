@@ -8,12 +8,12 @@
  * interceptions) are coordinated here so each sub-pass stays self-contained.
  */
 
-import type { Config } from "../../../../../core/configuration/Config";
 import type {
   AttackRingInput,
   ConquestFx,
   DeadUnitFx,
   RendererConfig,
+  RenderRules,
 } from "../../../types";
 import type { RenderSettings } from "../../RenderSettings";
 import { FxAttackRingPass } from "./FxAttackRingPass";
@@ -39,11 +39,11 @@ export class FxPass {
     gl: WebGL2RenderingContext,
     header: RendererConfig,
     settings: RenderSettings,
-    private config: Config,
+    private rules: RenderRules,
   ) {
     this.mapW = header.mapWidth;
     this.settings = settings;
-    this.spritePass = new FxSpritePass(gl, header, settings, config);
+    this.spritePass = new FxSpritePass(gl, header, settings, rules);
     this.shockwavePass = new FxShockwavePass(gl, settings);
     this.attackRingPass = new FxAttackRingPass(gl, settings);
   }
@@ -55,7 +55,7 @@ export class FxPass {
   applyDeadUnits(deadUnits: DeadUnitFx[]): void {
     const now = this.timeFn();
     for (const unit of deadUnits) {
-      const startMs = now - (unit.tickAge ?? 0) * this.config.msPerTick();
+      const startMs = now - (unit.tickAge ?? 0) * this.rules.msPerTick();
       this.spawnUnit(unit, startMs);
     }
   }

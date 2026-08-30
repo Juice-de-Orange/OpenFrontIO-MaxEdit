@@ -16,13 +16,13 @@
  *   - types          — shared interfaces + constants
  */
 
-import type { Config } from "../../../../../core/configuration/Config";
 import type {
   NameEntry,
   PlayerState,
   PlayerStatic,
   PlayerStatusData,
   RendererConfig,
+  RenderRules,
 } from "../../../types";
 import { PlayerTypeEnum } from "../../../types";
 import type { RenderSettings } from "../../RenderSettings";
@@ -128,7 +128,7 @@ export class NamePass {
     header: RendererConfig,
     paletteData: Float32Array,
     settings: RenderSettings,
-    config: Config,
+    rules: RenderRules,
   ) {
     this.gl = gl;
     this.settings = settings;
@@ -227,7 +227,7 @@ export class NamePass {
       this.playerDataTex,
       this.crownAtlas,
       this.maxPlayers,
-      config.allianceExtensionPromptOffset(),
+      rules.allianceExtensionPromptOffset(),
     );
     this.debugProgram = new DebugProgram(
       gl,

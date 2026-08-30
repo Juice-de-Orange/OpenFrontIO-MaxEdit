@@ -12,7 +12,6 @@
  */
 
 import type { MapLayer } from "src/shared/map/Maps.gen";
-import type { Config } from "../../../core/configuration/Config";
 import type { SpiralRibbon } from "../frame/SpiralTrails";
 import type {
   AttackRingInput,
@@ -27,6 +26,7 @@ import type {
   PlayerStatic,
   PlayerStatusData,
   RendererConfig,
+  RenderRules,
   TerrainRect,
   UnitState,
 } from "../types";
@@ -60,7 +60,7 @@ export class MapRenderer {
     // map-sized buffer for the rare restore path.
     private terrainSource: () => Uint8Array,
     private paletteData: Float32Array,
-    private config: Config,
+    private rules: RenderRules,
     // Resolved render settings (defaults + overrides). Held so the same object
     // is re-used when a GPURenderer is recreated after a context restore,
     // preserving any user overrides that were applied to it.
@@ -92,7 +92,7 @@ export class MapRenderer {
       this.header,
       this.terrainSource,
       this.paletteData,
-      this.config,
+      this.rules,
       this.settings,
       this.raf,
       this.caf,

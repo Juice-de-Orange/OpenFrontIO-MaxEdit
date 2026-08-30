@@ -324,3 +324,56 @@ export interface RendererConfig {
    */
   maxPlayers?: number;
 }
+
+/**
+ * The subset of `unitInfo` the renderer reads.
+ *
+ * Deliberately narrower than upstream's `UnitInfo`, whose `cost` field is
+ * `(game: Game, player: Player) => Gold` and would drag the entire simulation
+ * — plus bigint gold — back into the renderer's type graph. Only these two
+ * fields are ever read: maxHealth for the warship health bar, and
+ * constructionDuration for the build-progress bar.
+ */
+export interface RenderUnitInfo {
+  maxHealth?: number;
+  constructionDuration?: number;
+}
+
+/**
+ * What the renderer needs to know about the world's rules in order to draw,
+ * and nothing beyond it. Seven methods out of the 106 on upstream's `Config`
+ * class, which satisfies this structurally with no change to it.
+ *
+ * Named RenderRules, not RenderConfig: `RendererConfig` above is the
+ * construction header (map dimensions, unit types, player list), and two
+ * types a letter apart would need explaining in every review. These seven all
+ * answer the same question — over what span does this bar or animation run.
+ *
+ * `unitInfo` keeps the shape it has on `Config` rather than being flattened
+ * into `maxHealth(type)` / `constructionDuration(type)`. The flatter form
+ * reads better but `Config` would no longer satisfy it, and phase 0 would
+ * need an adapter object living exactly until `Config` dies.
+ */
+export interface RenderRules {
+  /** Simulation tick length in ms. Drives every interpolation. */
+  msPerTick(): number;
+
+  /**
+   * Display constants per unit type. `type` is the raw string from
+   * `UnitState.unitType` — see types/UnitType.ts.
+   */
+  unitInfo(type: string): RenderUnitInfo;
+
+  /** Max-health bonus per veterancy level, in whole percent. */
+  warshipVeterancyHealthBonus(): number;
+
+  /** Divisor. Must be > 0, or the deletion bar goes NaN. */
+  deletionMarkDuration(): number;
+  /** Divisor. Must be > 0. */
+  SAMCooldown(): number;
+  /** Divisor. Must be > 0. */
+  SiloCooldown(): number;
+
+  /** Ticks before an alliance expires at which the renewal icon appears. */
+  allianceExtensionPromptOffset(): number;
+}

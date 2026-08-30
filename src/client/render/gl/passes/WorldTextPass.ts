@@ -7,8 +7,7 @@
  *  - Ghost cost label: persistent build-cost number under the ghost cursor
  */
 
-import type { Config } from "../../../../core/configuration/Config";
-import type { BonusEvent, ConquestFx } from "../../types";
+import type { BonusEvent, ConquestFx, RenderRules } from "../../types";
 import type { RenderSettings } from "../RenderSettings";
 import { renderDpr } from "../utils/Dpr";
 import { createProgram } from "../utils/GlUtils";
@@ -156,7 +155,7 @@ export class WorldTextPass {
   constructor(
     gl: WebGL2RenderingContext,
     settings: RenderSettings,
-    private config: Config,
+    private rules: RenderRules,
   ) {
     this.gl = gl;
     this.settings = settings;
@@ -278,7 +277,7 @@ export class WorldTextPass {
   applyConquestEvents(events: ConquestFx[]): void {
     const now = this.now();
     for (const evt of events) {
-      const startMs = now - (evt.tickAge ?? 0) * this.config.msPerTick();
+      const startMs = now - (evt.tickAge ?? 0) * this.rules.msPerTick();
       if (now - startMs >= CONQUEST_LIFETIME_MS) continue;
       this.active.push({
         x: evt.x,

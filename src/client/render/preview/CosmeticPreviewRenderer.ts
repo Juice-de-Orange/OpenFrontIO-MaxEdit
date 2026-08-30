@@ -2,7 +2,6 @@
  * CosmeticPreviewRenderer — lightweight WebGL2 renderer for in-game store cosmetic previewing.
  */
 
-import type { Config } from "../../../core/configuration/Config";
 import type { SpiralParams } from "../frame/SpiralTrails";
 import { Camera } from "../gl/Camera";
 import { initGL } from "../gl/initGL";
@@ -36,6 +35,7 @@ import { createTexture2D } from "../gl/utils/GlUtils";
 import type {
   NukeExplosionRenderParams,
   RendererConfig,
+  RenderRules,
   UnitState,
 } from "../types/Renderer";
 import {
@@ -196,11 +196,23 @@ export class CosmeticPreviewRenderer {
       mapHeight: PREVIEW_MAP_H,
       unitTypes: ALL_MOBILE_UNIT_TYPES,
       players: [],
-    } as unknown as RendererConfig;
+    };
 
-    const mockConfig = {
+    // A complete implementation, not a cast. Against the 106-method `Config`
+    // class this had to be `as Config`, which would have kept compiling if a
+    // pass started calling an eighth method and then thrown
+    // "undefined is not a function" at runtime. This is the only place in the
+    // tree that exercises the no-real-Config path, so it is the reference for
+    // the world client -- a cast that lies is exactly the wrong thing here.
+    const previewRules: RenderRules = {
       msPerTick: () => PREVIEW_TICK_MS,
-    } as Config;
+      unitInfo: () => ({}),
+      warshipVeterancyHealthBonus: () => 0,
+      deletionMarkDuration: () => 1, // divisor
+      SAMCooldown: () => 1, // divisor
+      SiloCooldown: () => 1, // divisor
+      allianceExtensionPromptOffset: () => 0,
+    };
 
     this.unitPass = new UnitPass(
       this.gl,
@@ -208,7 +220,7 @@ export class CosmeticPreviewRenderer {
       this.paletteTex,
       this.effectTex,
       this.settings,
-      mockConfig,
+      previewRules,
     );
     this.unitPass.setLocalPlayer(1);
 
@@ -217,7 +229,7 @@ export class CosmeticPreviewRenderer {
       mapHeight: PREVIEW_MAP_H,
       unitTypes: ALL_STRUCTURE_TYPES,
       players: [],
-    } as unknown as RendererConfig;
+    };
 
     this.structurePass = new StructurePass(
       this.gl,
@@ -244,7 +256,7 @@ export class CosmeticPreviewRenderer {
       this.gl,
       rendererHeader,
       this.settings,
-      mockConfig,
+      previewRules,
     );
 
     this.ticker = new PreviewAnimationTicker({ mode: "SKIN" });

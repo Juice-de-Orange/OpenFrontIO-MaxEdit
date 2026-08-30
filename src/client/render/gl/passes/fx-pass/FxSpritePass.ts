@@ -6,8 +6,12 @@
  * Pre-built by generate-sprite-atlases.mjs.
  */
 
-import type { Config } from "../../../../../core/configuration/Config";
-import type { ConquestFx, DeadUnitFx, RendererConfig } from "../../../types";
+import type {
+  ConquestFx,
+  DeadUnitFx,
+  RendererConfig,
+  RenderRules,
+} from "../../../types";
 import {
   STRUCTURE_TYPES,
   UT_SHELL,
@@ -46,7 +50,7 @@ export const FX_CONQUEST = 11;
 const FX_TYPE_COUNT = 12;
 
 // ---------------------------------------------------------------------------
-// FX sprite config (matches AnimatedSpriteLoader)
+// FX sprite rules (matches AnimatedSpriteLoader)
 // ---------------------------------------------------------------------------
 
 interface FxTypeConfig {
@@ -197,7 +201,7 @@ export class FxSpritePass {
     gl: WebGL2RenderingContext,
     header: RendererConfig,
     settings: RenderSettings,
-    private config: Config,
+    private rules: RenderRules,
   ) {
     this.gl = gl;
     this.mapW = header.mapWidth;
@@ -328,7 +332,7 @@ export class FxSpritePass {
     const now = this.timeFn();
     const fx = this.settings.fx;
     for (const evt of events) {
-      const startMs = now - (evt.tickAge ?? 0) * this.config.msPerTick();
+      const startMs = now - (evt.tickAge ?? 0) * this.rules.msPerTick();
       if (now - startMs >= fx.conquestLifetimeMs) continue;
       this.activeFx.push({
         x: evt.x,
