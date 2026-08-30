@@ -1,4 +1,7 @@
-import { Cell, TerrainType } from "./Game";
+// From shared/, not from ./Game: this single import used to be the head of
+// the core<->client cycle. Game.ts imports Config, Config imports
+// client/view, and that reaches GameView -> the worker -> every Execution.
+import { Cell, TerrainType } from "../../shared/map/Terrain";
 
 export type TileRef = number;
 

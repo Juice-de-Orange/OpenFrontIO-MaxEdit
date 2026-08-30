@@ -16,6 +16,20 @@ import { Stats } from "./Stats";
 import { ReadonlyTileSet } from "./TileSet";
 import { UnitPredicate } from "./UnitGrid";
 
+// Terrain vocabulary now lives in shared/, so the world server and the
+// renderer can use it without importing this file — which drags Config and,
+// through it, the entire client view layer and simulation worker along.
+// Re-exported here so this module's existing importers stay unchanged.
+import {
+  Cell,
+  GameMapSize,
+  type MapPos,
+  TerrainType,
+} from "../../shared/map/Terrain";
+
+export { Cell, GameMapSize, TerrainType };
+export type { MapPos };
+
 function isEnumValue<T extends Record<string, string | number>>(
   enumObj: T,
   value: unknown,
@@ -68,11 +82,6 @@ type UpdateTypeMap<T extends GameUpdateType> = Extract<GameUpdate, { type: T }>;
 export type GameUpdates = {
   [K in GameUpdateType]: UpdateTypeMap<K>[];
 };
-
-export interface MapPos {
-  x: number;
-  y: number;
-}
 
 export enum Difficulty {
   Easy = "Easy",
@@ -145,11 +154,6 @@ export enum RankedType {
 
 export const isGameMode = (value: unknown): value is GameMode =>
   isEnumValue(GameMode, value);
-
-export enum GameMapSize {
-  Compact = "Compact",
-  Normal = "Normal",
-}
 
 export interface PublicGameModifiers {
   isCompact?: boolean;
@@ -335,38 +339,6 @@ export class Nation {
     public readonly spawnCell: Cell | undefined,
     public readonly playerInfo: PlayerInfo,
   ) {}
-}
-
-export class Cell {
-  public index: number;
-
-  private strRepr: string;
-
-  constructor(
-    public readonly x: number,
-    public readonly y: number,
-  ) {
-    this.strRepr = `Cell[${this.x},${this.y}]`;
-  }
-
-  pos(): MapPos {
-    return {
-      x: this.x,
-      y: this.y,
-    };
-  }
-
-  toString(): string {
-    return this.strRepr;
-  }
-}
-
-export enum TerrainType {
-  Plains,
-  Highland,
-  Mountain,
-  Ocean,
-  Impassable,
 }
 
 export enum PlayerType {
