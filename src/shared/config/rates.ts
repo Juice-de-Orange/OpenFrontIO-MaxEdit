@@ -1,0 +1,129 @@
+/**
+ * Every per-tick rate in the economy, in one file.
+ *
+ * CLAUDE.md §4: how fast the world feels is set here and nowhere else. The
+ * tick rate is a resolution choice, not a speed choice — retune these, never
+ * `TICK_MS`.
+ *
+ * **Deliberately low.** A season is six weeks; one in-game day is two minutes
+ * of wall clock. These are the first numbers anyone will want to change, and
+ * they are all in one place so that changing them is a diff and not a hunt.
+ *
+ * Per invariant 9, nothing here is ever shown to a player as written: the UI
+ * multiplies by `TICKS_PER_DAY` and says "per day".
+ */
+
+import type { Resource } from "./provinces";
+
+// ---------------------------------------------------------------------------
+// Extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Resource units per tick, per point of deposit.
+ *
+ * A province with a deposit of 5 yields 0.25 a tick, six a day. Europe has 261
+ * provinces with a deposit between them, so a mid-sized nation runs a handful.
+ */
+export const EXTRACTION_PER_DEPOSIT = 0.05;
+
+/** Each extraction upgrade adds this share of the base yield. */
+export const EXTRACTION_UPGRADE_BONUS = 0.25;
+
+/**
+ * What an occupied province yields to whoever is holding it.
+ *
+ * CLAUDE.md §10 lists "whether occupied provinces produce at reduced rate or
+ * not at all" as open. Reduced: nothing in this game hard-blocks (invariant
+ * 2), and a conquest that produced nothing at all would make holding ground
+ * worthless for the fortnight before the ownership transfers — which is
+ * exactly the period decision 0002 exists to make interesting.
+ */
+export const OCCUPIED_OUTPUT_FACTOR = 0.4;
+
+/** Infrastructure's effect on extraction, per level above zero. */
+export const INFRASTRUCTURE_EXTRACTION_BONUS = 0.04;
+
+// ---------------------------------------------------------------------------
+// Factories
+// ---------------------------------------------------------------------------
+
+/** Construction points one civilian factory produces per tick. */
+export const CIVILIAN_FACTORY_OUTPUT = 0.5;
+
+/**
+ * Industrial output one military factory or dockyard produces per tick.
+ *
+ * Phase 4 turns this into equipment through production lines and the
+ * efficiency ramp (§6.2). Until then it is a number the economy screen shows,
+ * and it is what a resource shortage is visibly measured against.
+ */
+export const MILITARY_FACTORY_OUTPUT = 0.4;
+export const DOCKYARD_OUTPUT = 0.4;
+
+/**
+ * What a military factory and a dockyard draw per tick to run.
+ *
+ * §5: resources are consumed by military factories, dockyards, and units in
+ * the field. Civilian factories draw nothing — construction points are labour,
+ * not steel — which is also why a nation that has lost its mines can still
+ * build its way back.
+ */
+export const MILITARY_FACTORY_DEMAND: Partial<Record<Resource, number>> = {
+  steel: 0.2,
+  aluminium: 0.04,
+};
+
+export const DOCKYARD_DEMAND: Partial<Record<Resource, number>> = {
+  steel: 0.25,
+  rubber: 0.03,
+};
+
+// ---------------------------------------------------------------------------
+// Construction
+// ---------------------------------------------------------------------------
+
+/**
+ * How many queue entries take construction points at once.
+ *
+ * One. Splitting the flow across the queue is the obvious alternative and it
+ * makes every project finish late; a queue that finishes its front item is a
+ * queue a player can plan against.
+ */
+export const CONSTRUCTION_PARALLEL_ITEMS = 1;
+
+/** Infrastructure's effect on construction speed in that province, per level. */
+export const INFRASTRUCTURE_CONSTRUCTION_BONUS = 0.03;
+
+// ---------------------------------------------------------------------------
+// What a nation starts with
+// ---------------------------------------------------------------------------
+
+/** Buildings placed in each nation's capital province at tick 0. */
+export const STARTING_CAPITAL_BUILDINGS = {
+  civilian_factory: 3,
+  military_factory: 1,
+} as const;
+
+/**
+ * The opening stockpile.
+ *
+ * Enough to run the starting factories for a few in-game days, so a nation
+ * that ignores its economy entirely feels it inside the first session rather
+ * than in week three.
+ */
+export const STARTING_RESOURCES: Record<Resource, number> = {
+  steel: 200,
+  oil: 100,
+  aluminium: 100,
+  rubber: 50,
+};
+
+/**
+ * The most of one resource a nation can hold.
+ *
+ * A cap rather than a warehouse mechanic: without it, a nation that is offline
+ * for a week returns to an unspendable pile and the shortage system it was
+ * meant to feel never engages again.
+ */
+export const RESOURCE_CAP = 5000;

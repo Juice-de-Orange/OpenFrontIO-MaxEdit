@@ -54,9 +54,36 @@ describe("the wire protocol", () => {
         nation: 1,
         owners: [1, 0],
         controllers: [1, 2],
+        buildings: [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+        economy: {
+          nation: 1,
+          resources: { steel: 200, oil: 100, aluminium: 100, rubber: 50 },
+          extractionPerTick: { steel: 0.25, oil: 0, aluminium: 0, rubber: 0 },
+          demandPerTick: { steel: 0.2, oil: 0, aluminium: 0.04, rubber: 0 },
+          sufficiency: 1,
+          constructionPerTick: 1.5,
+          industryPerTick: 0.4,
+          queue: [
+            { provinceId: 3, building: "civilian_factory", progress: 12.5 },
+          ],
+        },
       },
-      { t: "delta", tick: 8, control: [[0, 1]], owner: [] },
-      { t: "delta", tick: 9, control: [], owner: [[0, 1]] },
+      {
+        t: "delta",
+        tick: 8,
+        control: [[0, 1]],
+        owner: [],
+        buildings: [],
+        economy: null,
+      },
+      {
+        t: "delta",
+        tick: 9,
+        control: [],
+        owner: [[0, 1]],
+        buildings: [[3, 0, 4]],
+        economy: null,
+      },
     ];
     for (const message of messages) {
       expect(decodeServerMessage(encodeServer(message))).toEqual(message);
@@ -102,10 +129,10 @@ describe("the wire protocol", () => {
 
   test("the version is an integer both sides compare, not a range", () => {
     expect(Number.isInteger(PROTOCOL_VERSION)).toBe(true);
-    // Bumped from 1 when commands, acks and nation identity arrived, and from
-    // 2 when a province gained a controller distinct from its owner: a v2
-    // client would find no `changes` in a delta and draw a map that never
-    // moves again.
-    expect(PROTOCOL_VERSION).toBe(3);
+    // 1 -> 2 when commands, acks and nation identity arrived. 2 -> 3 when a
+    // province gained a controller distinct from its owner: a v2 client would
+    // find no `changes` in a delta and draw a map that never moves again.
+    // 3 -> 4 for buildings and the private economy view.
+    expect(PROTOCOL_VERSION).toBe(4);
   });
 });

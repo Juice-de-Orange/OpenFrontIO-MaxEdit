@@ -32,6 +32,7 @@ import {
   PROTOCOL_VERSION,
   type ClientCommand,
   type CommandBody,
+  type NationEconomyView,
   type ServerMessage,
 } from "src/shared/protocol/Wire";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -307,20 +308,65 @@ export class WorldSocketServer {
       nation: session.nation,
       owners: this.world.ownerSnapshot(),
       controllers: this.world.controllerSnapshot(),
+      buildings: this.world.buildingSnapshot(),
+      economy: this.economyView(session.nation),
     });
   }
 
-  /** Push this tick's changes to every client past the handshake. */
+  /**
+   * Push this tick's changes to every client past the handshake.
+   *
+   * The map half is identical for everybody and is encoded once. The economy
+   * half is not: a nation's stockpile and construction queue are its own, so
+   * that part is built per session. Encoding the whole message per session
+   * instead would serialise the province lists once for every connection.
+   */
   broadcastDelta(tick: number, changes: WorldChanges): void {
-    const payload = encodeServer({
-      t: "delta",
+    const shared = {
+      t: "delta" as const,
       tick,
       control: changes.control,
       owner: changes.owner,
-    });
+      buildings: changes.buildings,
+    };
+    const spectatorPayload = encodeServer({ ...shared, economy: null });
     for (const s of this.sessions) {
-      if (s.ready) s.socket.send(payload);
+      if (!s.ready) continue;
+      if (s.nation === null) {
+        s.socket.send(spectatorPayload);
+        continue;
+      }
+      s.socket.send(
+        encodeServer({ ...shared, economy: this.economyView(s.nation) }),
+      );
     }
+  }
+
+  /**
+   * One nation's economy, as the wire carries it.
+   *
+   * Recomputed rather than stored: it is a pure function of the world, and a
+   * stored copy would have to be in the snapshot and in the state hash to be
+   * trustworthy — which would make the restore test guard a number that has no
+   * bearing on whether the world came back.
+   */
+  private economyView(nation: number | null): NationEconomyView | null {
+    if (nation === null) return null;
+    const economy = this.world.economyOf(nation);
+    return {
+      nation,
+      resources: { ...this.world.view().nations[nation].resources },
+      extractionPerTick: economy.extraction,
+      demandPerTick: economy.demand,
+      sufficiency: economy.sufficiency,
+      constructionPerTick: economy.construction,
+      industryPerTick: economy.industry,
+      queue: this.world.constructionQueueOf(nation).map((order) => ({
+        provinceId: order.provinceId,
+        building: order.building,
+        progress: order.progress,
+      })),
+    };
   }
 
   get connectionCount(): number {

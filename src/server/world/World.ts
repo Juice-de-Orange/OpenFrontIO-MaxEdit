@@ -28,7 +28,17 @@
 
 import fs from "fs/promises";
 import path from "path";
-import { OCCUPATION_TICKS } from "src/shared/config/provinces";
+import type { Resource } from "src/shared/config/provinces";
+import { OCCUPATION_TICKS, RESOURCES } from "src/shared/config/provinces";
+import {
+  STARTING_CAPITAL_BUILDINGS,
+  STARTING_RESOURCES,
+} from "src/shared/config/rates";
+import {
+  buildingIndex,
+  BUILDINGS,
+  type BuildingType,
+} from "src/shared/economy/Buildings";
 import {
   decodeProvinceMap,
   type ProvinceMap,
@@ -40,6 +50,21 @@ import type {
   MapDescriptor,
   NationStatic,
 } from "src/shared/protocol/Wire";
+import { SYSTEMS } from "../systems";
+import { measureNation, type NationEconomy } from "../systems/economy";
+import {
+  applyEvent,
+  countBuilding,
+  createWorldState,
+  effectiveInfrastructure,
+  usedSlots,
+  type ConstructionOrder,
+  type WorldEvent,
+  type WorldState,
+} from "./WorldState";
+
+/** A queue nobody could work through is a queue used as a memory leak. */
+const MAX_QUEUE_LENGTH = 24;
 
 interface ManifestNation {
   name: string;
@@ -76,6 +101,16 @@ export interface WorldChanges {
   control: [number, number][];
   /** [provinceId, newOwner]. */
   owner: [number, number][];
+  /** [provinceId, buildingIndex, newCount] — only what finished this tick. */
+  buildings: [number, number, number][];
+  /**
+   * Every event the tick produced, in order.
+   *
+   * Not sent anywhere yet. It is here because the event log is the thing that
+   * makes a tick explainable after the fact, and the socket layer is where it
+   * will be filtered per nation when there is something to filter.
+   */
+  events: WorldEvent[];
 }
 
 /**
@@ -97,13 +132,21 @@ export interface WorldSnapshot {
   controllers: number[];
   /** The tick each province's current controller took it. */
   heldSince: number[];
+  /** Flat, `province * BUILDING_TYPES.length + type`. */
+  buildings: number[];
+  /** Per nation, index 0 unused so a nation id indexes it directly. */
+  nations: {
+    resources: Record<Resource, number>;
+    constructionQueue: ConstructionOrder[];
+  }[];
 }
 
+/** One buffer, reused: `stateHash` mixes a double's two words exactly. */
+const HASH_FLOAT = new Float64Array(1);
+const HASH_WORDS = new Uint32Array(HASH_FLOAT.buffer);
+
 export class World {
-  private tick = 0;
-  private readonly owners: number[];
-  private readonly controllers: number[];
-  private readonly heldSince: number[];
+  private readonly state: WorldState;
   private readonly neighbours: number[][];
   /** Commands waiting for the tick they were accepted for. */
   private readonly pending = new Map<number, WorldCommand[]>();
@@ -116,9 +159,10 @@ export class World {
     // Ownership starts from the partition: a province belongs to the nation
     // whose territory it was cut out of, so no province starts split across a
     // border. Slot 0 stays "unowned".
-    this.owners = map.provinces.map((province) => province.nation);
-    this.controllers = [...this.owners];
-    this.heldSince = new Array<number>(this.owners.length).fill(0);
+    this.state = createWorldState(map, nations.length, {
+      capitalBuildings: STARTING_CAPITAL_BUILDINGS,
+      resources: STARTING_RESOURCES,
+    });
     this.neighbours = map.provinces.map((province) => province.neighbours);
   }
 
@@ -208,23 +252,49 @@ export class World {
   }
 
   currentTick(): number {
-    return this.tick;
+    return this.state.tick;
   }
 
   provinceCount(): number {
-    return this.owners.length;
+    return this.state.provinceOwner.length;
+  }
+
+  /** Read-only for everything outside this class. Only events may write it. */
+  view(): Readonly<WorldState> {
+    return this.state;
+  }
+
+  /** What a nation's economy is doing right now. Pure, and not stored. */
+  economyOf(nation: number): NationEconomy {
+    return measureNation(this.state, nation);
+  }
+
+  constructionQueueOf(nation: number): readonly ConstructionOrder[] {
+    return this.state.nations[nation]?.constructionQueue ?? [];
+  }
+
+  /** Flat building counts, in the layout the snapshot and the wire both use. */
+  buildingSnapshot(): number[] {
+    return [...this.state.buildings];
   }
 
   snapshot(): WorldSnapshot {
     return {
-      tick: this.tick,
+      tick: this.state.tick,
       mapId: this.descriptor.id,
       terrainHash: this.descriptor.terrainHash,
       partitionHash: this.descriptor.partitionHash,
-      provinceCount: this.owners.length,
-      owners: [...this.owners],
-      controllers: [...this.controllers],
-      heldSince: [...this.heldSince],
+      provinceCount: this.state.provinceOwner.length,
+      owners: [...this.state.provinceOwner],
+      controllers: [...this.state.provinceController],
+      heldSince: [...this.state.provinceHeldSince],
+      buildings: [...this.state.buildings],
+      nations: this.state.nations.map((nation) => ({
+        resources: { ...nation.resources },
+        constructionQueue: nation.constructionQueue.map((order) => ({
+          ...order,
+        })),
+      })),
     };
   }
 
@@ -256,9 +326,10 @@ export class World {
           `not mean the same places`,
       );
     }
-    if (snapshot.provinceCount !== this.owners.length) {
+    const count = this.state.provinceOwner.length;
+    if (snapshot.provinceCount !== count) {
       throw new Error(
-        `snapshot has ${snapshot.provinceCount} provinces, this world has ${this.owners.length}`,
+        `snapshot has ${snapshot.provinceCount} provinces, this world has ${count}`,
       );
     }
     for (const [name, list] of [
@@ -266,19 +337,43 @@ export class World {
       ["controller", snapshot.controllers],
       ["heldSince", snapshot.heldSince],
     ] as const) {
-      if (list.length !== this.owners.length) {
+      if (list.length !== count) {
         throw new Error(
-          `snapshot ${name} list is ${list.length} long, expected ${this.owners.length}`,
+          `snapshot ${name} list is ${list.length} long, expected ${count}`,
         );
       }
     }
-
-    for (let i = 0; i < this.owners.length; i++) {
-      this.owners[i] = snapshot.owners[i];
-      this.controllers[i] = snapshot.controllers[i];
-      this.heldSince[i] = snapshot.heldSince[i];
+    if (snapshot.buildings.length !== this.state.buildings.length) {
+      throw new Error(
+        `snapshot has ${snapshot.buildings.length} building slots, this world ` +
+          `has ${this.state.buildings.length}; the building type list changed ` +
+          `underneath a running world`,
+      );
     }
-    this.tick = snapshot.tick;
+    if (snapshot.nations.length !== this.state.nations.length) {
+      throw new Error(
+        `snapshot has ${snapshot.nations.length} nation records, this world ` +
+          `has ${this.state.nations.length}`,
+      );
+    }
+
+    for (let i = 0; i < count; i++) {
+      this.state.provinceOwner[i] = snapshot.owners[i];
+      this.state.provinceController[i] = snapshot.controllers[i];
+      this.state.provinceHeldSince[i] = snapshot.heldSince[i];
+    }
+    this.state.buildings.set(snapshot.buildings);
+    for (let nation = 0; nation < snapshot.nations.length; nation++) {
+      const stored = snapshot.nations[nation];
+      const live = this.state.nations[nation];
+      for (const resource of RESOURCES) {
+        live.resources[resource] = stored.resources[resource] ?? 0;
+      }
+      live.constructionQueue = stored.constructionQueue.map((order) => ({
+        ...order,
+      }));
+    }
+    this.state.tick = snapshot.tick;
     this.pending.clear();
   }
 
@@ -306,27 +401,47 @@ export class World {
       hash ^= (value >>> 24) & 0xff;
       hash = Math.imul(hash, 0x01000193);
     };
-    mix(this.tick);
-    for (const owner of this.owners) mix(owner);
-    for (const controller of this.controllers) mix(controller);
-    for (const since of this.heldSince) mix(since);
+    // A float has to go in exactly, not rounded: a stockpile that came back
+    // 0.0001 short is a world that has diverged, and rounding it into the hash
+    // is how the restore test would learn to say nothing about it. Both halves
+    // of the double, through a shared view.
+    const mixFloat = (value: number): void => {
+      HASH_FLOAT[0] = value;
+      mix(HASH_WORDS[0]);
+      mix(HASH_WORDS[1]);
+    };
+
+    mix(this.state.tick);
+    for (const owner of this.state.provinceOwner) mix(owner);
+    for (const controller of this.state.provinceController) mix(controller);
+    for (const since of this.state.provinceHeldSince) mix(since);
+    for (const count of this.state.buildings) mix(count);
+    for (const nation of this.state.nations) {
+      for (const resource of RESOURCES) mixFloat(nation.resources[resource]);
+      mix(nation.constructionQueue.length);
+      for (const order of nation.constructionQueue) {
+        mix(order.provinceId);
+        mix(buildingIndex(order.building));
+        mixFloat(order.progress);
+      }
+    }
     return hash >>> 0;
   }
 
   ownerSnapshot(): number[] {
-    return [...this.owners];
+    return [...this.state.provinceOwner];
   }
 
   controllerSnapshot(): number[] {
-    return [...this.controllers];
+    return [...this.state.provinceController];
   }
 
   ownerOf(province: number): number {
-    return this.owners[province];
+    return this.state.provinceOwner[province];
   }
 
   controllerOf(province: number): number {
-    return this.controllers[province];
+    return this.state.provinceController[province];
   }
 
   /**
@@ -349,21 +464,111 @@ export class World {
     switch (body.kind) {
       case "claim_province": {
         const province = body.provinceId;
-        if (province < 0 || province >= this.owners.length) {
+        if (!this.hasProvince(province)) {
           return `no province ${province} on this map`;
         }
         // Control, not ownership: a nation fights from where its troops are,
         // not from where its title deeds are.
-        if (this.controllers[province] === nation) {
+        if (this.state.provinceController[province] === nation) {
           return "province is already yours";
         }
         const adjacent = this.neighbours[province].some(
-          (n) => this.controllers[n] === nation,
+          (n) => this.state.provinceController[n] === nation,
         );
         if (!adjacent) return "province does not border your territory";
         return null;
       }
+
+      case "queue_construction":
+        return this.rejectionForQueue(nation, body.provinceId, body.building);
+
+      case "cancel_construction": {
+        const queue = this.state.nations[nation].constructionQueue;
+        if (body.index < 0 || body.index >= queue.length) {
+          return `nothing at position ${body.index} in your construction queue`;
+        }
+        return null;
+      }
     }
+  }
+
+  private hasProvince(province: number): boolean {
+    return (
+      Number.isInteger(province) &&
+      province >= 0 &&
+      province < this.state.provinceOwner.length
+    );
+  }
+
+  /**
+   * Whether this nation may put this building in this province.
+   *
+   * Every check here is the server's own: CLAUDE.md §7 — never trust a
+   * client-supplied cost, position or outcome. The client has the same
+   * `BUILDINGS` table and computes the same answer for its build menu, and
+   * that copy is decoration.
+   *
+   * Queued orders count against the limits. Without that, a player queues ten
+   * factories into a province with two free slots, watches eight of them
+   * complete into nothing, and has spent a week of construction points on a
+   * rule the UI told them they were obeying.
+   */
+  private rejectionForQueue(
+    nation: number,
+    province: number,
+    building: BuildingType,
+  ): string | null {
+    if (!this.hasProvince(province)) {
+      return `no province ${province} on this map`;
+    }
+    const spec = BUILDINGS[building];
+    if (spec === undefined) return `there is no such building as ${building}`;
+
+    const queue = this.state.nations[nation].constructionQueue;
+    if (queue.length >= MAX_QUEUE_LENGTH) {
+      return `your construction queue is full (${MAX_QUEUE_LENGTH})`;
+    }
+
+    // Held *and* owned. Building a factory in territory you are occupying is
+    // not a thing a nation does, and it would also hand the province's new
+    // owner a free factory when the occupation transfers.
+    if (this.state.provinceController[province] !== nation) {
+      return "you do not hold that province";
+    }
+    if (this.state.provinceOwner[province] !== nation) {
+      return "that province is occupied territory, not yours to build in";
+    }
+
+    const info = this.map.provinces[province];
+    if (spec.coastalOnly && !info.coastal) {
+      return "that can only be built in a coastal province";
+    }
+
+    const queuedHere = queue.filter((order) => order.provinceId === province);
+
+    if (spec.takesSlot) {
+      const pending = queuedHere.filter(
+        (order) => BUILDINGS[order.building].takesSlot,
+      ).length;
+      if (usedSlots(this.state, province) + pending >= info.buildingSlots) {
+        return `province ${province} has no free building slot`;
+      }
+    }
+
+    if (spec.maxPerProvince !== undefined) {
+      const pending = queuedHere.filter(
+        (order) => order.building === building,
+      ).length;
+      const existing =
+        building === "infrastructure"
+          ? effectiveInfrastructure(this.state, province)
+          : countBuilding(this.state, province, building);
+      if (existing + pending >= spec.maxPerProvince) {
+        return `province ${province} is already at the limit for ${building}`;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -374,7 +579,7 @@ export class World {
    * order they were accepted, and nothing else records that order.
    */
   queueCommand(command: WorldCommand): QueuedAt {
-    return this.enqueueAt(this.tick + 1, command);
+    return this.enqueueAt(this.state.tick + 1, command);
   }
 
   /**
@@ -385,7 +590,7 @@ export class World {
    * commands are applied in.
    */
   peekNextSlot(): QueuedAt {
-    const tick = this.tick + 1;
+    const tick = this.state.tick + 1;
     return { tick, seq: this.pending.get(tick)?.length ?? 0 };
   }
 
@@ -403,28 +608,40 @@ export class World {
   /**
    * Advance one tick and return what changed.
    *
-   * Commands first, then the drift, then occupation: a player order for this
-   * tick is resolved against the world as it was left by the previous one, not
-   * against a world the drift has already moved underneath it.
+   * Commands first, then the systems in the order CLAUDE.md §6 fixes, then the
+   * drift and the occupation clock. A player order for this tick is resolved
+   * against the world as it was left by the previous one, not against a world
+   * something else has already moved underneath it.
    *
-   * Deterministic sweep rather than a random pick: the tick has to be
-   * reproducible from the log, which is what the restore depends on.
-   * No Math.random() anywhere near world state — CLAUDE.md §9.
+   * **Every mutation goes through an event**, and each system's events are
+   * applied before the next system runs (docs/decisions/0007). Deterministic
+   * throughout: the tick has to be reproducible from the log, which is what
+   * the restore depends on. No Math.random() anywhere near world state —
+   * CLAUDE.md §9.
    */
   step(): WorldChanges {
-    this.tick++;
-    const changes: WorldChanges = { control: [], owner: [] };
+    this.state.tick++;
+    const changes: WorldChanges = {
+      control: [],
+      owner: [],
+      buildings: [],
+      events: [],
+    };
 
-    const commands = this.pending.get(this.tick);
+    const commands = this.pending.get(this.state.tick);
     if (commands !== undefined) {
-      this.pending.delete(this.tick);
+      this.pending.delete(this.state.tick);
       for (const command of commands) {
         // Revalidated, because the world moved since the command was accepted.
         // A claim whose foothold was lost in the meantime does nothing; it is
         // not an error, and it is the same nothing on every replay.
         if (this.rejectionFor(command) !== null) continue;
-        this.takeControl(command.body.provinceId, command.nation, changes);
+        this.emit(this.eventsForCommand(command), changes);
       }
+    }
+
+    for (const system of SYSTEMS) {
+      this.emit(system.run(this.state, this.state.tick), changes);
     }
 
     this.drift(changes);
@@ -432,25 +649,78 @@ export class World {
     return changes;
   }
 
+  /** Apply events in order and record what a client would need to hear. */
+  private emit(events: WorldEvent[], changes: WorldChanges): void {
+    for (const event of events) {
+      applyEvent(this.state, event);
+      changes.events.push(event);
+      switch (event.kind) {
+        case "control_changed":
+          changes.control.push([event.province, event.nation]);
+          break;
+        case "owner_changed":
+          changes.owner.push([event.province, event.nation]);
+          break;
+        case "construction_finished":
+          changes.buildings.push([
+            event.province,
+            buildingIndex(event.building),
+            countBuilding(this.state, event.province, event.building),
+          ]);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  private eventsForCommand(command: WorldCommand): WorldEvent[] {
+    const { nation, body } = command;
+    switch (body.kind) {
+      case "claim_province":
+        return [{ kind: "control_changed", province: body.provinceId, nation }];
+      case "queue_construction":
+        return [
+          {
+            kind: "construction_queued",
+            nation,
+            order: {
+              provinceId: body.provinceId,
+              building: body.building,
+              progress: 0,
+            },
+          },
+        ];
+      case "cancel_construction":
+        return [{ kind: "construction_cancelled", nation, index: body.index }];
+    }
+  }
+
   /** One province changes hands at a border. The world's heartbeat. */
   private drift(changes: WorldChanges): void {
-    const count = this.owners.length;
+    const count = this.state.provinceOwner.length;
     if (count === 0) return;
 
     // The drift never touches a province a command just moved. A heartbeat
     // that can undo a player's order in the same tick it lands would be
     // indistinguishable, from the player's side, from the order being lost.
     const claimed = new Set(changes.control.map(([province]) => province));
-    const start = (this.tick * 7919) % count;
+    const start = (this.state.tick * 7919) % count;
     for (let i = 0; i < count; i++) {
       const province = (start + i) % count;
       if (claimed.has(province)) continue;
-      const mine = this.controllers[province];
+      const mine = this.state.provinceController[province];
       const taker = this.neighbours[province].find(
-        (n) => this.controllers[n] !== mine && this.controllers[n] !== 0,
+        (n) =>
+          this.state.provinceController[n] !== mine &&
+          this.state.provinceController[n] !== 0,
       );
       if (taker !== undefined) {
-        this.takeControl(province, this.controllers[taker], changes);
+        this.takeControl(
+          province,
+          this.state.provinceController[taker],
+          changes,
+        );
         break;
       }
     }
@@ -465,13 +735,23 @@ export class World {
    * something separate from taking it (docs/decisions/0002).
    */
   private settleOccupation(changes: WorldChanges): void {
-    for (let province = 0; province < this.owners.length; province++) {
-      const controller = this.controllers[province];
-      if (controller === this.owners[province]) continue;
-      if (this.tick - this.heldSince[province] < OCCUPATION_TICKS) continue;
-      this.owners[province] = controller;
-      changes.owner.push([province, controller]);
+    const events: WorldEvent[] = [];
+    for (
+      let province = 0;
+      province < this.state.provinceOwner.length;
+      province++
+    ) {
+      const controller = this.state.provinceController[province];
+      if (controller === this.state.provinceOwner[province]) continue;
+      if (
+        this.state.tick - this.state.provinceHeldSince[province] <
+        OCCUPATION_TICKS
+      ) {
+        continue;
+      }
+      events.push({ kind: "owner_changed", province, nation: controller });
     }
+    this.emit(events, changes);
   }
 
   private takeControl(
@@ -479,9 +759,7 @@ export class World {
     nation: number,
     changes: WorldChanges,
   ): void {
-    if (this.controllers[province] === nation) return;
-    this.controllers[province] = nation;
-    this.heldSince[province] = this.tick;
-    changes.control.push([province, nation]);
+    if (this.state.provinceController[province] === nation) return;
+    this.emit([{ kind: "control_changed", province, nation }], changes);
   }
 }

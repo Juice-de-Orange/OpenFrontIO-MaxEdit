@@ -22,6 +22,8 @@ import { createRenderSettings } from "src/client/render/gl/RenderSettings";
 import type { RenderRules } from "src/client/render/types";
 import { ALL_UNIT_TYPES, PlayerTypeEnum } from "src/client/render/types";
 import { TICK_MS } from "src/shared/config/time";
+import { BUILDING_TYPES } from "src/shared/economy/Buildings";
+import type { ProvinceMap } from "src/shared/map/ProvinceMap";
 import type { FullState } from "src/shared/protocol/Wire";
 import { CameraController } from "./CameraController";
 import { FrameAdapter } from "./FrameAdapter";
@@ -33,6 +35,8 @@ import {
   PROVINCE_BORDER_LAYERS,
 } from "./ProvinceBorders";
 import { ProvinceTileIndex } from "./ProvinceTileIndex";
+import { Hud, type HudModel } from "./ui/Hud";
+import { t } from "./ui/strings";
 import { WorldSocket } from "./WorldSocket";
 
 const DEFAULT_WORLD = "world-0";
@@ -130,16 +134,48 @@ export async function startWorldClient(
   let adapter: FrameAdapter | undefined;
 
   const nation = nationFromUrl();
-  const pickProvince = (province: number): void => {
+
+  /**
+   * Everything the HUD draws from.
+   *
+   * The client keeps no state the server did not send it: this is a copy of
+   * the last full state with every delta since applied to it, and nothing is
+   * computed here that the server did not already decide.
+   */
+  const model: HudModel = {
+    nation,
+    nations: [],
+    provinces: [],
+    controllers: [],
+    owners: [],
+    buildings: [],
+    economy: null,
+    selected: null,
+  };
+
+  const send = (command: Parameters<WorldSocket["sendCommand"]>[0]): void => {
     if (nation === null) {
-      showNotice("Watching only. Add ?nation=<n> to the URL to play one.");
+      showNotice(t("hud.watching"));
       return;
     }
-    const sent = socket.sendCommand({
-      kind: "claim_province",
-      provinceId: province,
-    });
-    if (sent === null) showNotice("Not connected to the world.");
+    if (socket.sendCommand(command) === null) {
+      showNotice(t("hud.notConnected"));
+    }
+  };
+
+  const hud = new Hud({
+    claim: (province) => send({ kind: "claim_province", provinceId: province }),
+    build: (province, building) =>
+      send({ kind: "queue_construction", provinceId: province, building }),
+    cancel: (index) => send({ kind: "cancel_construction", index }),
+  });
+
+  // A click selects. It used to claim, which meant the only thing a player
+  // could do to a province was take it — there was nowhere to put a build
+  // menu, and no way to look at a neighbour without attacking it.
+  const pickProvince = (province: number): void => {
+    model.selected = province;
+    hud.update(model);
   };
 
   const socket: WorldSocket = new WorldSocket(
@@ -148,33 +184,55 @@ export async function startWorldClient(
     nation,
     {
       onFullState: (state) => {
+        model.nations = state.nations;
+        model.controllers = [...state.controllers];
+        model.owners = [...state.owners];
+        model.buildings = [...state.buildings];
+        model.economy = state.economy;
+
         if (!view || !adapter) {
           // First full state carries the map identity, so the renderer cannot
           // be built before it arrives.
           void buildFrom(state, pickProvince).then((built) => {
             view = built.view;
             adapter = built.adapter;
+            model.provinces = built.provinces;
             adapter.applyFullState(state.controllers, state.tick);
             uploadFrameData(view, adapter.frameData());
+            hud.update(model);
           });
           return;
         }
         adapter.applyFullState(state.controllers, state.tick);
         uploadFrameData(view, adapter.frameData());
+        hud.update(model);
       },
       onDelta: (delta) => {
+        // Ownership and the economy are tracked whether or not the renderer
+        // is up; the map is not drawn until it is.
+        for (const [province, holder] of delta.control) {
+          model.controllers[province] = holder;
+        }
+        for (const [province, owner] of delta.owner) {
+          model.owners[province] = owner;
+        }
+        for (const [province, building, count] of delta.buildings) {
+          model.buildings[province * BUILDING_TYPES.length + building] = count;
+        }
+        model.economy = delta.economy;
+
         if (!view || !adapter) return; // full state still loading
         // Control, not ownership: the map shows where the line is, not who
-        // holds the title deeds (docs/decisions/0002). Ownership changes come
-        // down the same delta and belong to the economy screens in phase 3.
+        // holds the title deeds (docs/decisions/0002).
         adapter.applyDelta(delta.control, delta.tick);
         uploadFrameData(view, adapter.frameData());
+        hud.update(model);
       },
       onAck: (ack) => {
         showNotice(
           ack.accepted
-            ? `Order accepted for tick ${ack.tick}.`
-            : `Order refused: ${ack.reason}`,
+            ? t("hud.orderAccepted", { tick: ack.tick ?? 0 })
+            : t("hud.orderRefused", { reason: ack.reason ?? "" }),
         );
       },
       onFatal: (message) => showFatal(message),
@@ -193,7 +251,11 @@ export async function startWorldClient(
 async function buildFrom(
   state: FullState,
   onProvince: (province: number) => void,
-): Promise<{ view: MapRenderer; adapter: FrameAdapter }> {
+): Promise<{
+  view: MapRenderer;
+  adapter: FrameAdapter;
+  provinces: ProvinceMap["provinces"];
+}> {
   const map = await loadWorldMap(state.map.id);
   const grid = map.provinces;
 
@@ -294,7 +356,7 @@ async function buildFrom(
     },
   );
 
-  return { view, adapter };
+  return { view, adapter, provinces: grid.provinces };
 }
 
 startWorldClient().catch((e: unknown) => {

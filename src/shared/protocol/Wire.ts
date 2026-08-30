@@ -18,13 +18,14 @@
  */
 
 import { z } from "zod";
+import { BUILDING_TYPES } from "../economy/Buildings";
 
 /**
  * Bumped whenever a message shape changes in a way an older peer would
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -72,8 +73,40 @@ export const ClaimProvinceSchema = z.object({
   provinceId: z.number().int().nonnegative(),
 });
 
+/**
+ * Put a building at the back of the nation's construction queue.
+ *
+ * The second and third command types, and the reason phase 3 did not need a
+ * throwaway one: a command set of one hides whatever the next one will need.
+ * What they needed, it turns out, is nothing new — the shape holds.
+ *
+ * As with `claim_province`, note what is *not* here: no cost, no duration, no
+ * resulting building. The server has the same `BUILDINGS` table and computes
+ * all of it (CLAUDE.md §7).
+ */
+export const QueueConstructionSchema = z.object({
+  kind: z.literal("queue_construction"),
+  provinceId: z.number().int().nonnegative(),
+  building: z.enum(BUILDING_TYPES),
+});
+
+/**
+ * Take one item back out of the queue.
+ *
+ * By position rather than by id. The queue is short, it is entirely the
+ * player's, and a position is what they are looking at when they click.
+ * Progress on a cancelled item is lost — that is the cost of changing your
+ * mind, and it is the only thing in this game that is.
+ */
+export const CancelConstructionSchema = z.object({
+  kind: z.literal("cancel_construction"),
+  index: z.number().int().nonnegative(),
+});
+
 export const CommandBodySchema = z.discriminatedUnion("kind", [
   ClaimProvinceSchema,
+  QueueConstructionSchema,
+  CancelConstructionSchema,
 ]);
 export type CommandBody = z.infer<typeof CommandBodySchema>;
 
@@ -148,6 +181,65 @@ export const ServerRejectSchema = z.object({
   serverProtocolVersion: z.number().int(),
 });
 
+/**
+ * A nation's economy, as only that nation sees it.
+ *
+ * Sent to the session that plays this nation and to nobody else. Stockpiles
+ * and construction queues are private; CLAUDE.md §7 makes trust and agreement
+ * *terms* the public/private split for diplomacy in phase 7, and an economy is
+ * further inside that line than either.
+ *
+ * Every rate here is per tick, as the simulation computes it. The UI
+ * multiplies by TICKS_PER_DAY and labels it per day (invariant 9) — the
+ * conversion belongs on the screen, not on the wire, so there is exactly one
+ * place it can be got wrong.
+ */
+export const ResourceAmountsSchema = z.object({
+  steel: z.number(),
+  oil: z.number(),
+  aluminium: z.number(),
+  rubber: z.number(),
+});
+export type ResourceAmounts = z.infer<typeof ResourceAmountsSchema>;
+
+export const ConstructionOrderSchema = z.object({
+  provinceId: z.number().int().nonnegative(),
+  building: z.enum(BUILDING_TYPES),
+  /** Construction points accrued so far, against the building's cost. */
+  progress: z.number(),
+});
+export type ConstructionOrderView = z.infer<typeof ConstructionOrderSchema>;
+
+export const NationEconomySchema = z.object({
+  nation: z.number().int().positive(),
+  resources: ResourceAmountsSchema,
+  extractionPerTick: ResourceAmountsSchema,
+  demandPerTick: ResourceAmountsSchema,
+  /** 0..1 — the share of this tick's resource demand the nation could cover. */
+  sufficiency: z.number(),
+  constructionPerTick: z.number(),
+  /** Already scaled by `sufficiency`; this is what the factories actually made. */
+  industryPerTick: z.number(),
+  queue: z.array(ConstructionOrderSchema),
+});
+export type NationEconomyView = z.infer<typeof NationEconomySchema>;
+
+/**
+ * Buildings, flat: `province * BUILDING_TYPES.length + type`.
+ *
+ * The whole array on connect, and only what changed afterwards. Europe is
+ * 5,290 small integers — about 11 kB of JSON once, against a per-province
+ * object graph that would be several times that and would have to name every
+ * building type on every province that has none.
+ */
+export const BuildingChangeSchema = z.array(
+  z.tuple([
+    z.number().int().nonnegative(),
+    z.number().int().nonnegative(),
+    z.number().int().nonnegative(),
+  ]),
+);
+
 const ProvinceChangeSchema = z.array(
   z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
 );
@@ -173,6 +265,10 @@ export const FullStateSchema = z.object({
    * see where the line is, not where the line was a fortnight ago.
    */
   controllers: z.array(z.number().int().nonnegative()),
+  /** Building counts for every province, flat. */
+  buildings: z.array(z.number().int().nonnegative()),
+  /** This session's own economy, or null when watching. */
+  economy: NationEconomySchema.nullable(),
 });
 export type FullState = z.infer<typeof FullStateSchema>;
 
@@ -183,6 +279,10 @@ export const DeltaSchema = z.object({
   control: ProvinceChangeSchema,
   /** [provinceId, newOwner] pairs. Empty on almost every tick. */
   owner: ProvinceChangeSchema,
+  /** [provinceId, buildingIndex, newCount] — what finished this tick. */
+  buildings: BuildingChangeSchema,
+  /** This session's own economy, recomputed every tick, or null when watching. */
+  economy: NationEconomySchema.nullable(),
 });
 export type Delta = z.infer<typeof DeltaSchema>;
 
