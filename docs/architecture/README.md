@@ -4,7 +4,9 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-30, phase 0 in progress.
+**Last verified:** 2026-08-30, phase 0 in progress — import cycle cut,
+proprietary assets removed, nine renderer→core couplings still open.
+Current step-by-step status is in [`../../HANDOVER.md`](../../HANDOVER.md).
 
 > ⚠️ The fork is mid-surgery. Large parts of this tree are inherited upstream
 > code that is being dismantled. Where that is the case, this document says so
@@ -85,8 +87,25 @@ going forward:
 **How to check it:** compile a file whose only content is
 `import type { FrameData } from "src/client/render/types/FrameData"` with
 `tsc --listFiles`, and count `src/core` entries in the output. It was 54 before
-the cut and 1 after — the remaining one is `GameMap.ts`, which has not moved yet.
-This will become a permanent test.
+the cut and 1 after — the remaining one is `GameMap.ts`, which has not moved
+yet. The exact commands are in [`../../HANDOVER.md`](../../HANDOVER.md). This
+will become a permanent test.
+
+That measurement covers the _type_ graph reachable from `FrameData`. The
+renderer still has value imports into `src/core` beyond it — nine modules,
+about thirty call sites, as of 2026-08-30:
+
+| Module                       | Sites | Weight                                                        |
+| ---------------------------- | ----- | ------------------------------------------------------------- |
+| `core/configuration/Config`  | 10    | Only 7 methods are used; replaced by a narrow `RenderConfig`. |
+| `core/AssetUrls`             | 10    | 116 lines, no imports. Trivial to move.                       |
+| `core/CosmeticSchemas`       | 3     | 575 lines. Two uses are the debug effect editor.              |
+| `core/game/TerrainMapLoader` | 2     | Type-only (`MapLayer`).                                       |
+| `core/game/Game`             | 2     | Two enums.                                                    |
+| `core/game/GameUpdates`      | 2     | Only `RailroadCache.ts`, which gets quarantined.              |
+| `core/game/Veterancy`        | 1     | 23 lines, no imports.                                         |
+| `core/PatternDecoder`        | 1     | Used by the preview pass.                                     |
+| `core/game/GameMap`          | 1     | Moves last, once `execution/` is deleted.                     |
 
 ## Map data
 

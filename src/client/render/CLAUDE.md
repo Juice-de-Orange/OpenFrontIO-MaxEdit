@@ -1,5 +1,13 @@
 # CLAUDE.md — `src/client/render/`
 
+> **Inherited from upstream, and still accurate about the renderer itself** —
+> which is why it is kept under this name and loaded as guidance. Two things in
+> it no longer describe this fork: the simulation does **not** run in a worker
+> at ~10 Hz (the server owns it and ticks every 5 s), and `GameView` is being
+> replaced by a store that applies server deltas. Everything about passes,
+> `FrameData`, upload semantics and the GL layout still holds. See
+> [`../../../docs/architecture/README.md`](../../../docs/architecture/README.md).
+
 WebGL2 renderer for the game map. Everything that draws onto the map canvas
 lives here. HUD components (Lit elements, DOM overlays) live in
 `src/client/graphics/`, not here.

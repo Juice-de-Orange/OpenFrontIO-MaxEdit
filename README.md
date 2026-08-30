@@ -64,7 +64,9 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 persistent world server does not exist yet.
 
 The build order and the gate each phase has to pass are in
-[CLAUDE.md § 8](CLAUDE.md). Progress so far:
+[CLAUDE.md § 8](CLAUDE.md). For the current state of the work — what is done,
+what is next, and the traps already paid for — see
+[HANDOVER.md](HANDOVER.md). Progress so far:
 
 - [x] Fork triage — break the `core` ↔ `client` import cycle _(in progress)_
 - [ ] World persistence — tick loop, snapshots, crash recovery
@@ -86,7 +88,9 @@ Useful things to know before you start:
 - **Phases are built in order** and each has a gate. A pull request for phase 7
   while phase 3 is unbuilt has nothing to attach to.
 - Docs live in [`docs/`](docs/) — architecture notes, and a decision log
-  explaining _why_ things are the way they are.
+  explaining _why_ things are the way they are. [HANDOVER.md](HANDOVER.md) is
+  the quickest way in: it names the next task and the mistakes not worth
+  repeating.
 - Conventional commits, phase number in the body.
 
 Bug reports, balance opinions, and "this system is more complicated than it

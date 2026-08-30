@@ -11,9 +11,14 @@ deliberate.
 | [`deploy/`](deploy/)             | _How do I run it?_            | the deployment changes                     |
 | [`upstream/`](upstream/)         | _What did we inherit?_        | never — it is a snapshot of the fork point |
 
-The design specification itself — every system, every invariant, the build
-phases and their gates — is **not** here. It is [`../CLAUDE.md`](../CLAUDE.md)
-in the repository root, because it is the document everything else answers to.
+Two documents deliberately live in the repository root instead:
+
+- [`../CLAUDE.md`](../CLAUDE.md) — the design specification. Every system, every
+  invariant, the build phases and their gates. It is what everything else
+  answers to.
+- [`../HANDOVER.md`](../HANDOVER.md) — the state of the work. Where we are, what
+  is next, which traps have already been paid for. It goes stale fastest of
+  anything here, so it carries a date and is rewritten rather than patched.
 
 ## The rules that keep this useful
 
@@ -48,6 +53,23 @@ change, the change probably did not need a doc update either.
 This repository is public and someone else may want to host or extend it. Write
 for a capable stranger: no in-jokes, no "as discussed", no references to
 conversations they cannot read.
+
+## Checking that it still holds together
+
+```bash
+npm run check:doc-links
+```
+
+Verifies that every relative link in every Markdown file resolves. Moving a
+document leaves links that still look correct in a diff and only break for the
+next person to follow them — which is exactly the reader with the least
+context. It runs in a second; run it after moving or renaming anything.
+
+**One trap worth knowing:** a file named `CLAUDE.md` anywhere in the tree is
+loaded automatically as project instructions. Upstream's developer notes were
+named that and claimed the simulation runs on each client — the opposite of
+this design. They are now `docs/upstream/upstream-dev-notes.md`. Before adding a
+file with that name, be sure you want its contents treated as instructions.
 
 ## What must never be written down here
 
