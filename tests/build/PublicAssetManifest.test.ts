@@ -9,7 +9,7 @@ import {
   copyRootPublicFiles,
   createHashedPublicAssetFiles,
   shouldKeepRootPublicFile,
-} from "../../src/server/PublicAssetManifest";
+} from "../../src/build/PublicAssetManifest";
 
 describe("PublicAssetManifest", () => {
   let tempDir: string | null = null;

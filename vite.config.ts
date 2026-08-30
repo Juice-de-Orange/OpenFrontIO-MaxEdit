@@ -15,7 +15,7 @@ import {
   createHashedPublicAssetFiles,
   getResourcesDir,
   writePublicAssetManifest,
-} from "./src/server/PublicAssetManifest";
+} from "./src/build/PublicAssetManifest";
 
 // Vite already handles these, but its good practice to define them explicitly
 const __filename = fileURLToPath(import.meta.url);
