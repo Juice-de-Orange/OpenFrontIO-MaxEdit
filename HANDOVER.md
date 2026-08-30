@@ -239,6 +239,14 @@ Phase 2:
 | ---------- | ----------------------------------------------------------------------------------------- |
 | `5e304481` | **The partition becomes checked-in map data**, with its generator and the guard test      |
 | `6dccc55b` | **Artefact loading on both sides, control/owner split, border overlay, the phase-2 gate** |
+| `1a79c60b` | Phase 2 closed in the docs                                                                |
+
+Phase 3:
+
+| Commit     | What                                                                             |
+| ---------- | -------------------------------------------------------------------------------- |
+| `c7979ecf` | **The system framework, the economy, the construction queue, and the first HUD** |
+| `aaeda205` | **The phase-3 gate, `WORLD_TICK_MS` for the later gates, decision 0007**         |
 
 Phase 0's commits are in the history of this file before this rewrite.
 
