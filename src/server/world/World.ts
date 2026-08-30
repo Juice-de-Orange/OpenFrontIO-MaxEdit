@@ -96,10 +96,24 @@ export class World {
   }
 
   static async load(mapId: string, resourcesDir: string): Promise<World> {
-    const dir = path.join(resourcesDir, "maps", mapId);
-    const manifest = JSON.parse(
-      await fs.readFile(path.join(dir, "manifest.json"), "utf-8"),
-    ) as MapManifest;
+    const mapsDir = path.join(resourcesDir, "maps");
+    const dir = path.join(mapsDir, mapId);
+    let manifestJson: string;
+    try {
+      manifestJson = await fs.readFile(
+        path.join(dir, "manifest.json"),
+        "utf-8",
+      );
+    } catch {
+      // The container image carries only the maps it was built with, so a
+      // typo and a missing map look identical from the outside. Say which.
+      const available = await fs.readdir(mapsDir).catch(() => []);
+      throw new Error(
+        `no map named ${mapId} in ${mapsDir}. Available: ` +
+          `${available.sort().join(", ") || "none"}`,
+      );
+    }
+    const manifest = JSON.parse(manifestJson) as MapManifest;
     const terrain = new Uint8Array(
       await fs.readFile(path.join(dir, "map4x.bin")),
     );

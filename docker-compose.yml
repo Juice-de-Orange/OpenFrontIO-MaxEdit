@@ -32,6 +32,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Only the maps a world here might run on are built into the image.
+        # Add one and rebuild; the server lists what it has if MAP_ID is not
+        # among them.
+        WORLD_MAPS: ${WORLD_MAPS:-europe}
     depends_on:
       db:
         condition: service_healthy

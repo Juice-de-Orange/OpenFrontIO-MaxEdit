@@ -1,12 +1,47 @@
 # Running your own world
 
-**Status: not yet possible.** The persistent world server arrives in phase 1.
-Today the tree still boots upstream's match server, so there is nothing
-world-shaped to deploy. This page records what the deployment will require, so
-the constraints are known before the code exists — and so anyone who wants to
-host their own world can see early whether their setup fits.
+**Status: it runs locally.** Phase 1 is done: a world ticks, persists to
+Postgres, and comes back where it was after a hard kill.
 
-## What it will need
+```bash
+docker compose up -d          # Postgres, and a world on ws://localhost:3000/ws
+curl -s localhost:3000/health # tick, lag, snapshot age
+npm run start:client          # the map, at http://localhost:9000
+```
+
+The client is not in the compose file. In development Vite serves it and
+proxies `/ws` to port 3000; in production a reverse proxy puts the built bundle
+and this socket on one hostname, which is the part below.
+
+To play a nation rather than watch, open `http://localhost:9000/?nation=1`.
+There are no accounts yet — that is phase 3's business, and a world exposed to
+the internet needs them.
+
+**Verify a deployment the way the gate does:**
+
+```bash
+node scripts/phase1-gate.mjs
+```
+
+It claims a province, waits for a real snapshot, claims another one _after_
+that snapshot, kills the container with SIGKILL, starts it again, and checks
+that the world resumes at the right tick and replays into exactly the same
+state it was in. It takes a few minutes because it waits for a real snapshot
+rather than shortening the interval: a gate that runs against a special
+configuration proves something about the special configuration.
+
+## Configuration
+
+| Variable            | Default     | What it is                                                                                                     |
+| ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`      | _(unset)_   | Postgres. **Unset means the world is not persisted** and says so at startup.                                   |
+| `WORLD_ID`          | `world-0`   | Which world this process ticks. Also the advisory-lock key.                                                    |
+| `MAP_ID`            | `europe`    | Must be one of the maps built into the image (`WORLD_MAPS`).                                                   |
+| `PORT`              | `3000`      | `/ws` and `/health` share it.                                                                                  |
+| `WORLD_MAPS`        | `europe`    | Build argument. `resources/maps` is 511 MB across ~120 maps and an image hosts one world; only these are kept. |
+| `POSTGRES_PASSWORD` | `openfront` | Compose only. Change it for anything reachable.                                                                |
+
+## What it needs
 
 - A Linux host with Docker and Docker Compose.
 - **Postgres.** One instance for this stack. The world lives in memory and is
@@ -15,9 +50,28 @@ host their own world can see early whether their setup fits.
 - **A reverse proxy that terminates TLS and forwards a WebSocket.** This is the
   part people get wrong, so it is spelled out below.
 - Modest resources. A world of ~800 provinces and a few dozen nations is small:
-  the state is kilobytes, and a tick is expected to cost single-digit
-  milliseconds. The server is a single process — there is no cluster, no shard
-  and no worker pool.
+  the state is kilobytes, and a tick costs single-digit milliseconds. The
+  server is a single process — there is no cluster, no shard and no worker
+  pool.
+
+## One world, one process
+
+The server takes a Postgres advisory lock on its `WORLD_ID` at startup and
+refuses to run if it cannot get it. Two processes ticking one world would both
+append to its command log, and afterwards the log would describe a run neither
+of them had; there is no repair for that.
+
+The lock is held on a connection of its own, outside the pool, for the life of
+the process. If that connection drops the server stops, because from that
+moment nothing is keeping a second one out.
+
+Two consequences worth planning for:
+
+- **A rolling deployment does not work.** The new container cannot start while
+  the old one holds the lock. Stop, then start.
+- **A restart is cheap and safe.** The world reloads its newest snapshot,
+  replays the commands after it, and resumes at that tick. It never re-simulates
+  the time it was down.
 
 ## The reverse proxy, in detail
 
@@ -79,6 +133,20 @@ Two traps worth knowing, both of which cost real time to diagnose:
   `proxy_protocol` too, and set `set_real_ip_from` plus `real_ip_header` to
   `proxy_protocol` — otherwise every client appears to come from `127.0.0.1`.
 
+## What a restart costs
+
+The world lives in memory. Two things are written down: every accepted command,
+immediately, tagged with the tick it takes effect on; and a full snapshot every
+60 ticks — five minutes.
+
+So a hard crash costs **up to five minutes of simulated drift, and no player
+command**. The world comes back at the later of the newest snapshot and the
+newest logged command, which is generally a few ticks behind where it died.
+That is deliberate, and
+[decision 0005](../decisions/0005-resume-at-the-last-durable-record.md) says
+why. After a restart the number to check is the **tick**, not the wall clock:
+game time and real time are not the same clock and are not meant to be.
+
 ## Backups
 
 The world is in memory; the database is the only durable copy. Whatever you
@@ -96,10 +164,29 @@ A world with no players online still has to be ticking. A status-code check
 proves only that the process accepts connections, which is the wrong question —
 the interesting failure is a world that is up and _stuck_.
 
-The health endpoint therefore reports the current tick, how far behind schedule
-it is, and the age of the last snapshot, and returns a failure status when the
-tick stalls or snapshots stop. Check that endpoint's _content_, not just its
-code.
+`GET /health` therefore reports the current tick, how far behind schedule it
+is, the age of the last snapshot, how many snapshot writes have failed in a
+row, and the state hash. It returns **503** when the loop is more than three
+ticks behind, when a snapshot write has failed, or when the newest snapshot is
+more than three intervals old.
+
+```json
+{
+  "worldId": "world-0",
+  "healthy": true,
+  "tick": 1043,
+  "lagMs": 0,
+  "lastSnapshotTick": 1020,
+  "snapshotAgeTicks": 23,
+  "snapshotFailures": 0,
+  "connections": 3,
+  "stateHash": "b7fd6310",
+  "provinces": 529
+}
+```
+
+Check the _content_, not just the code — but the code is now worth something
+too, which it was not before.
 
 ## Private notes
 

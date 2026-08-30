@@ -1,100 +1,63 @@
-# Use an official Node runtime as the base image
-FROM node:24-slim AS base
+# The world server.
+#
+# One process that ticks one world, talks WebSocket on /ws and answers
+# /health on the same port. It does not serve the client: in development Vite
+# does that, and in production a reverse proxy puts the static bundle and this
+# socket on one hostname (docs/deploy/README.md).
+#
+# Upstream's image built the client, nginx and supervisor into one container to
+# run a match server that no longer exists. Nothing of it survives here.
+
+FROM node:24-slim AS deps
 WORKDIR /usr/src/app
-
-# Build stage - install ALL dependencies and build
-FROM base AS build
-ENV HUSKY=0
-# Copy package files first for better caching
-COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
-
-# Copy only what's needed for build
-COPY tsconfig.json ./
-COPY vite.config.ts ./
-COPY eslint.config.js ./
-COPY index.html ./
-COPY resources ./resources
-COPY src ./src
-COPY zbin ./zbin
-# build-prod runs scripts/buildAssetHashes.ts after vite, to emit
-# static/asset-hashes.json and static/core-version.txt for the desktop
-# release descriptor. Without this the image build fails at that step with
-# ERR_MODULE_NOT_FOUND -- the unit suite cannot catch it, because only the
-# container build runs build-prod from a copied tree.
-COPY scripts ./scripts
-
-ARG GIT_COMMIT=unknown
-ENV GIT_COMMIT="$GIT_COMMIT"
-RUN npm run build-prod
-
-# Production dependencies stage - separate from build
-FROM base AS prod-deps
 ENV HUSKY=0
 ENV NPM_CONFIG_IGNORE_SCRIPTS=1
 COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
-# Final production image
-FROM base
+# Map data, trimmed twice.
+#
+# resources/maps is 511 MB across ~120 maps, and this image hosts one world on
+# one of them. So: keep only the maps named in WORLD_MAPS, and within those
+# only the two files the server reads — the manifest, and map4x.bin, which the
+# province partition is derived from. The full-resolution map.bin, the 16x
+# preview and the thumbnails are the client's business.
+#
+# Pruning in a stage that is thrown away keeps the rest out of the image, not
+# merely out of its last layer. If MAP_ID names a map that was not built in,
+# the server says so at startup and lists what it has.
+FROM node:24-slim AS maps
+ARG WORLD_MAPS=europe
+WORKDIR /maps
+COPY resources/maps ./
+RUN for map in *; do \
+      case " $WORLD_MAPS " in *" $map "*) ;; *) rm -rf "$map" ;; esac; \
+    done && \
+    find . -type f \
+      \( -name 'map.bin' -o -name 'map16x.bin' -o -name 'thumbnail.webp' \) \
+      -delete
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    nginx \
-    curl \
-    wget \
-    supervisor \
-    apache2-utils \
-    && rm -rf /var/lib/apt/lists/*
+FROM node:24-slim
+WORKDIR /usr/src/app
+ENV NODE_ENV=production
 
-# Update worker_connections in nginx.conf
-RUN sed -i 's/worker_connections [0-9]*/worker_connections 8192/' /etc/nginx/nginx.conf
-
-# Setup supervisor configuration
-RUN mkdir -p /var/log/supervisor
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Copy Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-RUN rm -f /etc/nginx/sites-enabled/default
-
-# Script that generates the create-game worker upstream at container start.
-COPY generate-nginx-upstream.sh /usr/local/bin/generate-nginx-upstream.sh
-RUN chmod +x /usr/local/bin/generate-nginx-upstream.sh
-
-# Copy production node_modules from prod-deps stage (cached separately from build)
-COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
-COPY package*.json ./
-
-# Copy built artifacts from build stage
-COPY --from=build /usr/src/app/static ./static
-
-COPY resources ./resources
-
-# Remove maps because they are not used by the server.
-RUN rm -rf ./resources/maps
-COPY tsconfig.json ./
-COPY src ./src
-COPY zbin ./zbin
-
+COPY --from=deps /usr/src/app/node_modules ./node_modules
+COPY package*.json tsconfig.json ./
+# Only the two halves the server actually is. src/client is the renderer and
+# has no business in a server image; copying it would also drag the quarantine
+# along.
+COPY src/server ./src/server
+COPY src/shared ./src/shared
+COPY drizzle ./drizzle
+COPY --from=maps /maps ./resources/maps
 
 ARG GIT_COMMIT=unknown
-RUN echo "$GIT_COMMIT" > static/commit.txt
-
 ENV GIT_COMMIT="$GIT_COMMIT"
 
-RUN <<'EOF' tee /usr/local/bin/start.sh
-#!/bin/sh
-# Generate the create-game nginx upstream from NUM_WORKERS before nginx starts.
-/usr/local/bin/generate-nginx-upstream.sh
+EXPOSE 3000
 
-if [ "$DOMAIN" = openfront.dev ] && [ "$SUBDOMAIN" != main ]; then
-    exec timeout 200h /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
-else
-    exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
-fi
-EOF
-RUN chmod +x /usr/local/bin/start.sh
-ENTRYPOINT ["/usr/local/bin/start.sh"]
+# node, not npm: npm would sit between the container and the process as an
+# extra PID, and signals would have to be forwarded by hand. The world needs to
+# see SIGTERM itself to stop its loop and close its lock cleanly — and it needs
+# to be the thing `docker kill` kills when the gate says to kill it.
+CMD ["node", "--import", "tsx", "src/server/Main.ts"]
