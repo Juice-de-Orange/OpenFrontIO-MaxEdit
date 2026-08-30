@@ -10,8 +10,21 @@
  * refuses on its merits — an ack with a reason. "You cannot claim that
  * province" is a game rule, not a protocol violation, and hanging up on a
  * player for playing badly would be absurd.
+ *
+ * The socket shares its port with one HTTP route, `/health`. A world with
+ * nobody online still has to be ticking, and "the process accepts
+ * connections" is the wrong question — the failure worth catching is a world
+ * that is up and *stuck*. So the endpoint reports the tick, how far behind
+ * schedule it is and how old the last snapshot is, and fails on the content
+ * rather than only on being reachable.
  */
 
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
+import { SNAPSHOT_INTERVAL_TICKS, TICK_MS } from "src/shared/config/time";
 import {
   CloseCode,
   decodeClientMessage,
@@ -53,6 +66,26 @@ export type SubmitCommand = (
   body: CommandBody,
 ) => Promise<CommandResult>;
 
+/** What the world tells the health endpoint about itself. */
+export interface WorldStatus {
+  tick: number;
+  lagMs: number;
+  lastSnapshotTick: number;
+  snapshotFailures: number;
+  stateHash: number;
+}
+
+/**
+ * How far behind schedule the world may fall before it counts as stuck.
+ *
+ * Three ticks. One late tick is a slow snapshot write or a garbage collection;
+ * three in a row is something that is not going to fix itself.
+ */
+const MAX_LAG_MS = 3 * TICK_MS;
+
+/** And how stale the newest snapshot may be. Three intervals, same reasoning. */
+const MAX_SNAPSHOT_AGE_TICKS = 3 * SNAPSHOT_INTERVAL_TICKS;
+
 interface Session {
   socket: WebSocket;
   ready: boolean;
@@ -71,18 +104,67 @@ export class WorldSocketServer {
   private readonly sessions = new Set<Session>();
   private pingTimer: NodeJS.Timeout | undefined;
 
+  private readonly http: ReturnType<typeof createServer>;
+
   constructor(
     private readonly world: World,
     private readonly submit: SubmitCommand,
     private readonly worldId: string,
     port: number,
+    private readonly status: () => WorldStatus = () => ({
+      tick: 0,
+      lagMs: 0,
+      lastSnapshotTick: 0,
+      snapshotFailures: 0,
+      stateHash: 0,
+    }),
     path = "/ws",
   ) {
-    this.wss = new WebSocketServer({ port, path });
+    this.http = createServer((request, response) =>
+      this.onRequest(request, response),
+    );
+    this.wss = new WebSocketServer({ server: this.http, path });
+    this.http.listen(port);
     this.wss.on("connection", (socket) => this.onConnection(socket));
     this.pingTimer = setInterval(() => {
       for (const s of this.sessions) s.socket.ping();
     }, PING_INTERVAL_MS);
+  }
+
+  private onRequest(request: IncomingMessage, response: ServerResponse): void {
+    if (request.url !== "/health") {
+      response.writeHead(404, { "content-type": "text/plain" });
+      response.end("not found\n");
+      return;
+    }
+
+    const status = this.status();
+    const snapshotAge = status.tick - status.lastSnapshotTick;
+    const healthy =
+      status.lagMs <= MAX_LAG_MS &&
+      status.snapshotFailures === 0 &&
+      snapshotAge <= MAX_SNAPSHOT_AGE_TICKS;
+
+    const body = JSON.stringify(
+      {
+        worldId: this.worldId,
+        healthy,
+        tick: status.tick,
+        lagMs: status.lagMs,
+        lastSnapshotTick: status.lastSnapshotTick,
+        snapshotAgeTicks: snapshotAge,
+        snapshotFailures: status.snapshotFailures,
+        connections: this.connectionCount,
+        stateHash: status.stateHash.toString(16),
+        provinces: this.world.descriptor.provinceCount,
+      },
+      null,
+      2,
+    );
+    response.writeHead(healthy ? 200 : 503, {
+      "content-type": "application/json",
+    });
+    response.end(body + "\n");
   }
 
   private onConnection(socket: WebSocket): void {
@@ -259,6 +341,8 @@ export class WorldSocketServer {
   async close(): Promise<void> {
     if (this.pingTimer) clearInterval(this.pingTimer);
     this.pingTimer = undefined;
+    for (const session of this.sessions) session.socket.terminate();
     await new Promise<void>((resolve) => this.wss.close(() => resolve()));
+    await new Promise<void>((resolve) => this.http.close(() => resolve()));
   }
 }

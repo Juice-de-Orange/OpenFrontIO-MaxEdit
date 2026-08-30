@@ -83,10 +83,14 @@ async function main(): Promise<void> {
     (nation, body) => runner.submit(nation, body),
     WORLD_ID,
     PORT,
+    () => runner.status(),
   );
   runner.setOnChanges((tick, changes) => server.broadcastDelta(tick, changes));
   runner.start();
-  console.info(`[world] listening on ws://localhost:${PORT}/ws`);
+  console.info(
+    `[world] listening on ws://localhost:${PORT}/ws, health on ` +
+      `http://localhost:${PORT}/health`,
+  );
 
   const shutdown = async (signal: string): Promise<void> => {
     console.info(`[world] ${signal}, stopping at tick ${world.currentTick()}`);
