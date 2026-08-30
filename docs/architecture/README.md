@@ -4,10 +4,11 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-30, phase 0 in progress — import cycle cut,
-proprietary assets removed, **renderer fully severed from `src/core`**.
-`src/core` and `src/server` still exist and the client outside the renderer
-still depends on them. Current step-by-step status is in
+**Last verified:** 2026-08-30, phase 0 gate met — the renderer draws a map and
+territory from province ownership with no simulation on the client, and none
+in the shipped bundle. `src/core` and `src/server` still exist and the client
+code outside `render/` and `world/` still compiles against them; removing that
+is what remains of the phase. Current status is in
 [`../../HANDOVER.md`](../../HANDOVER.md).
 
 > ⚠️ The fork is mid-surgery. Large parts of this tree are inherited upstream
@@ -18,9 +19,15 @@ still depends on them. Current step-by-step status is in
 
 A world server owns the simulation and ticks it every five seconds. Clients
 connect over a WebSocket, receive a full state view on connect and deltas
-afterwards, and render. The client never simulates anything. **None of that
-exists yet** — today the tree still boots upstream's lockstep client against
-upstream's match server. Phase 0 is the demolition that makes room for it.
+afterwards, and render. The client never simulates anything.
+
+**The client half of that is real now.** `index.html` boots
+`src/client/world/WorldClient.ts`, which loads a map, derives provinces from
+its terrain, and hands province ownership to the inherited renderer through
+one long-lived `FrameData` object. The server half is not: ownership comes
+from `client/world/StaticWorldSource.ts`, a deliberately throwaway stand-in
+that will be replaced by a socket. Upstream's lockstep client and match server
+still exist in the tree; nothing loads them.
 
 ## What is inherited, and what happens to it
 

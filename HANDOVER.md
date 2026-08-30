@@ -14,10 +14,19 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 0 of 11 — fork triage.** The tree still boots upstream's lockstep
-client against upstream's match server. Nothing world-shaped exists yet — but
-**the renderer no longer touches the simulation**, which was the thing standing
-between here and everything else.
+**Phase 0 of 11 — fork triage. The gate is met.** The inherited renderer draws
+a map and territory from province ownership, with no simulation on the client
+— and, measurably, none in the shipped bundle. What remains of phase 0 removes
+things rather than building them.
+
+The number that says it best, from `npm run build-prod`:
+
+| Artefact                                       | before     | now         |
+| ---------------------------------------------- | ---------- | ----------- |
+| `index.html`                                   | 28.02 kB   | **0.96 kB** |
+| `index-*.js`                                   | 2307.84 kB | **436 kB**  |
+| `Worker.worker-*.js` (the lockstep simulation) | 625.16 kB  | **gone**    |
+| `debug-*.js`                                   | 50.41 kB   | **gone**    |
 
 | Commit     | What                                                             |
 | ---------- | ---------------------------------------------------------------- |
@@ -39,6 +48,11 @@ between here and everything else.
 | `f4da0196` | Rail geometry split from the `GameUpdates` accumulator           |
 | `65c654d1` | `Utils` split; probe from `gl/Renderer.ts` 56 → 0                |
 | `2c123ff8` | Preview map loaded without the core map loader                   |
+| `44d1a6c5` | Ratchet becomes a prohibition; lint zones; decision 0004         |
+| `0dcb4dda` | Code-review fixes, one of which undid part of the work           |
+| `f8e72532` | Province grid and terrain hash in `shared/map/`                  |
+| `4e3231c4` | Map loading, palette and frame adapter                           |
+| `baf19d02` | **`index.html` boots the world client — the gate**               |
 
 Working tree is clean. Nothing has been pushed — the remote is still at the
 upstream fork point.
@@ -48,18 +62,24 @@ upstream fork point.
 The plan's step order is in the plan file (see _Where the plan lives_ below).
 Status:
 
-- **Step 1** — `index.html`: **head done.** Every foreign account id and the
-  remote script loader are gone. The body still declares upstream's custom
-  elements; it gets rewritten with the new bootstrap rather than twice.
-- **Step 2** — `shared/util/`: **done** (`AssetPath`, `PatternDecoder`,
-  `Veterancy`). `EventBus` and `PseudoRandom` have not moved yet.
+- **Step 1** — `index.html`: **done.** Rewritten around the world client. The
+  old page is kept as `docs/upstream/index.upstream.html` for the custom
+  elements its body declares — the markup phase 3 and phase 7 screens have to
+  reproduce.
+- **Step 2** — `shared/util/`: **done** (`AssetPath`, number formatting,
+  `PatternDecoder`, `Veterancy`). `EventBus` and `PseudoRandom` have not moved.
 - **Step 3** — break the cycle: **done**, except that `GameMap.ts` itself has
   not physically moved to `shared/map/` yet (deliberate — see below).
 - **Step 5** — the nine couplings: **done, all of them**, plus two transitive
   leaks the original count missed.
 - **Step 6** — `RenderConfig`: **done**, as `RenderRules`.
+- **Step 12** — bootstrap: **done.** `client/world/` holds the entry point,
+  map loading, palette, province tile index, frame adapter and camera.
 - **Step 14** — architecture test: **done**, plus lint zones.
-- **Steps 7–13** — quarantine, deletion, protocol, stub server: not started.
+- **Steps 7, 8, 13** — quarantine, deletion, tsconfig split: not started.
+- **Steps 9–11** — protocol, stub server, socket: not started. The world
+  currently comes from `client/world/StaticWorldSource.ts`, which is
+  deliberately throwaway and says so in its own header.
 - **Step 15** — licence hygiene: **done, pulled forward.** It could not wait:
   the repository is public, so shipping upstream's All-Rights-Reserved assets
   was actively redistributing them.
@@ -68,20 +88,26 @@ Status:
 
 ## What to do next
 
-The renderer is done. What stands between here and the phase-0 gate is the
-client _around_ it, in this order:
+Everything left in phase 0 removes something.
 
-1. **A new bootstrap.** `src/client/Main.ts` (1322 lines) and
-   `ClientGameRunner.ts` (1555) are the roots that keep every HUD file
-   reachable. Nothing can be quarantined until they are replaced, because
-   `tsconfig`'s `exclude` does not cut an imported file out of the program —
-   it only drops it from the root set.
-2. **Quarantine** — `git mv` the HUD, components, view and controllers into
+1. **Quarantine** — `git mv` the HUD, components, view and controllers into
    `src/client/_legacy/`, then exclude from tsconfig **and both linters in the
    same commit** (eslint uses `projectService`, oxlint has `typeAware: true`;
-   a file excluded from tsconfig but linted makes both abort).
-3. **Delete `src/core` and `src/server`.**
-4. **`shared/protocol/` and the stub server.**
+   a file excluded from tsconfig but still linted makes both abort).
+
+   Nothing imports them any more, because `index.html` points at the world
+   client — so the move is a no-op for the bundle, and that is precisely how
+   to verify it: the chunk list and the `index-*.js` size must not change.
+   Note that `tsconfig`'s `exclude` does **not** cut an imported file out of
+   the program; it only drops it from the root set. The gate for the
+   quarantine has to be a test, not a config entry.
+
+2. **Delete `src/core` and `src/server`.** Rescue first: `core/pathfinding/**`
+   and `core/game/GameMap.ts` to `shared/map/`, `core/EventBus` and
+   `core/PseudoRandom` to `shared/util/`.
+3. **`shared/protocol/` and the stub server**, then swap StaticWorldSource for
+   a socket. A guard test should assert StaticWorldSource is gone, so the
+   throwaway cannot quietly become permanent.
 
 Decisions already taken for that work, so they do not have to be revisited:
 
@@ -144,6 +170,35 @@ palette array, and a `RenderRules` (seven methods — see
 owner id — not from `frameData.players`. Also: `revealedRailTiles` is a
 required field, and `events` needs three empty arrays, not an empty object —
 `Upload.ts` reads `.length` before checking anything.
+`client/world/FrameAdapter.ts` now satisfies all of it in one place, with a
+test per trap; copy from there rather than from memory.
+
+**`preloadAtlasData()` must be awaited before `new MapRenderer(...)`.**
+`NamePass` and `StructureLevelPass` parse the MSDF atlas in their
+constructors and throw "Atlas data not loaded" otherwise. It is not in any
+type signature, so nothing warns you.
+
+**The palette has two rows.** `Float32Array(4096 * 2 * 4)`: row 0 is fill at
+`smallID * 4` (alpha 150/255), row 1 is **border** at
+`4096 * 4 + smallID * 4` (alpha 1). Fill only row 0 and territory is coloured
+while every border is black.
+
+**The renderer runs its own animation loop, and needs to.** Do not pass
+`raf`/`caf` — `GPURenderer` starts one in its constructor, and supplying a
+capture gives two. It is also not optional: `TerritoryPass` drains one drip
+bucket per rendered frame (nine of them), so a tile delta needs nine frames
+to land. Drawing once per server tick leaves territory looking frozen.
+
+**Take the camera's initial framing from the renderer**
+(`MapRenderer.getCameraState()`), do not recompute it. `Camera.fitMap()` works
+in device pixels (`cssWidth * dpr`) and leaves a 10% margin, so a controller
+measuring `clientWidth` lands elsewhere on any display with `dpr != 1` —
+visible as a map pushed off-centre and clipped on one side.
+
+**`vite-plugin-html` binds the dev server to one entry.** Adding a second HTML
+page to compare old and new side by side does not work: every path serves
+`index.html` with the configured entry. Switch `index.html` and the plugin's
+`entry` together, or not at all.
 
 **One long-lived tile buffer, mutated in place.** `TrailPass` keeps the array
 reference and reads it at draw time. A fresh array per tick renders the first
@@ -174,16 +229,17 @@ npm run dev             # http://localhost:9000
 
 ### Test baseline — do not chase these two
 
-`4005 / 4009` pass in the main run (339 files), plus `578 / 578` in the
+`4025 / 4027` pass in the main run (341 files), plus `578 / 578` in the
 separate `tests/server` run (56 files). **These are two runs**: `npm run test`
 is `vitest run && vitest run tests/server`, and the server tests do not appear
-in the 4009.
+in the 4027.
 
 The main-run total moved from 4012 during phase 0. What changed: the effect
 editor's tests were deleted with it, `PublicAssetManifest.test.ts` moved from
-`tests/server` into the main run along with its subject, and two architecture
-tests were added. The passing figure moves with the `InventoryModal` flake
-below; the total is what to compare against.
+`tests/server` into the main run along with its subject, one obsolete
+`index.html` markup assertion was removed, and the architecture, province-grid
+and frame-adapter tests were added. The passing figure moves with the
+`InventoryModal` flake below; the total is what to compare against.
 
 The two failures are **not** regressions:
 
@@ -222,6 +278,22 @@ read 0. Both are 0 now, as are the probes from `gl/MapRenderer.ts` and
 It is a permanent test now: `tests/architecture/RenderBoundary.test.ts`, plus
 `no-restricted-imports` zones for `render/` and `shared/` in
 `eslint.config.js`. Both were verified by introducing a violation on purpose.
+
+### The measurement that replaces it
+
+With the entry point switched, there is a blunter and better check: what
+actually ships. After `npm run build-prod`,
+
+```bash
+ls static/assets/ | grep -i worker # nothing — the simulation is gone
+du -h static/assets/index-*.js     # ~436 kB, was 2.3 MB
+grep -c "<%-" static/index.html    # 5 EJS placeholders, was 18
+```
+
+A probe measures the type graph; this measures the artefact. If a later change
+re-imports the simulation by some route the boundary test does not model, the
+worker chunk comes back and the bundle size jumps. Worth reading before
+trusting a green test suite.
 
 ---
 
