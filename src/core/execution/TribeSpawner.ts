@@ -1,6 +1,6 @@
-﻿import { Cell, Game, GameMapSize, PlayerInfo, PlayerType } from "../game/Game";
+﻿import { type CustomTribe } from "../../shared/map/Maps.gen";
+import { Cell, Game, GameMapSize, PlayerInfo, PlayerType } from "../game/Game";
 import { TileRef } from "../game/GameMap";
-import { type CustomTribe } from "../game/Maps.gen";
 import { PseudoRandom } from "../PseudoRandom";
 import { GameID } from "../Schemas";
 import { simpleHash } from "../Util";

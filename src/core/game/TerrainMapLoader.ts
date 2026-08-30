@@ -1,4 +1,8 @@
 import { GameMapSize, GameMapType, TeamGameSpawnAreas } from "./Game";
+// MapLayer/LayerPlacement used to be declared here as well, character for
+// character. The generator already emits them for MapInfo, so that copy is
+// gone and this module consumes the canonical one.
+import type { MapLayer } from "../../shared/map/Maps.gen";
 import { GameMap, GameMapImpl } from "./GameMap";
 import { GameMapLoader } from "./GameMapLoader";
 
@@ -35,17 +39,6 @@ export interface MapManifest {
   teamGameSpawnAreas?: TeamGameSpawnAreas;
   /** Optional map layers rendered between terrain and territory. */
   layers?: MapLayer[];
-}
-
-export type LayerPlacement = "land" | "water";
-
-export interface MapLayer {
-  /** Unique identifier — also the PNG filename (without extension). */
-  id: string;
-  /** Whether the layer sits on land or water tiles. */
-  placement: LayerPlacement;
-  /** If true, the layer is permanently destroyed in nuke impact radii. */
-  nukeable?: boolean;
 }
 
 export interface Nation {

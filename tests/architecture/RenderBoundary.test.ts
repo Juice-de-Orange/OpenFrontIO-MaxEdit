@@ -23,9 +23,8 @@ const ALLOWED: Record<string, number> = {
   "src/core/AssetUrls": 10,
   "src/core/CosmeticSchemas": 3,
   "src/core/configuration/Config": 10,
-  "src/core/game/Game": 2,
+  "src/core/game/Game": 1,
   "src/core/game/GameUpdates": 1,
-  "src/core/game/TerrainMapLoader": 2,
 };
 
 interface Edge {

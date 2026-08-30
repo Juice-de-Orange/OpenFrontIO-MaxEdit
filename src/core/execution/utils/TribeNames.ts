@@ -4,7 +4,7 @@ import {
   GameMapType,
   type MapInfo,
   maps,
-} from "../../game/Maps.gen";
+} from "../../../shared/map/Maps.gen";
 
 export interface TribeNameData {
   prefixes: string[];

@@ -1,4 +1,4 @@
-import { GameMapType } from "../../../core/game/Game";
+import { GameMapType } from "src/shared/map/Maps.gen";
 import { terrainMapFileLoader } from "../../TerrainMapFileLoader";
 import {
   buildPreviewMap,

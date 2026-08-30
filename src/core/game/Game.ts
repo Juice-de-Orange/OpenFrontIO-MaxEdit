@@ -132,7 +132,7 @@ export {
   type GameMapName,
   type MapCategory,
   type MapInfo,
-} from "./Maps.gen";
+} from "../../shared/map/Maps.gen";
 
 export enum GameType {
   Singleplayer = "Singleplayer",

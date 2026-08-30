@@ -9,8 +9,8 @@
  *     structure levels → bars → bloom → trails → missiles → fx → conquest → names
  */
 
+import type { MapLayer } from "src/shared/map/Maps.gen";
 import type { Config } from "../../../core/configuration/Config";
-import type { MapLayer } from "../../../core/game/TerrainMapLoader";
 import { translateText } from "../../Utils";
 import type { SpiralRibbon } from "../frame/SpiralTrails";
 import type {

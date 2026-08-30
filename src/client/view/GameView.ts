@@ -1202,7 +1202,7 @@ export class GameView implements GameMap {
     return this._map.numLandTiles();
   }
   /** Map layers defined in the map's info.json, if any. */
-  layers(): import("../../core/game/TerrainMapLoader").MapLayer[] {
+  layers(): import("../../shared/map/Maps.gen").MapLayer[] {
     return this._mapData.layers ?? [];
   }
   isValidCoord(x: number, y: number): boolean {

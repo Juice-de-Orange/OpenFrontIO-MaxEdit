@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { GraphicsOverridesSchema } from "../src/client/render/gl/GraphicsOverrides";
-import type { MapLayer } from "../src/core/game/TerrainMapLoader";
+import type { MapLayer } from "../src/shared/map/Maps.gen";
 import { validateLayer } from "./util/layerValidation";
 
 describe("Map layer feature", () => {

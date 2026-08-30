@@ -11,8 +11,8 @@
  * touch MapRenderer — they never import GPURenderer or Camera.
  */
 
+import type { MapLayer } from "src/shared/map/Maps.gen";
 import type { Config } from "../../../core/configuration/Config";
-import type { MapLayer } from "../../../core/game/TerrainMapLoader";
 import type { SpiralRibbon } from "../frame/SpiralTrails";
 import type {
   AttackRingInput,
