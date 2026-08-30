@@ -22,7 +22,6 @@ const RENDER_DIR = path.join(REPO_ROOT, "src", "client", "render");
 const ALLOWED: Record<string, number> = {
   "src/core/AssetUrls": 10,
   "src/core/CosmeticSchemas": 3,
-  "src/core/PatternDecoder": 1,
   "src/core/configuration/Config": 10,
   "src/core/game/Game": 2,
   "src/core/game/GameUpdates": 1,

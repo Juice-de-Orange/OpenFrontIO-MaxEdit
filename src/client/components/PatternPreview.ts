@@ -1,8 +1,8 @@
 import { Colord } from "colord";
 import { base64url } from "jose";
 import { html, TemplateResult } from "lit";
+import { PatternDecoder } from "src/shared/util/PatternDecoder";
 import { DefaultPattern } from "../../core/CosmeticSchemas";
-import { PatternDecoder } from "../../core/PatternDecoder";
 import { PlayerPattern } from "../../core/Schemas";
 import { translateText } from "../Utils";
 
@@ -72,14 +72,7 @@ export function generatePreviewDataUrl(
 
   let decoder: PatternDecoder;
   try {
-    decoder = new PatternDecoder(
-      {
-        name: pattern.name,
-        patternData: pattern.patternData,
-        colorPalette: pattern.colorPalette,
-      },
-      base64url.decode,
-    );
+    decoder = new PatternDecoder(pattern, base64url.decode);
   } catch (e) {
     console.error("Error decoding pattern", e);
     return "";

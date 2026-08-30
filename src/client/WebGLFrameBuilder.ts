@@ -1,5 +1,6 @@
 import { Colord, colord } from "colord";
 import { base64url } from "jose";
+import { decodePatternData } from "src/shared/util/PatternDecoder";
 import { assetUrl } from "../core/AssetUrls";
 import {
   type Cosmetics,
@@ -14,7 +15,6 @@ import {
   TRAIL_EFFECT_TYPES,
 } from "../core/CosmeticSchemas";
 import { PlayerType } from "../core/game/Game";
-import { decodePatternData } from "../core/PatternDecoder";
 import { getCachedCosmetics } from "./Cosmetics";
 import { buildTerrainRowSpans } from "./render/frame/derive/TerrainRowSpans";
 import { uploadFrameData } from "./render/frame/Upload";

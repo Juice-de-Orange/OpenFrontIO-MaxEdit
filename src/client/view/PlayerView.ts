@@ -1,7 +1,7 @@
 import { Colord, colord } from "colord";
 import { base64url } from "jose";
+import { PatternDecoder } from "src/shared/util/PatternDecoder";
 import { ColorPalette } from "../../core/CosmeticSchemas";
-import { PatternDecoder } from "../../core/PatternDecoder";
 import { ClientID, PlayerCosmetics } from "../../core/Schemas";
 import { createRandomName } from "../../core/Util";
 import {

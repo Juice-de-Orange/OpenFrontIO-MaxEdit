@@ -1,6 +1,6 @@
 import { base64url } from "jose";
 import { z } from "zod/v4";
-import { decodePatternData } from "./PatternDecoder";
+import { decodePatternData } from "../shared/util/PatternDecoder";
 import { PlayerPattern } from "./Schemas";
 
 export type Cosmetics = z.infer<typeof CosmeticsSchema>;

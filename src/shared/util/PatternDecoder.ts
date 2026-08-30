@@ -1,5 +1,3 @@
-import { PlayerPattern } from "./Schemas";
-
 export class PatternDecoder {
   private bytes: Uint8Array;
 
@@ -7,8 +5,16 @@ export class PatternDecoder {
   readonly width: number;
   readonly scale: number;
 
+  /**
+   * Typed structurally rather than against `PlayerPattern`. Only
+   * `patternData` is ever read, and naming the schema type here made this
+   * module import core/Schemas -- 1156 lines pulling in zod, zbin,
+   * CosmeticSchemas and game/Game -- for a field access, while closing the
+   * ring PatternDecoder -> Schemas -> CosmeticSchemas -> PatternDecoder.
+   * `PlayerPattern` remains assignable, so no caller changes.
+   */
   constructor(
-    pattern: PlayerPattern,
+    pattern: { patternData: string },
     base64urlDecode: (input: string) => Uint8Array,
   ) {
     ({

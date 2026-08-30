@@ -1,7 +1,6 @@
 import countries from "resources/countries.json";
 
 import { Cosmetics, findEffectForSlot } from "../core/CosmeticSchemas";
-import { decodePatternData } from "../core/PatternDecoder";
 import {
   PlayerColor,
   PlayerCosmeticRefs,
@@ -11,6 +10,7 @@ import {
   PlayerPattern,
   PlayerSkin,
 } from "../core/Schemas";
+import { decodePatternData } from "../shared/util/PatternDecoder";
 
 const countryCodes = countries.filter((c) => !c.restricted).map((c) => c.code);
 
