@@ -13,9 +13,9 @@
 import path from "path";
 import { TICK_MS } from "src/shared/config/time";
 import { fileURLToPath } from "url";
-import { WorldSocketServer } from "./net/WsServer";
-import { StubWorld } from "./world/StubWorld";
+import { WorldSocketServer, type CommandResult } from "./net/WsServer";
 import { TickLoop } from "./world/TickLoop";
+import { World } from "./world/World";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const WORLD_ID = process.env.WORLD_ID ?? "world-0";
@@ -25,7 +25,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const RESOURCES = path.resolve(here, "..", "..", "resources");
 
 async function main(): Promise<void> {
-  const world = await StubWorld.load(MAP_ID, RESOURCES);
+  const world = await World.load(MAP_ID, RESOURCES);
   console.info(
     `[world] ${WORLD_ID} on map ${MAP_ID}: ` +
       `${world.descriptor.width}x${world.descriptor.height}, ` +
@@ -34,7 +34,21 @@ async function main(): Promise<void> {
       `terrain ${world.descriptor.terrainHash.toString(16)}`,
   );
 
-  const server = new WorldSocketServer(world, WORLD_ID, PORT);
+  // Phase 1 accepts a command straight into the world. The next commit puts
+  // the log write in front of it, which is where this function earns its
+  // keep: nothing may be queued that has not been recorded first.
+  const submit = async (
+    nation: number,
+    body: Parameters<typeof world.rejectionFor>[0]["body"],
+  ): Promise<CommandResult> => {
+    const command = { nation, body };
+    const rejection = world.rejectionFor(command);
+    if (rejection !== null) return { accepted: false, reason: rejection };
+    const { tick } = world.queueCommand(command);
+    return { accepted: true, tick };
+  };
+
+  const server = new WorldSocketServer(world, submit, WORLD_ID, PORT);
   console.info(`[world] listening on ws://localhost:${PORT}/ws`);
 
   const loop = new TickLoop({

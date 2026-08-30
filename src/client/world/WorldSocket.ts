@@ -14,6 +14,11 @@
  * whole architecture is arranged to avoid.
  *
  * **Reconnect means full state, never a delta replay** (CLAUDE.md §4).
+ *
+ * **Every command gets an answer, including the ones the connection ate.** A
+ * command still waiting when the socket drops is failed locally with a reason,
+ * because the alternative is a click that produces nothing and explains
+ * nothing.
  */
 
 import {
@@ -21,8 +26,10 @@ import {
   decodeServerMessage,
   encodeClient,
   PROTOCOL_VERSION,
+  type CommandBody,
   type Delta,
   type FullState,
+  type ServerAck,
 } from "src/shared/protocol/Wire";
 
 const RECONNECT_BASE_MS = 1000;
@@ -31,6 +38,8 @@ const RECONNECT_MAX_MS = 30_000;
 export interface WorldSocketHandlers {
   onFullState(state: FullState): void;
   onDelta(delta: Delta): void;
+  /** The world's answer to one command, matched by the id sendCommand returned. */
+  onAck(ack: ServerAck): void;
   /** Terminal: the connection will not be retried. */
   onFatal(message: string): void;
 }
@@ -40,13 +49,34 @@ export class WorldSocket {
   private lastTick: number | undefined;
   private retries = 0;
   private stopped = false;
+  private nextCommandId = 1;
+  /** Commands sent and not yet answered. */
+  private outstanding = new Set<string>();
 
   constructor(
     private readonly url: string,
     private readonly worldId: string,
+    private readonly nation: number | null,
     private readonly handlers: WorldSocketHandlers,
   ) {
     this.connect();
+  }
+
+  /**
+   * Send a command. Returns its id, or null if there is no open connection —
+   * the caller has to say so rather than pretend the order was given.
+   */
+  sendCommand(command: CommandBody): string | null {
+    if (
+      this.socket === undefined ||
+      this.socket.readyState !== WebSocket.OPEN
+    ) {
+      return null;
+    }
+    const id = `c${this.nextCommandId++}`;
+    this.outstanding.add(id);
+    this.socket.send(encodeClient({ t: "command", id, command }));
+    return id;
   }
 
   private connect(): void {
@@ -60,6 +90,7 @@ export class WorldSocket {
           t: "hello",
           protocolVersion: PROTOCOL_VERSION,
           worldId: this.worldId,
+          nation: this.nation,
         }),
       );
     });
@@ -93,6 +124,11 @@ export class WorldSocket {
           socket.close();
           break;
 
+        case "ack":
+          this.outstanding.delete(message.id);
+          this.handlers.onAck(message);
+          break;
+
         case "full":
           this.lastTick = message.tick;
           this.handlers.onFullState(message);
@@ -119,10 +155,12 @@ export class WorldSocket {
 
     socket.addEventListener("close", (event) => {
       if (this.stopped) return;
+      this.failOutstanding("the connection dropped before the world answered");
       if (
         event.code === CloseCode.ProtocolVersion ||
         event.code === CloseCode.UnknownWorld ||
-        event.code === CloseCode.Malformed
+        event.code === CloseCode.Malformed ||
+        event.code === CloseCode.Unauthorised
       ) {
         // The server already said why, and it will say the same thing next
         // time. Retrying only hides it.
@@ -147,6 +185,13 @@ export class WorldSocket {
     // whatever tick the world has reached in the meantime.
     this.lastTick = undefined;
     setTimeout(() => this.connect(), delay);
+  }
+
+  private failOutstanding(reason: string): void {
+    for (const id of this.outstanding) {
+      this.handlers.onAck({ t: "ack", id, accepted: false, reason });
+    }
+    this.outstanding.clear();
   }
 
   private fatal(message: string): void {

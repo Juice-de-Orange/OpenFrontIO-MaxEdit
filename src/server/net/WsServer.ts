@@ -5,6 +5,11 @@
  * ignored and nothing is logged-and-continued: CLAUDE.md §7 asks for exactly
  * that, because a client that silently half-works is the hardest thing to
  * debug in a world that runs for weeks.
+ *
+ * The one thing that is answered rather than closed is a command the world
+ * refuses on its merits — an ack with a reason. "You cannot claim that
+ * province" is a game rule, not a protocol violation, and hanging up on a
+ * player for playing badly would be absurd.
  */
 
 import {
@@ -12,10 +17,12 @@ import {
   decodeClientMessage,
   encodeServer,
   PROTOCOL_VERSION,
+  type ClientCommand,
+  type CommandBody,
   type ServerMessage,
 } from "src/shared/protocol/Wire";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { StubWorld } from "../world/StubWorld";
+import type { World } from "../world/World";
 
 /** How long a connection may stay silent before sending `hello`. */
 const HELLO_TIMEOUT_MS = 5000;
@@ -30,9 +37,33 @@ const HELLO_TIMEOUT_MS = 5000;
  */
 const PING_INTERVAL_MS = 25_000;
 
+export type CommandResult =
+  | { accepted: true; tick: number }
+  | { accepted: false; reason: string };
+
+/**
+ * What the socket layer does with a command it has decoded.
+ *
+ * Deliberately a function rather than a method on the world: accepting a
+ * command means writing it to the log *before* queueing it, and the socket
+ * has no business knowing about a database. The runner supplies this.
+ */
+export type SubmitCommand = (
+  nation: number,
+  body: CommandBody,
+) => Promise<CommandResult>;
+
 interface Session {
   socket: WebSocket;
   ready: boolean;
+  nation: number | null;
+  /**
+   * Commands are handled asynchronously (the log write is awaited), and the
+   * ws "message" event is not. Without a chain, two commands sent back to back
+   * could be logged in the opposite order to the one they arrived in, and the
+   * replay would then differ from the run.
+   */
+  work: Promise<void>;
 }
 
 export class WorldSocketServer {
@@ -41,7 +72,8 @@ export class WorldSocketServer {
   private pingTimer: NodeJS.Timeout | undefined;
 
   constructor(
-    private readonly world: StubWorld,
+    private readonly world: World,
+    private readonly submit: SubmitCommand,
     private readonly worldId: string,
     port: number,
     path = "/ws",
@@ -54,7 +86,12 @@ export class WorldSocketServer {
   }
 
   private onConnection(socket: WebSocket): void {
-    const session: Session = { socket, ready: false };
+    const session: Session = {
+      socket,
+      ready: false,
+      nation: null,
+      work: Promise.resolve(),
+    };
     this.sessions.add(session);
 
     const helloTimer = setTimeout(() => {
@@ -62,58 +99,83 @@ export class WorldSocketServer {
     }, HELLO_TIMEOUT_MS);
 
     socket.on("message", (raw) => {
-      if (session.ready) {
-        // Phase 0 has no commands, so anything after `hello` is a protocol
-        // violation. Disconnect rather than ignore — silent failure makes
-        // debugging impossible (CLAUDE.md §7).
-        this.reject(
-          socket,
-          "malformed",
-          "no messages are expected after hello",
-        );
-        socket.close(CloseCode.Malformed, "unexpected message");
-        return;
-      }
-
-      let hello;
+      let message;
       try {
-        hello = decodeClientMessage(raw.toString());
+        message = decodeClientMessage(raw.toString());
       } catch (e) {
         this.reject(socket, "malformed", String(e));
-        socket.close(CloseCode.Malformed, "malformed hello");
+        socket.close(CloseCode.Malformed, "malformed message");
         return;
       }
 
-      if (hello.protocolVersion !== PROTOCOL_VERSION) {
-        this.reject(
-          socket,
-          "protocol-version",
-          `client speaks ${hello.protocolVersion}, server speaks ${PROTOCOL_VERSION}`,
-        );
-        socket.close(CloseCode.ProtocolVersion, "protocol version");
+      if (message.t === "hello") {
+        if (session.ready) {
+          this.reject(socket, "malformed", "hello sent twice");
+          socket.close(CloseCode.Malformed, "hello sent twice");
+          return;
+        }
+
+        if (message.protocolVersion !== PROTOCOL_VERSION) {
+          this.reject(
+            socket,
+            "protocol-version",
+            `client speaks ${message.protocolVersion}, server speaks ${PROTOCOL_VERSION}`,
+          );
+          socket.close(CloseCode.ProtocolVersion, "protocol version");
+          return;
+        }
+
+        if (message.worldId !== this.worldId) {
+          this.reject(
+            socket,
+            "unknown-world",
+            `no world named ${message.worldId}`,
+          );
+          socket.close(CloseCode.UnknownWorld, "unknown world");
+          return;
+        }
+
+        if (
+          message.nation !== null &&
+          message.nation > this.world.nations.length
+        ) {
+          this.reject(
+            socket,
+            "unauthorised",
+            `no nation ${message.nation} in this world`,
+          );
+          socket.close(CloseCode.Unauthorised, "unknown nation");
+          return;
+        }
+
+        clearTimeout(helloTimer);
+        session.ready = true;
+        session.nation = message.nation;
+        this.send(socket, {
+          t: "welcome",
+          protocolVersion: PROTOCOL_VERSION,
+          worldId: this.worldId,
+        });
+        this.sendFullState(session);
         return;
       }
 
-      if (hello.worldId !== this.worldId) {
-        this.reject(socket, "unknown-world", `no world named ${hello.worldId}`);
-        socket.close(CloseCode.UnknownWorld, "unknown world");
+      if (!session.ready) {
+        this.reject(socket, "malformed", "a command before hello");
+        socket.close(CloseCode.Malformed, "command before hello");
         return;
       }
 
-      clearTimeout(helloTimer);
-      session.ready = true;
-      this.send(socket, {
-        t: "welcome",
-        protocolVersion: PROTOCOL_VERSION,
-        worldId: this.worldId,
-      });
-      this.send(socket, {
-        t: "full",
-        tick: this.world.currentTick(),
-        map: this.world.descriptor,
-        nations: this.world.nations,
-        owners: this.world.ownerSnapshot(),
-      });
+      const nation = session.nation;
+      if (nation === null) {
+        // A watching session sending orders is not a game-rule failure, it is
+        // a client that thinks it is someone. Close rather than answer.
+        this.reject(socket, "unauthorised", "this session is watching only");
+        socket.close(CloseCode.Unauthorised, "not playing");
+        return;
+      }
+
+      this.handleCommand(session, nation, message);
     });
 
     socket.on("close", () => {
@@ -123,6 +185,45 @@ export class WorldSocketServer {
     socket.on("error", () => {
       clearTimeout(helloTimer);
       this.sessions.delete(session);
+    });
+  }
+
+  private handleCommand(
+    session: Session,
+    nation: number,
+    message: ClientCommand,
+  ): void {
+    session.work = session.work.then(async () => {
+      let result: CommandResult;
+      try {
+        result = await this.submit(nation, message.command);
+      } catch (e) {
+        // A command the world accepted but could not record is a command that
+        // would vanish on the next restart. Refuse it instead.
+        result = {
+          accepted: false,
+          reason: `the world could not record it: ${String(e)}`,
+        };
+      }
+      this.send(session.socket, {
+        t: "ack",
+        id: message.id,
+        accepted: result.accepted,
+        ...(result.accepted
+          ? { tick: result.tick }
+          : { reason: result.reason }),
+      });
+    });
+  }
+
+  private sendFullState(session: Session): void {
+    this.send(session.socket, {
+      t: "full",
+      tick: this.world.currentTick(),
+      map: this.world.descriptor,
+      nations: this.world.nations,
+      nation: session.nation,
+      owners: this.world.ownerSnapshot(),
     });
   }
 
@@ -144,7 +245,7 @@ export class WorldSocketServer {
 
   private reject(
     socket: WebSocket,
-    reason: "protocol-version" | "unknown-world" | "malformed",
+    reason: "protocol-version" | "unknown-world" | "malformed" | "unauthorised",
     detail: string,
   ): void {
     this.send(socket, {

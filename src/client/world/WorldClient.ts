@@ -34,6 +34,20 @@ import { WorldSocket } from "./WorldSocket";
 
 const DEFAULT_WORLD = "world-0";
 
+/**
+ * Which nation this browser plays.
+ *
+ * From the query string, because phase 1 has no accounts and no nation
+ * registration screen. `?nation=` absent means watching: the world will accept
+ * the connection and refuse any order it sends.
+ */
+function nationFromUrl(): number | null {
+  const raw = new URLSearchParams(location.search).get("nation");
+  if (raw === null) return null;
+  const nation = Number.parseInt(raw, 10);
+  return Number.isInteger(nation) && nation > 0 ? nation : null;
+}
+
 /** Same-origin, so dev and production use one URL shape. */
 function worldSocketUrl(): string {
   const scheme = location.protocol === "https:" ? "wss" : "ws";
@@ -67,6 +81,30 @@ function createCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/**
+ * A line of feedback that goes away by itself.
+ *
+ * Every command is answered, and an answer nobody can see is not an answer.
+ * This is the smallest thing that shows one; phase 3 brings a real HUD.
+ */
+function showNotice(message: string): void {
+  let box = document.getElementById("world-notice");
+  if (box === null) {
+    box = document.createElement("div");
+    box.id = "world-notice";
+    box.style.cssText =
+      "position:fixed;left:1rem;bottom:1rem;max-width:24rem;padding:.5rem .75rem;" +
+      "background:rgba(20,20,20,.85);color:#eee;font:13px system-ui;border-radius:4px;" +
+      "pointer-events:none;z-index:9";
+    document.body.appendChild(box);
+  }
+  box.textContent = message;
+  const shown = box;
+  window.setTimeout(() => {
+    if (shown.textContent === message) shown.textContent = "";
+  }, 4000);
+}
+
 function showFatal(message: string): void {
   const box = document.createElement("div");
   box.id = "world-error";
@@ -88,30 +126,54 @@ export async function startWorldClient(
   let view: MapRenderer | undefined;
   let adapter: FrameAdapter | undefined;
 
-  const socket = new WorldSocket(worldSocketUrl(), worldId, {
-    onFullState: (state) => {
-      if (!view || !adapter) {
-        // First full state carries the map identity, so the renderer cannot
-        // be built before it arrives.
-        void buildFrom(state).then((built) => {
-          view = built.view;
-          adapter = built.adapter;
-          adapter.applyFullState(state.owners, state.tick);
-          uploadFrameData(view, adapter.frameData());
-        });
-        return;
-      }
-      adapter.applyFullState(state.owners, state.tick);
-      uploadFrameData(view, adapter.frameData());
+  const nation = nationFromUrl();
+  const pickProvince = (province: number): void => {
+    if (nation === null) {
+      showNotice("Watching only. Add ?nation=<n> to the URL to play one.");
+      return;
+    }
+    const sent = socket.sendCommand({
+      kind: "claim_province",
+      provinceId: province,
+    });
+    if (sent === null) showNotice("Not connected to the world.");
+  };
+
+  const socket: WorldSocket = new WorldSocket(
+    worldSocketUrl(),
+    worldId,
+    nation,
+    {
+      onFullState: (state) => {
+        if (!view || !adapter) {
+          // First full state carries the map identity, so the renderer cannot
+          // be built before it arrives.
+          void buildFrom(state, pickProvince).then((built) => {
+            view = built.view;
+            adapter = built.adapter;
+            adapter.applyFullState(state.owners, state.tick);
+            uploadFrameData(view, adapter.frameData());
+          });
+          return;
+        }
+        adapter.applyFullState(state.owners, state.tick);
+        uploadFrameData(view, adapter.frameData());
+      },
+      onDelta: (delta) => {
+        if (!view || !adapter) return; // full state still loading
+        adapter.applyDelta(delta.changes, delta.tick);
+        uploadFrameData(view, adapter.frameData());
+      },
+      onAck: (ack) => {
+        showNotice(
+          ack.accepted
+            ? `Order accepted for tick ${ack.tick}.`
+            : `Order refused: ${ack.reason}`,
+        );
+      },
+      onFatal: (message) => showFatal(message),
     },
-    onDelta: (delta) => {
-      if (!view || !adapter) return; // full state still loading
-      adapter.applyDelta(delta.changes, delta.tick);
-      uploadFrameData(view, adapter.frameData());
-    },
-    onFatal: (message) => showFatal(message),
-  });
-  void socket;
+  );
 }
 
 /**
@@ -124,6 +186,7 @@ export async function startWorldClient(
  */
 async function buildFrom(
   state: FullState,
+  onProvince: (province: number) => void,
 ): Promise<{ view: MapRenderer; adapter: FrameAdapter }> {
   const map = await loadWorldMap(state.map.id);
 
@@ -190,8 +253,20 @@ async function buildFrom(
     y: map.height / 2,
     zoom: 1,
   };
-  new CameraController(canvas, initialCamera, (x, y, z) =>
-    view.setCameraState(x, y, z),
+  new CameraController(
+    canvas,
+    initialCamera,
+    (x, y, z) => view.setCameraState(x, y, z),
+    (worldX, worldY) => {
+      // Tiles exist for rendering only and are never addressable by a player
+      // action (CLAUDE.md §8). This is the one place the projection runs in
+      // reverse, and it stops at the province.
+      const tx = Math.floor(worldX);
+      const ty = Math.floor(worldY);
+      if (tx < 0 || ty < 0 || tx >= map.width || ty >= map.height) return;
+      const province = grid.provinceOfTile[ty * map.width + tx];
+      if (province >= 0) onProvince(province);
+    },
   );
 
   return { view, adapter };

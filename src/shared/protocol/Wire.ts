@@ -24,7 +24,7 @@ import { z } from "zod";
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -32,6 +32,7 @@ export const CloseCode = {
   Malformed: 4002,
   UnknownWorld: 4003,
   NoHelloTimeout: 4004,
+  Unauthorised: 4005,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -42,20 +43,58 @@ export const ClientHelloSchema = z.object({
   t: z.literal("hello"),
   protocolVersion: z.number().int(),
   worldId: z.string().min(1),
+  /**
+   * Which nation this session acts for, or null to watch.
+   *
+   * Phase 1 takes this at face value: there are no accounts yet, so a
+   * connection claims a nation the way a local development client claims a
+   * port. Authentication belongs with the account tables, not here, and
+   * putting a placeholder token in the handshake now would only have to be
+   * removed again.
+   */
+  nation: z.number().int().positive().nullable(),
 });
 
 /**
- * Phase 0 has no commands. That is deliberate rather than an omission:
- * CLAUDE.md §7 requires every command to be validated against current world
- * state, and there is no world state to validate against yet. Inventing a
- * command type now means rewriting it in phase 1.
+ * Claim a province for the sending nation.
  *
- * The rule it would carry is already in force, though — the server treats any
- * message after `hello` as a protocol violation and closes the connection,
- * rather than ignoring it.
+ * The first command, and the ancestor of the attack orders in phase 9: it
+ * names a province, it is checked against the world the server actually holds
+ * (the province exists, it borders territory the nation owns, it is not
+ * already theirs), and it takes effect on a tick rather than on arrival.
+ *
+ * Note what is *not* here: no cost, no outcome, no resulting owner. CLAUDE.md
+ * §7 — never trust a client-supplied cost, position or outcome. Everything the
+ * server needs it computes itself.
  */
-export const ClientMessageSchema = ClientHelloSchema;
+export const ClaimProvinceSchema = z.object({
+  kind: z.literal("claim_province"),
+  provinceId: z.number().int().nonnegative(),
+});
+
+export const CommandBodySchema = z.discriminatedUnion("kind", [
+  ClaimProvinceSchema,
+]);
+export type CommandBody = z.infer<typeof CommandBodySchema>;
+
+/**
+ * `id` is chosen by the client and comes back on the ack. Without it a client
+ * that has two commands in flight cannot tell which one was refused, and
+ * "something was rejected" is not a message anyone can act on.
+ */
+export const ClientCommandSchema = z.object({
+  t: z.literal("command"),
+  id: z.string().min(1).max(64),
+  command: CommandBodySchema,
+});
+
+export const ClientMessageSchema = z.discriminatedUnion("t", [
+  ClientHelloSchema,
+  ClientCommandSchema,
+]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
+export type ClientHello = z.infer<typeof ClientHelloSchema>;
+export type ClientCommand = z.infer<typeof ClientCommandSchema>;
 
 // ---------------------------------------------------------------------------
 // Server -> client
@@ -95,7 +134,12 @@ export const ServerWelcomeSchema = z.object({
 
 export const ServerRejectSchema = z.object({
   t: z.literal("reject"),
-  reason: z.enum(["protocol-version", "unknown-world", "malformed"]),
+  reason: z.enum([
+    "protocol-version",
+    "unknown-world",
+    "malformed",
+    "unauthorised",
+  ]),
   detail: z.string(),
   serverProtocolVersion: z.number().int(),
 });
@@ -105,6 +149,8 @@ export const FullStateSchema = z.object({
   tick: z.number().int().nonnegative(),
   map: MapDescriptorSchema,
   nations: z.array(NationStaticSchema),
+  /** The nation this session acts for, as the server understood it. */
+  nation: z.number().int().positive().nullable(),
   /** Owner per province, indexed by province id. 0 is unowned. */
   owners: z.array(z.number().int().nonnegative()),
 });
@@ -120,7 +166,28 @@ export const DeltaSchema = z.object({
 });
 export type Delta = z.infer<typeof DeltaSchema>;
 
+/**
+ * The answer to exactly one command, matched by its `id`.
+ *
+ * Every command gets one, accepted or not. A command that is quietly dropped
+ * is the failure mode CLAUDE.md §7 is written against: the player sees nothing
+ * happen and has no way to tell a refused order from a lost packet.
+ *
+ * `tick` on an accepted command is the tick it will take effect on — always
+ * the next one, never this one. It is also the tick it was written to the log
+ * with, so a replay puts it back in the same place.
+ */
+export const ServerAckSchema = z.object({
+  t: z.literal("ack"),
+  id: z.string(),
+  accepted: z.boolean(),
+  tick: z.number().int().nonnegative().optional(),
+  reason: z.string().optional(),
+});
+export type ServerAck = z.infer<typeof ServerAckSchema>;
+
 export const ServerMessageSchema = z.discriminatedUnion("t", [
+  ServerAckSchema,
   ServerWelcomeSchema,
   ServerRejectSchema,
   FullStateSchema,
