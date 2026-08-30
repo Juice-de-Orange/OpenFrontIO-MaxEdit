@@ -169,6 +169,11 @@ export class HomepagePromos extends LitElement {
 
   public close(): void {
     this.adLoaded = false;
+    // ramp.js is not loaded in this fork (index.html carries no ad scripts),
+    // so there is nothing to destroy. Guarded like every other entry point in
+    // this file rather than relying on the catch below, which would log an
+    // error on every navigation away from the home page.
+    if (!window.ramp) return;
     try {
       // Destroy gutter rails; bottom_rail persists into spawn phase. Rails are
       // no-selector units, registered under pw-oop- ids (see destroyBottomRail).
@@ -290,6 +295,7 @@ export class HomepagePromos extends LitElement {
     this.cornerAdDestroyed = true;
     if (!this.cornerAdLoaded) return;
     this.cornerAdLoaded = false;
+    if (!window.ramp) return;
     try {
       window.ramp
         .destroyUnits("corner_ad_video")
