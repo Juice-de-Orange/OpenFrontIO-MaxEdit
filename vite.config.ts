@@ -246,7 +246,7 @@ export default defineConfig(({ mode }) => {
         : [
             createHtmlPlugin({
               minify: false,
-              entry: "/src/client/Main.ts",
+              entry: "/src/client/world/WorldClient.ts",
               template: "index.html",
               inject: {
                 data: {

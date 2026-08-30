@@ -138,6 +138,11 @@ export class MapRenderer {
 
   // ---- Camera ----
 
+  /** Current pan/zoom, or null before the GL context exists. */
+  getCameraState(): { x: number; y: number; zoom: number } | null {
+    return this.renderer?.getCameraState() ?? null;
+  }
+
   setCameraState(x: number, y: number, z: number): void {
     this.renderer?.setCameraState(x, y, z);
   }

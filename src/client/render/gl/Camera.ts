@@ -105,6 +105,18 @@ export class Camera {
   }
 
   /** Restore camera state, skipping the initial fitMap. */
+  /**
+   * Current pan/zoom, so a client-side controller can continue from the
+   * renderer's own initial fit rather than recomputing it.
+   *
+   * Worth reading rather than deriving: fitMap works in device pixels
+   * (cssWidth * dpr) and leaves a 10% margin, so a controller that measures
+   * clientWidth lands on a different zoom on any display with dpr != 1.
+   */
+  getCameraState(): { x: number; y: number; zoom: number } {
+    return { x: this.offsetX, y: this.offsetY, zoom: this.zoom };
+  }
+
   setCameraState(x: number, y: number, z: number): void {
     this.offsetX = x;
     this.offsetY = y;

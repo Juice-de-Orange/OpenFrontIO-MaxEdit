@@ -34,3 +34,17 @@ it named `CLAUDE.md` would have fed every future session a contradiction.
 
 Nothing here is updated. When a document becomes wrong _about upstream_ it
 simply means upstream moved on; this is a snapshot of the fork point.
+
+## `index.upstream.html`
+
+The page this fork inherited, kept as a reference rather than as a document.
+
+`index.html` was rewritten around the world client's entry point in phase 0.
+The old one is worth keeping because its body declares every custom element
+the upstream HUD mounts — the markup a screen has to reproduce when it comes
+back (the build queue in phase 3, the diplomacy panel in phase 7). Its head is
+already gone from history's point of view: the ad and analytics scripts were
+stripped in `ce7e9b71` before this copy was taken, so the accounts and the
+remote script loader are not in it.
+
+It is not built, not served, and not linked from anywhere.

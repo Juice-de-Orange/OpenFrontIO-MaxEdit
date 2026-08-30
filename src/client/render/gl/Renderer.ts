@@ -676,6 +676,10 @@ export class GPURenderer {
     this.camera.resize(cssWidth, cssHeight);
   }
 
+  getCameraState(): { x: number; y: number; zoom: number } {
+    return this.camera.getCameraState();
+  }
+
   setCameraState(x: number, y: number, z: number): void {
     this.camera.setCameraState(x, y, z);
   }

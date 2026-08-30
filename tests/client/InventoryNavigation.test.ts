@@ -1,6 +1,4 @@
-import fs from "fs";
 import type { LitElement } from "lit";
-import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../src/client/InventoryModal";
 import type { InventoryModal } from "../../src/client/InventoryModal";
@@ -53,16 +51,6 @@ describe("Inventory navigation", () => {
     expect(play.querySelector("cosmetics-input")).toBeNull();
     expect(play.querySelector("flag-input")).toBeNull();
     expect(play.querySelector("username-input")).toBeTruthy();
-  });
-
-  it("declares only the routed Inventory page in index.html", () => {
-    const source = fs.readFileSync(
-      path.join(process.cwd(), "index.html"),
-      "utf8",
-    );
-    expect(source).toContain('<inventory-modal\n          id="page-inventory"');
-    expect(source).not.toContain("<cosmetics-modal");
-    expect(source).not.toContain("<flag-input-modal");
   });
 
   it("routes an actual navigation click with the active tab and restores deep links", async () => {
