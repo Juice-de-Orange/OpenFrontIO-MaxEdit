@@ -13,16 +13,36 @@
  */
 
 import { colord } from "colord";
-import type {
-  StructuresEffectAttributes,
-  TrailEffectAttributes,
-} from "../../../../core/CosmeticSchemas";
 import { MAX_TRAIL_COLORS } from "./ColorUtils";
 
-/** Catalog attributes of every effect that renders through the effect palette. */
+/**
+ * Catalog attributes of every effect that renders through the effect palette.
+ *
+ * A structural copy of the zod-derived TrailEffectAttributes |
+ * StructuresEffectAttributes. The renderer discriminates on `type` and reads
+ * `colors` plus one or two scalars; the cosmetics catalog is *a* source of
+ * this shape, not its owner, and the world server has no catalog at all.
+ *
+ * Drift against the schemas is caught by the compiler rather than by
+ * discipline: WebGLFrameBuilder hands zod-typed catalog attributes straight
+ * to packEffectEntry, so a renamed or retyped field fails to build there. An
+ * added field stays assignable, which is correct — the renderer ignores it.
+ */
 export type PaletteEffectAttributes =
-  | TrailEffectAttributes
-  | StructuresEffectAttributes;
+  | {
+      type: "gradient";
+      colors: string[];
+      colorSize: number;
+      movementSpeed: number;
+    }
+  | { type: "transition"; colors: string[]; frequency: number }
+  | {
+      type: "spiral";
+      colors: string[];
+      radius: number;
+      strands: number;
+      rotationSpeed: number;
+    };
 
 /** Floats in one packed entry: MAX_TRAIL_COLORS rows × RGBA. */
 export const EFFECT_ENTRY_FLOATS = MAX_TRAIL_COLORS * 4;

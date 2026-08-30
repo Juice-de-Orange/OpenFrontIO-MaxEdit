@@ -749,10 +749,6 @@ async function createClientGame(
           .then(({ createDebugGui }) => {
             debugGui = createDebugGui(
               view.getSettings(),
-              {
-                setOverride: (effectType, attrs) =>
-                  webglBuilder.setEffectOverride(effectType, attrs),
-              },
               resolveRenderSettings,
               refreshDerivedGraphics,
             );

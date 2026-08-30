@@ -21,7 +21,6 @@ const RENDER_DIR = path.join(REPO_ROOT, "src", "client", "render");
 /** Module specifier -> number of import statements that still reach it. */
 const ALLOWED: Record<string, number> = {
   "src/core/AssetUrls": 10,
-  "src/core/CosmeticSchemas": 3,
   "src/core/configuration/Config": 10,
   "src/core/game/Game": 1,
   "src/core/game/GameUpdates": 1,
