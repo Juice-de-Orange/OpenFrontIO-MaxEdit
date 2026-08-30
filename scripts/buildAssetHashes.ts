@@ -97,15 +97,17 @@ async function main(): Promise<void> {
     `${JSON.stringify(hashes, null, 2)}\n`,
   );
 
-  const coreVersion = await hashSourceTree(path.join(root, "src", "core"));
-  await fs.writeFile(
-    path.join(staticDir, "core-version.txt"),
-    `${coreVersion}\n`,
-  );
-
-  console.log(
-    `asset-hashes.json: ${Object.keys(hashes).length} files; core ${coreVersion.slice(0, 12)}`,
-  );
+  // `core-version.txt` is not written any more. It hashed `src/core`, the
+  // lockstep simulation, for the desktop shell's update descriptor — and both
+  // ends of that are gone: `src/core` was deleted in phase 0 and
+  // `DesktopRelease.ts` with it, leaving `npm run build-prod` failing on a
+  // missing directory at its last step. The failure was invisible for a while
+  // because the step runs after vite, which had already printed a clean build.
+  //
+  // hashSourceTree stays: it is what the quarantined desktop shell would need
+  // if it is ever revived, and it carries the length-prefixing subtlety above
+  // that would be easy to reimplement wrongly.
+  console.log(`asset-hashes.json: ${Object.keys(hashes).length} files`);
 }
 
 // Only run as a script, never on import (the tests import the helpers above).
