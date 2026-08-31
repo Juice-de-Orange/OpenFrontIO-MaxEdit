@@ -181,7 +181,36 @@ FAIL (1) — stopped at the first failure, as intended
 ### Phase 4 — production and equipment
 
 ```
-<!--PHASE4-->
+phase-4 gate
+  world world-0 at tick 40317, 50 ms a tick
+  ok    a nation is sent its own economy; a spectator is not
+  playing nation 17: 43 provinces, 6 military factories, 5806/10824 manpower
+  clearing 2 production line(s) and 4 division(s) left by an earlier run
+  building an industry...
+  6 military factories
+  ok    line 6 makes rifles on 4 factories, line 7 makes guns on 2
+  ramping the line and filling the stockpile...
+  line 6: infantry_equipment on 4 factories at 97.9%, 0.892 a tick
+  line 7: artillery on 2 factories at 98.0%, 0.112 a tick
+  stockpile 475 rifles and 48 guns — 4 division(s) worth, at 52% sufficiency
+  ok    taking a factory off the line and putting it back left the ramp alone (97.9% -> never below 98.0%)
+  ok    the line climbed to 100.0% before anything was taken from it
+  ok    switching the line threw the ramp away: 100.0% -> 10.1% on tick 41602
+  ok    and the line makes fighters now, not rifles
+  12 border provinces, manpower for 6 divisions, equipment for 7; raising 6
+  control division 7 in province 156, well behind the line
+  ok    raised 5 divisions on the frontier, and one behind it as a control
+  letting them draw what there is, then watching the front...
+  ok    the front cost this nation equipment on 8 separate ticks, in steps too big to be supply attrition
+  ok    every one of those losses was a province changing hands under the division that took it — 0 were not
+  the control division behind the line lost equipment on 1 tick(s); the drift can walk the front onto it, which is why the check above is the attribution and not its silence
+  ok    division strength fell while it ground on: 4.341 -> 0.000 across 6 divisions
+  ok    and the rifles and guns it destroyed never came back — with nothing being produced the stockpile only ever fell (890 -> 0.0, 0 rises)
+  ok    and replacing what it destroyed cost 890 rifles and guns out of the warehouse — more than the 112 a whole division is made of
+  ok    getting back to 100.0% took 899 ticks — 37.5 in-game days of lost output
+  for reference, the line made 24.30 rifles a day before the switch
+  ok    the world stayed healthy throughout (0 ms behind at tick 42540)
+PASS
 ```
 
 Two halves, and §8 words them plainly: a sustained fight visibly drains a
@@ -203,8 +232,23 @@ percent for exactly that reason, and the constant says so.
 **And it was checked against itself being broken, three ways:**
 
 ```
-<!--PHASE4BREAK-->
+$ node scripts/phase4-gate.mjs --break=quiet
+  FAIL  no clash ever landed on a division, so nothing here was exercised
+
+$ node scripts/phase4-gate.mjs --break=reset
+  FAIL  switching the line threw the ramp away: 70.2% -> 70.2% on tick 46056
+
+$ node scripts/phase4-gate.mjs --break=drain
+  FAIL  no clash ever landed on a division, so nothing here was exercised
 ```
+
+**One of those three did not exercise what it is aimed at.** `--break=drain`
+freezes the stockpile reading, so the check that has to notice is "the fight
+spent the warehouse" — but on that run no clash landed on a division inside the
+budget, and the gate stopped at the earlier check instead. It failed, which is
+what a counter-proof has to do, but it failed for the same reason
+`--break=quiet` does. Run it again on a busier world to see it fail at the line
+it is actually for.
 
 `--break=quiet` is the strongest of the three: it puts nothing at all on the
 frontier, so no clash can land on a division, and the gate has to notice that
@@ -214,7 +258,18 @@ calling it a fight.
 ### Phase 3 — factories and construction
 
 ```
-<!--PHASE3-->
+  building military factories until the mines cannot keep up...
+  factory 1 in province 158 (demand 0.80, mined 0.83)
+  factory 2 in province 158 (demand 1.40, mined 0.74)
+  ok    2 more military factories now demand 1.40 steel a tick against 0.40 mined
+  waiting for the stockpile to run out...
+  ok    sufficiency fell to 28.4%
+  ok    industry kept running at 0.625 a tick rather than stopping
+  ok    and it ran at exactly the share of demand that was covered — 28.4% of 2.200
+  ok    the factories are still there and still asking for resources
+  ok    and construction was untouched — civilian factories draw nothing
+  ok    the world stayed healthy throughout (0 ms behind at tick 51284)
+PASS
 ```
 
 The last five lines are the gate; everything above them is the gate putting the
@@ -254,11 +309,36 @@ $ node scripts/phase2-gate.mjs --break=artefact
   FAIL  the world runs the artefact on disk: 5a8a6c17 === 5a8a6ce8   → exit 1
 ```
 
-**Phase 1's gate was not re-run against the final state.** It kills the world
-container and restarts it, so it goes last in any chain, and this session's
-chains were stopped before reaching it. It passed unchanged through phases 2
-and 3, and nothing since has touched the tick loop or the store — but that is
-an argument, not a run, and it is recorded here as one.
+And phase 1, which goes last in any chain because it kills the container:
+
+```
+phase-1 gate
+  world world-0 at tick 51287, last snapshot 51240
+  nation 22 holds the most provinces (42)
+  connected as nation 22 at tick 51287
+  claimed province 228 for tick 51289 (223 refused on the way, which is the rejection path)
+  waiting for a snapshot after that command...
+  snapshot at tick 51300
+  ok    the late claim (tick 51332) is after the snapshot (51300)
+  claimed province 224 for tick 51332
+  ok    saw the world at tick 51332
+  SIGKILL to the world container
+  the world came back, resuming at tick 51332
+  ok    resumed at the last durable tick: 51332 === 51332
+  ok    the tick did not restart from zero (51332)
+  ok    the restored world passed back through 5 tick(s) this client had seen
+  ok    every replayed tick hashes identically (51332, 51333, 51334, 51335, 51336)
+  ok    the late command is in the log: 51332:0:22:224
+  ok    the early command is still in the log: 51289:0:22:228
+  ok    the restored world reports healthy
+PASS
+```
+
+**Note what the restart does to the clock.** The gate brings the container back
+without `WORLD_TICK_MS`, so the world returns at its real five seconds a tick
+and every gate run after it refuses with instructions rather than hanging —
+which is the override working, but it means phase 1 goes *last* and the clock
+is put back by hand afterwards.
 
 The phase-1 hash line is the one that matters. The client tracks province
 ownership from the full state and the deltas and hashes it per tick with the

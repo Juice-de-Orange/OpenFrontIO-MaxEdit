@@ -313,27 +313,42 @@ async function createLine(player, equipment, idPrefix) {
  * every later sum is the truth rather than the plan.
  */
 async function assignUpTo(player, lineId, want, id) {
-  const yardTotal = player.economy.militaryFactoriesTotal;
-  const elsewhere = player.economy.productionLines
-    .filter((line) => line.id !== lineId)
-    .reduce((sum, line) => sum + line.factories, 0);
-  const possible = Math.max(0, Math.min(want, yardTotal - elsewhere));
-  if (possible === 0) return 0;
-  const ack = await player.command(
-    { kind: "assign_factories", lineId, factories: possible },
-    id,
-  );
-  if (!ack.accepted) {
-    log(`  assign_factories(${possible}) refused: ${ack.reason}`);
-    return 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const yardTotal = player.economy.militaryFactoriesTotal;
+    const elsewhere = player.economy.productionLines
+      .filter((line) => line.id !== lineId)
+      .reduce((sum, line) => sum + line.factories, 0);
+    const possible = Math.max(0, Math.min(want, yardTotal - elsewhere));
+    if (possible === 0) break;
+
+    const ack = await player.command(
+      { kind: "assign_factories", lineId, factories: possible },
+      `${id}-${attempt}`,
+    );
+    if (!ack.accepted) {
+      log(`  assign_factories(${possible}) refused: ${ack.reason}`);
+      want = possible - 1;
+      continue;
+    }
+    // An accepted command is not an applied one. World.ts revalidates at apply
+    // time and skips silently what no longer holds, so a province with a
+    // factory in it changing hands in the intervening tick leaves an "accepted"
+    // ack and a line with nothing on it. Believe the wire, and if the wire
+    // disagrees, ask for less rather than returning zero without a word — a
+    // production line that quietly never ran is the most expensive way for a
+    // gate to fail, because everything downstream then measures nothing.
+    const applied = await player.waitUntil(
+      (p) => (lineOf(p.economy, lineId)?.factories ?? -1) === possible,
+      `line ${lineId} to hold ${possible} factories`,
+      20_000,
+    );
+    if (applied) return possible;
+    log(
+      `  line ${lineId} did not take ${possible} factories; the nation now ` +
+        `holds ${player.economy.militaryFactoriesTotal}. Trying for fewer.`,
+    );
+    want = possible - 1;
   }
-  // An accepted command is not an applied one: World.ts revalidates at apply
-  // time and silently skips what no longer holds. Believe the wire, not the ack.
-  await player.waitUntil(
-    (p) => (lineOf(p.economy, lineId)?.factories ?? -1) === possible,
-    `line ${lineId} to hold ${possible} factories`,
-    20_000,
-  );
   return lineOf(player.economy, lineId)?.factories ?? 0;
 }
 
@@ -384,6 +399,15 @@ const SETUP_BUDGET_MS = 240_000;
 
 /** Equipment a division needs before attrition has anything to take from it. */
 const MIN_STRENGTH = 0.05;
+
+/**
+ * Ticks spent making artillery before the factories retool for rifles.
+ *
+ * A division wants 12 guns and 100 rifles, and a gun is four industrial points
+ * against a rifle's one — so guns are roughly a third of the work and get
+ * roughly a third of the time.
+ */
+const GUN_TICKS = 700;
 
 async function main() {
   let failures = 0;
@@ -492,12 +516,21 @@ async function main() {
   // thing that can differ between these divisions is how far out they are.
   const wanted = Math.min(4, sources * SUPPLY_SOURCE_THROUGHPUT);
   const near = ranked.slice(0, 1).map(([province]) => province);
+  // **On the source itself, not merely near it.** The first version of this
+  // counter-proof put everybody one hop out and passed: a hop is 86% supply,
+  // 86% is short, and short divisions waste away exactly as the gate says they
+  // do. A counter-proof has to remove the subject, not reduce it — so this one
+  // stands every division on a province that is zero hops from a source, where
+  // supply is 1 and there is nothing for the gate to find.
   const far =
     BREAK === "supplied"
-      ? ranked.slice(1, wanted).map(([province]) => province)
+      ? ranked
+          .filter(([, hops]) => hops === 0)
+          .slice(1, wanted)
+          .map(([province]) => province)
       : ranked.slice(-(wanted - 1)).map(([province]) => province);
   if (BREAK === "supplied") {
-    log("  --break=supplied: everybody stays next to a hub");
+    log("  --break=supplied: everybody stands on a source");
   }
 
   const raised = [];
@@ -579,16 +612,28 @@ async function main() {
   // warehouse reading 0.3 while the line had been running for 270 ticks and
   // the nation sat at sufficiency 1.0 with five thousand steel. The equipment
   // was not missing; it was already in the divisions.
-  const strengthOf = (id) =>
-    player.economy.divisions.find((d) => d.id === id)?.strength ?? 0;
-
-  await assignUpTo(player, guns, held, "on-guns");
+  // The guns phase runs for a fixed stretch of ticks rather than waiting for a
+  // signal, because there is no signal to wait for: `divisionStrength` is the
+  // **worst** ratio across the template (§6.3), so a division holding guns and
+  // no rifles still reads zero, and the stockpile stays near empty because the
+  // divisions draw the guns as fast as they are made. Neither number moves
+  // until both halves exist. So: make guns for a while, then make rifles, and
+  // let the strength check at the end say whether it worked.
+  const gunsFrom = player.tick;
+  const onGuns = await assignUpTo(player, guns, held, "on-guns");
+  // Asserted, not assumed. The first run of this shape spent six minutes
+  // equipping nothing because the artillery line silently held no factories,
+  // and every check after it was measuring an empty division.
+  check(
+    onGuns > 0,
+    `${onGuns} factor${onGuns === 1 ? "y" : "ies"} on artillery`,
+  );
   await player.waitUntil(
-    () => raised.every((id) => strengthOf(id) > 0),
-    "the divisions to draw their guns",
+    (p) => p.tick >= gunsFrom + GUN_TICKS,
+    `${GUN_TICKS} ticks of artillery`,
     SETUP_BUDGET_MS / 3,
   );
-  log(`  guns drawn; retooling for rifles`);
+  log(`  ${GUN_TICKS} ticks of guns made; retooling for rifles`);
 
   await player.command(
     { kind: "assign_factories", lineId: guns, factories: 0 },
@@ -599,7 +644,11 @@ async function main() {
     "the guns line to stand down",
     20_000,
   );
-  await assignUpTo(player, rifles, held, "on-rifles");
+  const onRifles = await assignUpTo(player, rifles, held, "on-rifles");
+  check(
+    onRifles > 0,
+    `${onRifles} factor${onRifles === 1 ? "y" : "ies"} on infantry equipment`,
+  );
 
   const equipped = await player.waitUntil(
     (p) =>
@@ -668,10 +717,7 @@ async function main() {
     bestNow !== undefined && worstNow !== undefined,
     "both divisions are still on the roster",
   );
-  log(
-    `  the front came within reach of one of them on ${disturbed} tick(s) of ` +
-      `the ${player.tick - (lastTick - (player.tick - lastTick))} watched`,
-  );
+  log(`  the front came within reach of one of them on ${disturbed} tick(s)`);
 
   const worstStrength =
     BREAK === "attrition" ? worstMax : (worstNow?.strength ?? 0);

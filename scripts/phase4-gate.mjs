@@ -443,27 +443,42 @@ async function sweep(player) {
  * every later sum is the truth rather than the plan.
  */
 async function assignUpTo(player, lineId, want, id) {
-  const yardTotal = player.economy.militaryFactoriesTotal;
-  const elsewhere = player.economy.productionLines
-    .filter((line) => line.id !== lineId)
-    .reduce((sum, line) => sum + line.factories, 0);
-  const possible = Math.max(0, Math.min(want, yardTotal - elsewhere));
-  if (possible === 0) return 0;
-  const ack = await player.command(
-    { kind: "assign_factories", lineId, factories: possible },
-    id,
-  );
-  if (!ack.accepted) {
-    log(`  assign_factories(${possible}) refused: ${ack.reason}`);
-    return 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const yardTotal = player.economy.militaryFactoriesTotal;
+    const elsewhere = player.economy.productionLines
+      .filter((line) => line.id !== lineId)
+      .reduce((sum, line) => sum + line.factories, 0);
+    const possible = Math.max(0, Math.min(want, yardTotal - elsewhere));
+    if (possible === 0) break;
+
+    const ack = await player.command(
+      { kind: "assign_factories", lineId, factories: possible },
+      `${id}-${attempt}`,
+    );
+    if (!ack.accepted) {
+      log(`  assign_factories(${possible}) refused: ${ack.reason}`);
+      want = possible - 1;
+      continue;
+    }
+    // An accepted command is not an applied one. World.ts revalidates at apply
+    // time and skips silently what no longer holds, so a province with a
+    // factory in it changing hands in the intervening tick leaves an "accepted"
+    // ack and a line with nothing on it. Believe the wire, and if the wire
+    // disagrees, ask for less rather than returning zero without a word — a
+    // production line that quietly never ran is the most expensive way for a
+    // gate to fail, because everything downstream then measures nothing.
+    const applied = await player.waitUntil(
+      (p) => (lineOf(p.economy, lineId)?.factories ?? -1) === possible,
+      `line ${lineId} to hold ${possible} factories`,
+      20_000,
+    );
+    if (applied) return possible;
+    log(
+      `  line ${lineId} did not take ${possible} factories; the nation now ` +
+        `holds ${player.economy.militaryFactoriesTotal}. Trying for fewer.`,
+    );
+    want = possible - 1;
   }
-  // An accepted command is not an applied one: World.ts revalidates at apply
-  // time and silently skips what no longer holds. Believe the wire, not the ack.
-  await player.waitUntil(
-    (p) => (lineOf(p.economy, lineId)?.factories ?? -1) === possible,
-    `line ${lineId} to hold ${possible} factories`,
-    20_000,
-  );
   return lineOf(player.economy, lineId)?.factories ?? 0;
 }
 
