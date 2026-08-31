@@ -14,12 +14,11 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 6 of 11 — supply. Read the table below before believing anything
-else in this file.** Phases 0 to 3 and phase 5 have their gates demonstrated
-against the code as it stands. **Phases 4 and 6 are built, tested, and their
-gates are written — but neither gate has been run to completion against the
-final state**, and by this project's own rule that means they are not passed.
-See "Where phases 4 and 6 stand" below.
+**Phase 6 of 11 — supply.** Phases 0 to 5 have their gates demonstrated
+against the code as it stands, counter-proofs and all. **Phase 6 is built,
+unit-tested, and its gate is written and does not yet pass** — for a reason
+that is understood, measured and small, and written out under "Where phase 6
+stands" below. By this project's own rule that means phase 6 is not passed.
 
 The world has an economy, an industry, an army and a supply line. Provinces
 extract from their deposits; civilian factories make construction points;
@@ -53,11 +52,11 @@ line.
 
 ## The whole plan, and how far along it is
 
-Five of twelve gates passed. **The gate is the unit of progress here, not the
+Six of twelve gates passed. **The gate is the unit of progress here, not the
 code:** a phase is done when its gate has been demonstrated, not when it
-compiles — and that rule is the reason phases 4 and 6 are marked amber below
-rather than green, even though every line of their simulation is written and
-unit-tested.
+compiles — and that rule is the only reason phase 6 is amber below rather than
+green, because every line of its simulation is written and unit-tested and its
+own counter-proof already fails where it should.
 
 | Phase                          | Gate                                                                                | State                                                              |
 | ------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -65,9 +64,9 @@ unit-tested.
 | 1 · World persistence          | Kill the container mid-run; it resumes at the correct tick with no lost commands    | ✅ passed                                                          |
 | 2 · Province graph             | A province changes hands, ownership propagates from tiles, the client renders it    | ✅ passed server-side; the rendering half is the morning checklist |
 | 3 · Factories and construction | Queue a factory, watch it build over ticks, see output rise; shortage degrades it   | ✅ passed                                                          |
-| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | 🟨 gate written and once green; not re-run against the final state |
+| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ✅ passed                                                          |
 | 5 · Research                   | A completed tech measurably changes a production or combat number                   | ✅ passed                                                          |
-| 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | 🟨 gate written; the half about the 50 ms budget passes as a test  |
+| 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | 🟨 the 50 ms half passes as a test; the gate is written, not green |
 | 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ⬜                                                                 |
 | 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ⬜                                                                 |
 | 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ⬜                                                                 |
@@ -101,8 +100,53 @@ Give a new world two minutes at 50 ms before running phase 4 or 6.
 ### Phase 6 — supply
 
 ```
-<!--PHASE6-->
+phase-6 gate
+  world world-0 at tick 55659, 50 ms a tick
+  ok    a nation is sent its own economy; a spectator is not
+  ok    the wire carries a supply figure per division
+  clearing 4 division(s) and 2 line(s) left by an earlier run
+  ok    the nation draws supply from 2 source(s)
+  playing nation 8: 26 of its own provinces connected to 2 capital(s), the furthest 7 hops out
+  ok    raised 3 divisions to compare
+  division 21 in province 63, 0 hops out, supply 100%
+  division 22 in province 61, 6 hops out, supply 0%
+  division 23 in province 66, 7 hops out, supply 0%
+  ok    the division at the end of the line is worse supplied than the one at home: 0% against 100%
+  giving them something to lose...
+  ok    3 factories on artillery
+  700 ticks of guns made; retooling for rifles
+  ok    2 factories on infantry equipment
+  FAIL  the divisions drew enough to have something to lose (0.0%)
+  watching the line stretch...
+  ok    both divisions are still on the roster
+  the front came within reach of one of them on 39 tick(s)
+  FAIL  the division at the end of the line came apart on its own: 0.0% at its best, 0.0% now
+  ok    and it is still short: 0% of what it needs is getting through
+  FAIL  with no enemy action at either division for the whole window (39 disturbed ticks)
+  ok    while the division at home has everything it asks for (100%)
+  ok    the world stayed healthy throughout (0 ms behind at tick 62936)
+FAIL (3)
 ```
+
+**Read what actually failed there, because it is not the simulation.** The
+supply model does exactly what §6.6 asks: 100% at the capital, 0% seven hops
+out. What the gate then cannot do is give the far divisions something to lose,
+and the reason is a real dynamic rather than a bug.
+
+A division draws `DIVISION_REINFORCE_RATE` of its *shortfall* per tick and
+loses `SUPPLY_ATTRITION × (1 − supply)` of its *holdings* per tick. At full
+supply those settle at full strength. At **zero** supply they settle at
+nothing: whatever it draws this tick is taken away again, so it never
+accumulates and there is nothing to watch decay. The gate picked its far
+provinces by distance and got two at 0%, and then measured a division that had
+never held anything.
+
+**The fix is a line or two and it has not been made:** pick the far division
+from provinces whose reported supply is strictly between 0 and 1 — say 20% to
+60% — where the equilibrium is a real, visibly falling strength. The third
+failure is unrelated and is the gate being honest: the front wandered onto
+those provinces on 39 ticks, so that window was not "without enemy action" and
+the gate refused to pretend otherwise.
 
 The load-bearing words in §8's sentence are **alone** and **without enemy
 action**. A division that got weaker while a war was going on has proved
@@ -120,8 +164,25 @@ all fifty-two nations and prints the figure.
 **And it was checked against itself being broken:**
 
 ```
-<!--PHASE6BREAK-->
+$ node scripts/phase6-gate.mjs --break=supplied
+  division 6 in province 342, 0 hops out, supply 100%
+  division 7 in province 476, 0 hops out, supply 100%
+  division 8 in province 480, 0 hops out, supply 100%
+  FAIL  the division at the end of the line is worse supplied than the one at home: 100% against 100%
+
+$ node scripts/phase6-gate.mjs --break=attrition
+  FAIL  the divisions drew enough to have something to lose (0.0%)
 ```
+
+The first is the one that matters and it took two attempts to get right. Its
+first version stood everybody *one hop* from a source and passed — a hop is 86%
+supply, 86% is short, and short divisions waste away exactly as the gate says
+they do. A counter-proof has to remove its subject, not reduce it, so it now
+stands every division *on* a source, where supply is 1 and there is nothing to
+find.
+
+The second stopped at the setup rather than at the check it is aimed at, for
+the same reason the gate itself does.
 
 ### Phase 5 — research
 
@@ -358,49 +419,28 @@ proven here; the pixels are the morning checklist.
 
 ---
 
-## Where phases 4 and 6 stand
+## Where phase 6 stands
 
-Everything below runs, is in the snapshot and in the state hash, and has unit
-tests. What neither has is a gate that has been **watched passing against the
-code as it stands now**. That is the whole difference between amber and green
-here, and it is not a formality: phase 4's gate went green earlier in the same
-session and then stopped being a valid claim the moment supply gave a division
-a second way to lose equipment.
-
-**Phase 4.** `scripts/phase4-gate.mjs` exists with three counter-proofs, and
-all three counter-proofs have been seen failing at exactly the line they are
-aimed at. The gate itself passed against the pre-supply, pre-materials world.
-Since then two things changed underneath it — a factory now draws the materials
-of what it makes, and an under-supplied division wastes away — and the gate has
-been reworked for both (it ignores strength falls too small to be a clash, and
-it waits for equipment it can actually build a division out of rather than for
-a stockpile total). **That reworked gate has not been watched through to PASS.**
-
-**Phase 6.** `scripts/phase6-gate.mjs` gets as far as demonstrating the thing
-§8 asks about — on the last run it put divisions 0, 6, 9 and 10 hops from the
-nearest source and the wire reported 100%, 32%, 0% and 0% supply — and then
-stalls in its own setup, because a division has to hold equipment before
-attrition can take any away and the nation it picked could not build any. The
-cause is understood and measured, not guessed: six factories on an artillery
-line draw 1.8 steel a tick, the nation's mines could not cover it, sufficiency
-sat near zero and the line turned out **0.7 guns in two thousand ticks**. That
-is invariant 2 working exactly as designed and a gate that cannot finish its
-own setup. The gate now scores candidate nations by the steel under their own
-provinces as well as by depth; that change has not been watched through.
-
-§8's other half for phase 6 — "full supply recompute stays under 50 ms on the
+The simulation is written, is in the snapshot and the state hash, and has nine
+unit tests. §8's second half — "full supply recompute stays under 50 ms on the
 largest map" — **is** demonstrated, as a unit test rather than a gate, because
 it is a statement about a function and not about a world.
 `tests/server/Supply.test.ts` times a full recompute for all fifty-two nations
 and prints the figure.
 
-**What to do first, then:** run the two gates and watch them. Nothing is known
-to be wrong with either; they have simply not been seen finishing.
+What is missing is one green run of `scripts/phase6-gate.mjs`, and the reason
+is written out with the gate output above. In one sentence: **a division at
+zero supply can never hold anything**, because it draws a fraction of its
+shortfall and loses a fraction of its holdings on the same tick, so the gate
+picked far provinces by distance, got two at 0%, and spent its budget waiting
+for equipment that could not accumulate. Pick the far division from provinces
+whose reported supply is between about 20% and 60% instead, where the
+equilibrium is a real and visibly falling strength, and the run should complete
+— **that last clause is an expectation, not a result; nobody has watched it.**
 
-```bash
-node scripts/phase6-gate.mjs
-node scripts/phase4-gate.mjs
-```
+The gate is otherwise sound: it chooses a nation deep and rich enough to use,
+it asserts its own factory assignments landed, it refuses a window the front
+wandered into, and `--break=supplied` fails at exactly the right line.
 
 ---
 
@@ -473,7 +513,11 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**Phase 7: diplomacy and trade.** It is the biggest single system left and the
+**Finish the phase-6 gate first** — it is one change to which provinces the
+gate stands its divisions in, it is described exactly under "Where phase 6
+stands", and it is the difference between six gates and seven.
+
+Then **phase 7: diplomacy and trade.** It is the biggest single system left and the
 one the design leans on hardest — §6.5 is where invariant 3 lives, and
 invariant 3 (*every commitment is indefinite, with a cost to break*) has no
 representation anywhere in the code yet.
