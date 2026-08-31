@@ -476,7 +476,7 @@ And what it took to get phase 6's gate green, none of which was the simulation:
 | ---------- | ------------------------------------------------------------------------------------------------------- |
 | `3f309ddc` | The gate waited on a stockpile that is a pass-through; it waits on division strength now                |
 | `f6f08866` | An `assign_factories` that was acked and never applied, and the silence after it                        |
-| `2a99c4ab` | **The band, both lines running together, and a shelter the front cannot reach** — see the section above |
+| `e7496a92` | **The band, both lines running together, and a shelter the front cannot reach** — see the section above |
 
 ---
 
