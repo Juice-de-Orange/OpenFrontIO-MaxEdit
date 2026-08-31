@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, test } from "vitest";
+import { combatSystem } from "../../src/server/systems/combat";
 import { World, type WorldCommand } from "../../src/server/world/World";
-import { atPeace } from "../../src/server/world/WorldState";
+import { atPeace, type WorldState } from "../../src/server/world/WorldState";
 import {
   AGREEMENT_NOTICE_TICKS,
   TRUST_COST,
   TRUST_START,
 } from "../../src/shared/config/diplomacy";
+import { CommandBodySchema } from "../../src/shared/protocol/Wire";
 import { mapFixture } from "../util/worldFixture";
 
 /**
@@ -150,6 +152,46 @@ describe("agreements", () => {
     expect(world.rejectionFor(claim) ?? "").not.toMatch(/cancel it first/);
   });
 
+  test("the world does not attack an ally on the player's behalf", () => {
+    const { attacker, defender } = neighbours(world);
+    send(world, {
+      nation: attacker,
+      body: {
+        kind: "propose_agreement",
+        to: defender,
+        type: "non_aggression",
+      },
+    });
+    send(world, {
+      nation: defender,
+      body: { kind: "accept_agreement", agreementId: agreementId(world) },
+    });
+
+    // The border drift is the only combat there is, and it used to take a
+    // province off a pact partner every time its sweep landed on their border
+    // — while refusing the player the same order. A promise the world breaks
+    // on your behalf is not worth the 75 trust it costs to break yourself.
+    // The system is asked directly, over two thousand ticks of its sweep, and
+    // its events are *not* applied — so the world stands still, the pact stays
+    // alive, and what is measured is the rule rather than the churn. (Stepping
+    // the world instead lasted ten ticks before the drift took somebody's
+    // capital and the dead-partner rule wrote the pact off, which is a
+    // different finding and is in the handover.)
+    const state = world.view() as WorldState;
+    let betrayals = 0;
+    let clashes = 0;
+    for (let tick = 1; tick <= 2000; tick++) {
+      for (const event of combatSystem.run(state, tick)) {
+        if (event.kind !== "control_changed") continue;
+        clashes++;
+        const pair = [state.provinceController[event.province], event.nation];
+        if (pair.includes(attacker) && pair.includes(defender)) betrayals++;
+      }
+    }
+    expect(clashes).toBeGreaterThan(100);
+    expect(betrayals, `in ${clashes} clashes the sweep chose`).toBe(0);
+  });
+
   test("cancelling costs exactly what the spec says, and only once", () => {
     send(world, {
       nation: 1,
@@ -267,6 +309,103 @@ describe("agreements", () => {
     } else {
       expect(standing).toBeUndefined();
     }
+  });
+
+  test("a trade in the other direction is a different agreement", () => {
+    const terms = {
+      resource: "steel" as const,
+      resourcePerTick: 0.5,
+      pointsPerTick: 0.25,
+    };
+    expect(
+      send(world, {
+        nation: 1,
+        body: { kind: "propose_agreement", to: 2, type: "trade", terms },
+      }),
+    ).toBeNull();
+    send(world, {
+      nation: 2,
+      body: { kind: "accept_agreement", agreementId: agreementId(world) },
+    });
+
+    // The same lane again is a duplicate and is refused.
+    expect(
+      world.rejectionFor({
+        nation: 1,
+        body: { kind: "propose_agreement", to: 2, type: "trade", terms },
+      }),
+    ).toMatch(/already have/);
+
+    // The other way round is not: `parties[0]` sends and `parties[1]` pays, so
+    // this is a different bargain. Two nations must be able to trade both
+    // ways rather than being pushed onto the market at four times the price.
+    expect(
+      world.rejectionFor({
+        nation: 2,
+        body: {
+          kind: "propose_agreement",
+          to: 1,
+          type: "trade",
+          terms: { ...terms, resource: "oil" },
+        },
+      }),
+    ).toBeNull();
+  });
+
+  test("offers from others cannot use up your own limit", () => {
+    // Twenty-four nations cannot be summoned on this fixture, so the shape is
+    // checked instead: what counts towards the limit is what this nation
+    // brought about, and a received offer is not that.
+    send(world, {
+      nation: 2,
+      body: { kind: "propose_agreement", to: 1, type: "alliance" },
+    });
+    send(world, {
+      nation: 3,
+      body: { kind: "propose_agreement", to: 1, type: "non_aggression" },
+    });
+    const mine = world
+      .view()
+      .agreements.filter(
+        (a) => a.parties.includes(1) && (a.accepted || a.parties[0] === 1),
+      );
+    expect(world.view().agreements).toHaveLength(2);
+    expect(mine).toHaveLength(0);
+    // And nation 1 can still make its own offer.
+    expect(
+      world.rejectionFor({
+        nation: 1,
+        body: { kind: "propose_agreement", to: 4, type: "military_access" },
+      }),
+    ).toBeNull();
+  });
+
+  test("a rate the world will not take is refused, never fatal", () => {
+    // These used to be schema failures, and a schema failure closes the socket
+    // with CloseCode.Malformed — which the client treats as terminal. A number
+    // the world dislikes is a game rule, and game rules are answered (§7).
+    for (const terms of [
+      { resource: "steel" as const, resourcePerTick: 0, pointsPerTick: 1 },
+      { resource: "steel" as const, resourcePerTick: 1, pointsPerTick: 0 },
+      { resource: "steel" as const, resourcePerTick: 999, pointsPerTick: 1 },
+      { resource: "steel" as const, resourcePerTick: 1, pointsPerTick: -3 },
+    ]) {
+      const body = {
+        kind: "propose_agreement" as const,
+        to: 2,
+        type: "trade" as const,
+        terms,
+      };
+      expect(CommandBodySchema.safeParse(body).success).toBe(true);
+      expect(world.rejectionFor({ nation: 1, body })).toMatch(/a day/);
+    }
+    const market = {
+      kind: "set_market_order" as const,
+      resource: "steel" as const,
+      perTick: 500,
+    };
+    expect(CommandBodySchema.safeParse(market).success).toBe(true);
+    expect(world.rejectionFor({ nation: 1, body: market })).toMatch(/a day/);
   });
 
   test("agreements, trust and market orders come back from a snapshot", () => {

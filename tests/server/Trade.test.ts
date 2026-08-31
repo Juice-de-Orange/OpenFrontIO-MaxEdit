@@ -14,6 +14,7 @@ import {
   MARKET_SELL_POINTS,
 } from "../../src/shared/config/diplomacy";
 import { RESOURCES } from "../../src/shared/config/provinces";
+import { RESOURCE_CAP } from "../../src/shared/config/rates";
 import { mapFixture } from "../util/worldFixture";
 
 /**
@@ -215,6 +216,72 @@ describe("standing trade agreements", () => {
     expect(paid).toBeLessThanOrEqual(
       measureNation(state, b).construction + 1e-9,
     );
+  });
+
+  test("a partner who cannot deliver does not ration the buyer's market order", () => {
+    const state = world.view() as WorldState;
+    agree(state, a, b, 2, 1);
+    // A has nothing to send and nothing coming: the agreement delivers zero.
+    state.nations[a].resources.steel = 0;
+    for (const province of state.map.provinces) {
+      if (state.provinceController[province.id] !== a) continue;
+      province.resourceDeposits.steel = 0;
+    }
+    applyEvent(state, {
+      kind: "market_order_set",
+      nation: b,
+      resource: "oil",
+      perTick: 0.1,
+    });
+
+    const flow = nationTrade(state, b);
+    // Nothing arrives from A, so nothing is paid to A — and the market order
+    // is filled out of the points that were never spent. Rationing B against
+    // a bill it will not be sent is what §6.5's fallback is there to avoid.
+    expect(flow.resourceIn.steel).toBe(0);
+    expect(flow.pointsOut).toBeCloseTo(0.1 * MARKET_BUY_POINTS.oil);
+    expect(flow.resourceIn.oil).toBeCloseTo(0.1);
+  });
+
+  test("a nation with no factories can still buy, out of what it sells", () => {
+    const state = world.view() as WorldState;
+    // No civilian factories anywhere: construction output is zero.
+    state.buildings.fill(0);
+    applyEvent(state, {
+      kind: "market_order_set",
+      nation: a,
+      resource: "steel",
+      perTick: -1,
+    });
+    applyEvent(state, {
+      kind: "market_order_set",
+      nation: a,
+      resource: "oil",
+      perTick: 0.1,
+    });
+
+    expect(measureNation(state, a).construction).toBe(0);
+    const flow = nationTrade(state, a);
+    // It sells a unit of steel for MARKET_SELL_POINTS and spends part of that
+    // on oil. Zero civilian factories is not a wall (invariant 2).
+    expect(flow.resourceOut.steel).toBeCloseTo(1);
+    expect(flow.pointsIn).toBeCloseTo(MARKET_SELL_POINTS.steel);
+    expect(flow.resourceIn.oil).toBeGreaterThan(0);
+    expect(flow.pointsOut).toBeGreaterThan(0);
+    expect(flow.pointsOut).toBeLessThanOrEqual(flow.pointsIn + 1e-9);
+  });
+
+  test("a buyer with a full warehouse is not billed for what is discarded", () => {
+    const state = world.view() as WorldState;
+    agree(state, a, b, 0.5, 0.25);
+    // B's steel is at the ceiling; the reducer would clamp anything arriving.
+    state.nations[b].resources.steel = RESOURCE_CAP;
+
+    const flow = nationTrade(state, b);
+    expect(flow.resourceIn.steel).toBe(0);
+    expect(flow.pointsOut).toBe(0);
+    // And the seller keeps what it did not send.
+    expect(nationTrade(state, a).resourceOut.steel).toBe(0);
   });
 
   test("a world full of agreements still costs a fraction of a tick", () => {

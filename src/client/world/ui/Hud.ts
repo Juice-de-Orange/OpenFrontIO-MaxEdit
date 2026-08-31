@@ -229,9 +229,21 @@ export class Hud {
     this.economyPanel.hidden = economy === null;
     if (economy === null) return;
 
+    // **What the queue actually gets**, not what the factories made. Since
+    // phase 7 the construction system spends `made - paid + earned`, and a
+    // panel showing the gross figure was quietly promising a build speed the
+    // world was not delivering — and the queue's own "days left" was computed
+    // from it, so an import that halved the rate left the estimate twice as
+    // optimistic with nothing on screen to explain it.
+    const netConstruction = constructionNet(economy);
+    const traded = economy.tradePointsIn - economy.tradePointsOut;
+
     this.economyPanel.replaceChildren(
       heading(t("economy.title")),
-      row(t("economy.construction"), perDay(economy.constructionPerTick)),
+      row(t("economy.construction"), perDay(netConstruction)),
+      ...(Math.abs(traded) > 1e-9
+        ? [row(t("economy.tradeShare"), perDay(traded))]
+        : []),
       row(t("economy.industry"), perDay(economy.industryPerTick)),
       row(t("economy.supplyRatio"), share(economy.sufficiency)),
       spacer(),
@@ -240,9 +252,14 @@ export class Hud {
           t(`economy.${resource}` as StringKey),
           // The stock, and what it is moving by. Invariant 1 again: a player
           // who watches any number should see it move, and a number that only
-          // shows the total hides the rate that explains it.
+          // shows the total hides the rate that explains it. Trade is part of
+          // that movement and used to be missing from it.
           `${amount(economy.resources[resource])}  ` +
-            `${perDay(economy.extractionPerTick[resource] - economy.demandPerTick[resource] * economy.sufficiency)}`,
+            `${perDay(
+              economy.extractionPerTick[resource] -
+                economy.demandPerTick[resource] * economy.sufficiency +
+                economy.tradeResourcePerTick[resource],
+            )}`,
         ),
       ),
     );
@@ -272,10 +289,7 @@ export class Hud {
       // Only the front item is being worked on, so only it has a finish date.
       const days =
         index === 0
-          ? daysRemaining(
-              spec.cost - order.progress,
-              economy.constructionPerTick,
-            )
+          ? daysRemaining(spec.cost - order.progress, constructionNet(economy))
           : Infinity;
       item.append(
         muted(
@@ -820,20 +834,21 @@ export class Hud {
       children.push(item);
     }
 
-    // What the market is actually moving for this nation, if anything.
+    // **Everything standing, not only the market.** `tradeResourcePerTick` is
+    // the net of every agreement *and* every market order, so filing it under
+    // "world market" named the wrong counterparty — a player reading it would
+    // have gone looking for a standing order that was really a treaty.
     const moving = RESOURCES.filter(
       (resource) =>
         Math.abs(model.economy?.tradeResourcePerTick[resource] ?? 0) > 1e-9,
     );
     if (moving.length > 0) {
-      children.push(spacer(), heading(t("diplomacy.market")));
+      children.push(spacer(), heading(t("diplomacy.flows")));
       for (const resource of moving) {
         children.push(
           row(
             t(`economy.${resource}` as StringKey),
-            t("diplomacy.netFlow", {
-              rate: perDay(model.economy.tradeResourcePerTick[resource]),
-            }),
+            perDay(model.economy.tradeResourcePerTick[resource]),
           ),
         );
       }
@@ -910,13 +925,18 @@ export class Hud {
       option.textContent = t(`economy.${resource}` as StringKey);
       give.append(option);
     }
+    // Per day, and starting at a trade somebody might actually offer rather
+    // than at zero: half a unit and a quarter of a construction point per
+    // tick, which is what the phase-7 gate trades.
     const rate = numberInput(
-      24 * 0.25,
+      TICKS_PER_DAY * 0.25,
       MAX_TRADE_RESOURCE_PER_TICK * TICKS_PER_DAY,
+      TICKS_PER_DAY * 0.5,
     );
     const price = numberInput(
-      24 * 0.25,
+      TICKS_PER_DAY * 0.25,
       MAX_TRADE_POINTS_PER_TICK * TICKS_PER_DAY,
+      TICKS_PER_DAY * 0.25,
     );
     const terms = document.createElement("div");
     terms.append(give, pair(rate, price));
@@ -935,11 +955,12 @@ export class Hud {
         type === "trade"
           ? {
               resource: give.value as Resource,
-              // Per day on the screen, per tick on the wire. The server
-              // enforces the same ceilings and its answer is the one that
-              // counts (§7).
-              resourcePerTick: Number(rate.value) / TICKS_PER_DAY,
-              pointsPerTick: Number(price.value) / TICKS_PER_DAY,
+              // Per day on the screen, per tick on the wire, and clamped on
+              // the way out. The server checks the same limits and its answer
+              // is the one that counts (§7) — this is about never handing it
+              // something it has to refuse.
+              resourcePerTick: clamped(rate) / TICKS_PER_DAY,
+              pointsPerTick: clamped(price) / TICKS_PER_DAY,
             }
           : null,
       );
@@ -979,13 +1000,14 @@ export class Hud {
     const marketRate = numberInput(
       -MAX_MARKET_PER_TICK * TICKS_PER_DAY,
       MAX_MARKET_PER_TICK * TICKS_PER_DAY,
+      0,
     );
     const marketButton = document.createElement("button");
     marketButton.textContent = t("diplomacy.setOrder");
     marketButton.addEventListener("click", () =>
       this.actions.setMarketOrder(
         marketResource.value as Resource,
-        Number(marketRate.value) / TICKS_PER_DAY,
+        clamped(marketRate) / TICKS_PER_DAY,
       ),
     );
     form.append(marketResource, marketRate, marketButton);
@@ -1005,14 +1027,37 @@ function termsLine(terms: TradeTermsView): string {
   });
 }
 
-function numberInput(min: number, max: number): HTMLInputElement {
+/**
+ * A number field that starts at something sendable.
+ *
+ * **`min` and `max` on an input are advisory** outside a form submit — nothing
+ * enforces them, and `Number("")` is 0. A field that starts at 0 and a server
+ * that treats an impossible rate as a protocol violation together threw the
+ * player out of the world for pressing Send without typing. The server answers
+ * such a rate with a refusal now, and this end does not produce one: it starts
+ * inside the range and `clamped` puts whatever was typed back into it.
+ */
+function numberInput(
+  min: number,
+  max: number,
+  start: number,
+): HTMLInputElement {
   const input = document.createElement("input");
   input.type = "number";
   input.min = String(min);
   input.max = String(max);
   input.step = "0.5";
-  input.value = "0";
+  input.value = String(start);
   return input;
+}
+
+/** What the field says, forced back between its own min and max. */
+function clamped(input: HTMLInputElement): number {
+  const typed = Number(input.value);
+  const min = Number(input.min);
+  const max = Number(input.max);
+  if (!Number.isFinite(typed)) return min;
+  return Math.min(max, Math.max(min, typed));
 }
 
 function pair(a: HTMLElement, b: HTMLElement): HTMLElement {
@@ -1020,6 +1065,24 @@ function pair(a: HTMLElement, b: HTMLElement): HTMLElement {
   element.className = "pair";
   element.append(a, b);
   return element;
+}
+
+/**
+ * Construction points the queue will actually be given this tick.
+ *
+ * The same arithmetic the server's `constructionAvailable` does: what the
+ * civilian factories made, less what trade and the market are taking, plus
+ * what exports earned. Duplicated here rather than sent, because the two
+ * halves it is made of are already on the wire and a third figure would be a
+ * third thing that can disagree.
+ */
+function constructionNet(economy: NationEconomyView): number {
+  return Math.max(
+    0,
+    economy.constructionPerTick -
+      economy.tradePointsOut +
+      economy.tradePointsIn,
+  );
 }
 
 function nationName(model: HudModel, nation: number): string {

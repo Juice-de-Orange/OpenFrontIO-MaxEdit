@@ -18,12 +18,7 @@
  */
 
 import { z } from "zod";
-import {
-  AGREEMENT_TYPES,
-  MAX_MARKET_PER_TICK,
-  MAX_TRADE_POINTS_PER_TICK,
-  MAX_TRADE_RESOURCE_PER_TICK,
-} from "../config/diplomacy";
+import { AGREEMENT_TYPES } from "../config/diplomacy";
 import { RESOURCES } from "../config/provinces";
 import { TECH_IDS } from "../config/techs";
 import { BUILDING_TYPES } from "../economy/Buildings";
@@ -204,9 +199,23 @@ export const CancelResearchSchema = z.object({
 export const TradeTermsSchema = z.object({
   /** What the proposer sends. */
   resource: z.enum(RESOURCES),
-  resourcePerTick: z.number().positive().max(MAX_TRADE_RESOURCE_PER_TICK),
+  /**
+   * Shape here, **limits in the world**.
+   *
+   * A rate of zero, or one past `MAX_TRADE_RESOURCE_PER_TICK`, used to be a
+   * schema failure — and a schema failure is a protocol violation, which
+   * closes the socket with `CloseCode.Malformed` and stops the client
+   * reconnecting. A player who offered a trade without filling both fields
+   * was thrown out of a running world for pressing a button the UI gave them.
+   *
+   * A number the world will not accept is a game rule, and this project
+   * answers game rules with an ack and a reason (§7). So the boundary checks
+   * that this is a finite number and `World.rejectionFor` checks that it is a
+   * *sensible* one.
+   */
+  resourcePerTick: z.number().finite(),
   /** Construction points the other side sends back. No second currency. */
-  pointsPerTick: z.number().positive().max(MAX_TRADE_POINTS_PER_TICK),
+  pointsPerTick: z.number().finite(),
 });
 export type TradeTermsView = z.infer<typeof TradeTermsSchema>;
 
@@ -260,7 +269,8 @@ export const CancelAgreementSchema = z.object({
 export const SetMarketOrderSchema = z.object({
   kind: z.literal("set_market_order"),
   resource: z.enum(RESOURCES),
-  perTick: z.number().min(-MAX_MARKET_PER_TICK).max(MAX_MARKET_PER_TICK),
+  /** Shape here, limits in the world — the same reasoning as `TradeTerms`. */
+  perTick: z.number().finite(),
 });
 
 /**

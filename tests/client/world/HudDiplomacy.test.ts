@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import {
   Hud,
   type HudActions,
@@ -6,9 +6,10 @@ import {
 } from "../../../src/client/world/ui/Hud";
 import { TRUST_COST } from "../../../src/shared/config/diplomacy";
 import { TICKS_PER_DAY } from "../../../src/shared/config/time";
-import type {
-  AgreementView,
-  NationEconomyView,
+import {
+  CommandBodySchema,
+  type AgreementView,
+  type NationEconomyView,
 } from "../../../src/shared/protocol/Wire";
 
 /**
@@ -194,6 +195,97 @@ describe("the diplomacy panel", () => {
     const after = panel().querySelectorAll("input[type=number]")[0];
     expect((after as HTMLInputElement).value).toBe("12");
     expect(after).toBe(rate);
+  });
+
+  test("the economy panel shows what the queue gets, not what the factories made", () => {
+    hud.update(
+      model({
+        economy: economy({
+          constructionPerTick: 2,
+          tradePointsIn: 0,
+          tradePointsOut: 1,
+          queue: [
+            {
+              id: 1,
+              provinceId: 3,
+              building: "civilian_factory",
+              progress: 0,
+            },
+          ],
+        }),
+      }),
+    );
+    const panelText =
+      document.getElementById("world-economy")?.textContent ?? "";
+    // One point a tick after paying for imports, so 24 a day and not 48.
+    expect(panelText).toContain(String(1 * TICKS_PER_DAY));
+    expect(panelText).not.toContain(String(2 * TICKS_PER_DAY));
+
+    // And the queue's estimate is built from the same figure: 360 points at
+    // 24 a day is 15 days, not the 8 the gross rate would have promised.
+    const queueText = document.getElementById("world-queue")?.textContent ?? "";
+    expect(queueText).toContain("15");
+  });
+
+  test("a trade offer sent with the form's own defaults is a valid command", () => {
+    hud.update(model());
+    // The type picker is the second select in the form, and "trade" is not
+    // its default — a player has to choose it, which is the whole of what
+    // this takes: choose it, and press send.
+    const selects = panel().querySelectorAll("select");
+    const what = selects[1] as HTMLSelectElement;
+    what.value = "trade";
+    what.dispatchEvent(new Event("change"));
+    const send = Array.from(panel().querySelectorAll("button")).find(
+      (b) => b.textContent === "Send the offer",
+    );
+    expect(send, "no send button in the proposal form").toBeDefined();
+    send?.click();
+    expect(calls.propose).toHaveBeenCalled();
+    const [to, type, terms] = (calls.propose as unknown as Mock).mock.calls[0];
+
+    // **The command has to pass the wire's own schema.** It is not validated
+    // on the way out (`encodeClient` is a `JSON.stringify`), and the server
+    // treats a schema failure as a protocol violation: it closes the socket
+    // with `CloseCode.Malformed`, and `WorldSocket` stops reconnecting on that
+    // code. A form whose defaults cannot be sent therefore throws the player
+    // out of a running world for pressing a button the UI offered them.
+    const parsed = CommandBodySchema.safeParse({
+      kind: "propose_agreement",
+      to,
+      type,
+      terms,
+    });
+    expect(
+      parsed.success,
+      `the form's own defaults do not survive the wire: ${JSON.stringify(
+        parsed.success ? {} : parsed.error.issues,
+      )}`,
+    ).toBe(true);
+  });
+
+  test("a rate typed past the ceiling is still a valid command", () => {
+    hud.update(model());
+    const what = panel().querySelectorAll("select")[1] as HTMLSelectElement;
+    what.value = "trade";
+    what.dispatchEvent(new Event("change"));
+    const inputs = panel().querySelectorAll("input[type=number]");
+    (inputs[0] as HTMLInputElement).value = "9999";
+    (inputs[1] as HTMLInputElement).value = "-5";
+    const send = Array.from(panel().querySelectorAll("button")).find(
+      (b) => b.textContent === "Send the offer",
+    );
+    send?.click();
+    const calls0 = (calls.propose as unknown as Mock).mock.calls[0];
+    const parsed = CommandBodySchema.safeParse({
+      kind: "propose_agreement",
+      to: calls0[0],
+      type: calls0[1],
+      terms: calls0[2],
+    });
+    // `min` and `max` on a number input are advisory outside a form submit.
+    // Whatever the player types, what leaves has to be sendable.
+    expect(parsed.success).toBe(true);
   });
 
   test("the nation picker keeps its selection and still shows fresh trust", () => {

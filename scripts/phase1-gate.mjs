@@ -283,6 +283,9 @@ async function claimSomething(watcher, idPrefix) {
 /** What this world is actually ticking at, read from /health on the way in. */
 let TICK_MS = 5000;
 
+/** SNAPSHOT_INTERVAL_TICKS in shared/config/time.ts. */
+const SNAPSHOT_TICKS = 60;
+
 async function compose(...args) {
   const { stdout, stderr } = await run("docker", ["compose", ...args], {
     maxBuffer: 8 * 1024 * 1024,
@@ -361,15 +364,31 @@ async function main() {
   // tick is ten ticks it will never see. A four-tick window is comfortable at
   // five seconds a tick and gone entirely at fifty milliseconds, and the
   // symptom is this gate reporting that nothing was replayed.
+  // **The kill has to land in a window, not after a fixed wait.**
+  //
+  // Decision 0005: a world resumes at its last durable record — the later of
+  // the newest snapshot and the newest command. For the replay check to have
+  // anything to compare, the world must then be some ticks *past* that record
+  // when it dies, and this client must have seen them.
+  //
+  // A fixed wait cannot promise that: a twenty-tick pause after the last
+  // command landed exactly on a snapshot boundary, the snapshot became the
+  // durable record, and the world came back at the very tick the client had
+  // last seen. So the wait is against the record itself, and the window ends
+  // before the next snapshot can move it again.
   const margin = Math.max(4, Math.min(20, Math.ceil(1000 / TICK_MS)));
-  await watcher.reaches(late.tick + margin, 60_000);
+  let beforeKill;
+  let durable;
+  const window = Math.max(margin + 10, SNAPSHOT_TICKS - 5);
+  for (;;) {
+    beforeKill = await waitForHealth();
+    durable = Math.max(beforeKill.lastSnapshotTick, late.tick);
+    const past = beforeKill.tick - durable;
+    if (past >= margin && past < window) break;
+    await sleep(100);
+  }
+  await watcher.reaches(durable + margin, 60_000);
   const seen = new Map(watcher.hashes);
-  // **Whichever is later.** Decision 0005: a world resumes at its last durable
-  // record, and a snapshot taken after the last command is one. Asserting the
-  // command tick alone made this gate fail on a world that had simply been
-  // left running long enough to snapshot — which is the design working.
-  const beforeKill = await waitForHealth();
-  const durable = Math.max(beforeKill.lastSnapshotTick, late.tick);
   const ownersAtLate = seen.has(late.tick);
   check(ownersAtLate, `saw the world at tick ${late.tick}`);
   watcher.close();

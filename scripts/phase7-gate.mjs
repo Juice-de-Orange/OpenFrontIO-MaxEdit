@@ -57,6 +57,9 @@ let TICK_MS = 50;
 const NOTICE_TICKS = 24;
 const TRUST_COST_TRADE = 5;
 
+/** RESOURCE_CAP in shared/config/rates.ts: the ceiling on one resource. */
+const RESOURCE_CAP = 5000;
+
 /** The terms this gate offers. Small enough for a nation on its first day. */
 const RESOURCE = "steel";
 const RESOURCE_PER_TICK = 0.5;
@@ -323,6 +326,18 @@ async function main() {
         refusals.add(
           `nation ${other.nation} does not make enough construction to pay`,
         );
+        continue;
+      }
+      // **And somewhere to put it.** A stockpile has a ceiling, and a flow
+      // into a full warehouse is scaled to nothing rather than paid for and
+      // discarded. A nation that has been mining a resource it does not use
+      // for a few hours sits at exactly that ceiling, so this is the ordinary
+      // case on an older world, not an edge.
+      if (
+        (partner.economy?.resources[RESOURCE] ?? 0) >
+        RESOURCE_CAP - 20 * RESOURCE_PER_TICK
+      ) {
+        refusals.add(`nation ${other.nation} has no room for more ${RESOURCE}`);
         continue;
       }
       const ack = await player.command(

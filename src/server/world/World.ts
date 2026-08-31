@@ -30,6 +30,9 @@ import fs from "fs/promises";
 import path from "path";
 import {
   AGREEMENT_TYPES,
+  MAX_MARKET_PER_TICK,
+  MAX_TRADE_POINTS_PER_TICK,
+  MAX_TRADE_RESOURCE_PER_TICK,
   TRUST_COST,
   TRUST_START,
 } from "src/shared/config/diplomacy";
@@ -47,6 +50,7 @@ import {
   TECHS,
   type TechId,
 } from "src/shared/config/techs";
+import { TICKS_PER_DAY } from "src/shared/config/time";
 import {
   buildingIndex,
   BUILDINGS,
@@ -197,6 +201,8 @@ export interface WorldSnapshot {
     manpower: number;
     productionLines: ProductionLine[];
     divisions: Division[];
+    /** Optional: a snapshot written before this was noticed has none. */
+    nextOrderId?: number;
     nextLineId: number;
     nextDivisionId: number;
     /** Optional: a snapshot taken before phase 5 has neither. */
@@ -508,6 +514,7 @@ export class World {
           ...division,
           equipment: [...division.equipment],
         })),
+        nextOrderId: nation.nextOrderId,
         nextLineId: nation.nextLineId,
         nextDivisionId: nation.nextDivisionId,
         researchSlots: nation.researchSlots.map((slot) => ({ ...slot })),
@@ -602,6 +609,19 @@ export class World {
         ...division,
         equipment: [...division.equipment],
       }));
+      // **The order counter was missing from the snapshot entirely.** A
+      // restored world started handing out order id 1 again while the queue
+      // it had just loaded still held one, so `cancel_construction` cancelled
+      // the wrong project — and a replayed command log assigned different ids
+      // from the run it was replaying, which is a divergence the state hash
+      // could not see because the counter was not in it either. The fallback
+      // is the best a snapshot from before this can offer.
+      live.nextOrderId =
+        stored.nextOrderId ??
+        stored.constructionQueue.reduce(
+          (next, order) => Math.max(next, order.id + 1),
+          1,
+        );
       live.nextLineId = stored.nextLineId;
       live.nextDivisionId = stored.nextDivisionId;
       // A world that was running before phase 5 has no research in its
@@ -680,6 +700,7 @@ export class World {
     for (const count of this.state.buildings) mix(count);
     for (const nation of this.state.nations) {
       for (const resource of RESOURCES) mixFloat(nation.resources[resource]);
+      mix(nation.nextOrderId);
       mix(nation.constructionQueue.length);
       for (const order of nation.constructionQueue) {
         mix(order.id);
@@ -937,8 +958,16 @@ export class World {
         if (other < 1 || other > this.nations.length) {
           return `no nation ${other} in this world`;
         }
-        if (this.agreementsOf(nation).length >= MAX_AGREEMENTS) {
-          return `you already have ${MAX_AGREEMENTS} agreements and offers`;
+        // **What this nation brought about, not what was sent to it.** The
+        // limit exists because an offer needs only one side to want it — so
+        // counting *received* offers against the receiver handed the weapon to
+        // the attacker: two dozen unanswered offers and a nation could not
+        // propose anything of its own until it had declined them one by one.
+        const own = this.agreementsOf(nation).filter(
+          (agreement) => agreement.accepted || agreement.parties[0] === nation,
+        );
+        if (own.length >= MAX_AGREEMENTS) {
+          return `you already have ${MAX_AGREEMENTS} agreements and offers of your own`;
         }
         // **Refused here rather than dissolved a tick later.** §6.5's
         // dead-partner rule takes an agreement whose partner has gone away,
@@ -947,12 +976,34 @@ export class World {
         // trade system on the same tick, which from the player's side is
         // indistinguishable from the order being lost (§7).
         if (isDeadPartner(this.state, other)) {
-          return `nobody has played nation ${other} for a fortnight, or it has lost its capital; an agreement with it would dissolve the tick it was made`;
+          return `nation ${other} is no longer being played, or has lost its capital; an agreement with it would dissolve the tick it was made`;
         }
 
         const terms = body.terms ?? null;
         if (body.type === "trade") {
           if (terms === null) return "a trade agreement needs terms";
+          // **Answered, not hung up on.** These used to live in the wire
+          // schema, where a rate of zero — what an untouched form sends — was
+          // a protocol violation and closed the socket for good. A rate the
+          // world will not take is a game rule like any other (§7).
+          if (
+            terms.resourcePerTick <= 0 ||
+            terms.resourcePerTick > MAX_TRADE_RESOURCE_PER_TICK
+          ) {
+            return (
+              `a trade has to move between 0 and ` +
+              `${MAX_TRADE_RESOURCE_PER_TICK * TICKS_PER_DAY} ${terms.resource} a day`
+            );
+          }
+          if (
+            terms.pointsPerTick <= 0 ||
+            terms.pointsPerTick > MAX_TRADE_POINTS_PER_TICK
+          ) {
+            return (
+              `a trade has to be paid between 0 and ` +
+              `${MAX_TRADE_POINTS_PER_TICK * TICKS_PER_DAY} construction a day`
+            );
+          }
           // **Land routes only, in phase 7.** §6.5 says a route that crosses
           // water consumes convoy equipment, and there are no convoys until
           // phase 9 — so a sea route would be free, which is the one thing it
@@ -969,12 +1020,31 @@ export class World {
         // second half is the same trap `queue_construction` paid for: two
         // proposals sent in the same five seconds are both validated against
         // a world where neither exists yet.
-        const standing = this.state.agreements.some(
-          (agreement) =>
-            agreement.type === body.type &&
-            agreement.parties.includes(nation) &&
-            agreement.parties.includes(other),
-        );
+        // **Direction and goods are part of a trade**, so only the same
+        // trade counts as a duplicate. `parties[0]` sends the resource and
+        // `parties[1]` pays, so blocking on the pair alone stopped B ever
+        // offering A anything once A had offered B something — two nations
+        // could run one lane between them and had to use the market, at four
+        // times the price, for the other. §6.5 asks for no such limit.
+        //
+        // An agreement under notice does not block a new one either: it is
+        // ending, and making the replacement wait for it would be a duration
+        // doing a job invariant 3 gives to the exit cost.
+        const standing = this.state.agreements.some((agreement) => {
+          if (agreement.type !== body.type) return false;
+          if (agreement.noticeAt !== null) return false;
+          if (body.type !== "trade") {
+            return (
+              agreement.parties.includes(nation) &&
+              agreement.parties.includes(other)
+            );
+          }
+          return (
+            agreement.parties[0] === nation &&
+            agreement.parties[1] === other &&
+            agreement.terms?.resource === terms?.resource
+          );
+        });
         if (standing) {
           return `you already have a ${body.type} agreement or offer with nation ${other}`;
         }
@@ -1004,6 +1074,11 @@ export class World {
           !this.landRoute(agreement.parties[0], agreement.parties[1])
         ) {
           return "the land route between you has been cut";
+        }
+        // The other side may have gone away since it offered. Accepting would
+        // create an agreement the trade system writes off on the same tick.
+        if (isDeadPartner(this.state, agreement.parties[0])) {
+          return `nation ${agreement.parties[0]} is no longer being played, or has lost its capital`;
         }
         return null;
       }
@@ -1043,10 +1118,18 @@ export class World {
       }
 
       case "set_market_order":
+        if (Math.abs(body.perTick) > MAX_MARKET_PER_TICK) {
+          return (
+            `the market takes orders up to ` +
+            `${MAX_MARKET_PER_TICK * TICKS_PER_DAY} a day in either direction`
+          );
+        }
+        // Beyond the size, nothing to check: the market needs no counterparty
+        // and creates no obligation (invariant 7).
+        return null;
+
       case "nation_present":
-        // Nothing to check that the schema has not already checked. The
-        // market needs no counterparty and creates no obligation (invariant
-        // 7), and a nation saying it is here is always true when it says it.
+        // A nation saying it is here is always true when it says it.
         return null;
 
       case "cancel_research": {

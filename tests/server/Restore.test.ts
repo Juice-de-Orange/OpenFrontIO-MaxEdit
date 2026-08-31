@@ -230,6 +230,60 @@ describe("restore", () => {
     expect(restored.stateHash()).toBe(hash);
   });
 
+  test("order ids keep counting after a restore instead of starting again", async () => {
+    const store = new MemoryStore();
+    const live = newWorld();
+    const runner = new WorldRunner({
+      world: live,
+      store,
+      worldId: WORLD_ID,
+      snapshotEvery: SNAPSHOT_EVERY,
+    });
+    await runner.restore();
+
+    const home = fixture.map.provinces.find(
+      (province) => province.capital && live.controllerOf(province.id) === 1,
+    );
+    expect(home).toBeDefined();
+    const queue = async () => {
+      const result = await runner.submit(1, {
+        kind: "queue_construction",
+        provinceId: home?.id ?? 0,
+        building: "civilian_factory",
+      });
+      expect(result.accepted).toBe(true);
+      await runner.tickOnce();
+    };
+
+    await queue();
+    while (live.currentTick() < SNAPSHOT_EVERY) await runner.tickOnce();
+    const ids = live.view().nations[1].constructionQueue.map((o) => o.id);
+    expect(ids).toEqual([1]);
+
+    const restored = newWorld();
+    const restoredRunner = new WorldRunner({
+      world: restored,
+      store,
+      worldId: WORLD_ID,
+      snapshotEvery: SNAPSHOT_EVERY,
+    });
+    await restoredRunner.restore();
+    await restoredRunner.submit(1, {
+      kind: "queue_construction",
+      provinceId: home?.id ?? 0,
+      building: "military_factory",
+    });
+    await restoredRunner.tickOnce();
+
+    // Two orders, two different ids. The counter used to be left out of the
+    // snapshot entirely, so a restored world handed out id 1 a second time —
+    // and `cancel_construction`, which names an order by id, then cancelled
+    // whichever of them `findIndex` reached first.
+    const after = restored.view().nations[1].constructionQueue.map((o) => o.id);
+    expect(after).toHaveLength(2);
+    expect(new Set(after).size).toBe(2);
+  });
+
   test("the restored world keeps ticking in step with the one it replaced", async () => {
     const store = new MemoryStore();
 

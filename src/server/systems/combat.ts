@@ -28,6 +28,7 @@ import {
 } from "src/shared/config/rates";
 import type { System } from ".";
 import {
+  atPeace,
   nationModifiers,
   type Division,
   type WorldEvent,
@@ -60,10 +61,18 @@ export const combatSystem: System = {
       if (state.provinceHeldSince[province] === tick) continue;
 
       const defender = state.provinceController[province];
+      // **A promise the world keeps too.** Since phase 7 a player is refused
+      // an attack on a nation they hold a non-aggression pact or an alliance
+      // with (§6.9) — and this sweep was still taking a province off an ally
+      // every time it landed on their border, destroying equipment on both
+      // sides. The whole of the trust mechanism balances on that promise being
+      // worth something; a world that breaks it on the player's behalf makes
+      // `TRUST_COST.non_aggression` a price for nothing.
       const from = state.map.provinces[province].neighbours.find(
         (neighbour) =>
           state.provinceController[neighbour] !== defender &&
-          state.provinceController[neighbour] !== 0,
+          state.provinceController[neighbour] !== 0 &&
+          !atPeace(state, state.provinceController[neighbour], defender),
       );
       if (from === undefined) continue;
 

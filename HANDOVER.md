@@ -691,6 +691,24 @@ it will not be. The alternative is a grace period, and a grace period is a
 duration, which is what invariant 3 exists to keep out — so this one needs
 thought rather than a constant.
 
+### Anybody may claim anybody's nation
+
+`hello` checks that the nation number exists and nothing else. No account, no
+token, and two sessions may hold the same nation at once — documented as a
+phase-1 deferral, and until phase 6 the worst it bought an impostor was
+somebody else's construction queue.
+
+Phase 7 raised the price. The impostor is now sent the **private terms** of
+that nation's treaties, which §7 says only the two parties may see, and may
+`cancel_agreement` in its name — which spends trust the nation can never earn
+back and stops a flow its real player was depending on. Nothing in the
+diplomacy system can defend against it, because from the server's side the
+impostor _is_ the nation.
+
+Accounts are the fix. They are their own piece of work and they are not on
+§8's phase list at all, which is itself worth deciding about before a world
+runs anywhere public.
+
 ### Changing the state hash makes a running world unstartable
 
 The world refuses to load a snapshot whose recorded hash does not match what
@@ -804,13 +822,14 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**533 passed, 8 skipped, in one run — no tolerated failures.** The eight
+**544 passed, 8 skipped, in one run — no tolerated failures.** The eight
 skipped are the Postgres integration tests, which run under `npm run test:db`
 against `docker compose up -d db`. **They are a suite that rots when nobody
 runs it**, so `npm run test:db` belongs in every phase's closing checks; it
 passed 8/8 at the end of phase 7.
 
-The count moved from 506 at the end of phase 6's build, from 472 at the end of phase
+The count moved from 533 at the end of phase 7's build (the phase-7 review
+added eleven more), from 506 at the end of phase 6's build, from 472 at the end of phase
 4's build, from 462 at the end of phase 3, from 437 at the end of phase 2 and
 from 412 at the end of phase 1.
 Roughly 300 test files test code that no longer exists and live in
@@ -834,6 +853,108 @@ not model, the worker chunk comes back and the bundle jumps.
 ## Traps already paid for
 
 Things that cost time to find. Do not rediscover them.
+
+### What the phase-7 review found
+
+The gates were green and the tests passed, and then a multi-dimension review
+over the diff found seventeen things anyway. Eleven were worth fixing and are
+fixed; the interesting part is what kind of thing they were, because none of
+them was the sort of bug a test suite written by the same person would have
+caught.
+
+**The worst one was in the UI and it threw the player out of the world.** The
+diplomacy form's number fields started at 0. A rate of 0 fails
+`TradeTermsSchema`, a schema failure is a _protocol_ violation, the server
+closes the socket with `CloseCode.Malformed`, and `WorldSocket` treats that
+code as terminal and never reconnects. So: open the panel, choose "trade",
+press Send without typing — and you are out of the running world until you
+reload the page, for pressing a button the interface offered you. Fixed at
+both ends, and the second end is the one that matters: **the limits moved out
+of the wire schema and into `World.rejectionFor`**, so a rate the world will
+not take is now an ack with a reason. The wire checks shape; the world checks
+rules (§7). Any future client bug in that class is now a refusal instead of a
+disconnection.
+
+_(The review reported this as firing on the untouched form. It does not —
+"trade" is not the default agreement type, so the untouched form sends a
+non-aggression pact with no terms at all. One click deeper, and real. Worth
+knowing that the finding as written was slightly wrong and the bug was not.)_
+
+**Two more that were real and older than phase 7:**
+
+- **`nextOrderId` was never in the snapshot.** A restored world started
+  handing out construction-order id 1 again while the queue it had just loaded
+  still held one — so `cancel_construction`, which names an order by id,
+  cancelled whichever the search reached first. And a replayed command log
+  assigned different ids from the run it replayed, which is a divergence the
+  state hash could not see, because the counter was not in the hash either.
+  Phase 3 wrote it; phase 7 asked exactly this question about
+  `nextAgreementId` and got it right, which is how the omission showed up.
+- **The border drift ignored non-aggression pacts and alliances.** Phase 7
+  refuses the _player_ an attack on a partner (§6.9) while the world went on
+  taking a province off that same partner every time the sweep landed on their
+  border. A promise the world breaks on your behalf is not worth the 75 trust
+  it costs to break yourself.
+
+**And four in the trade arithmetic**, all of them the same shape — a number
+that was right on its own and wrong in company:
+
+- A partner who could not deliver still had its full bill counted against the
+  buyer's points, which rationed the buyer's _world-market_ order — in exactly
+  the situation §6.5 introduced the market for.
+- Points _income_ was not counted towards what a nation could pay, so a nation
+  with no civilian factories could not buy anything however much it sold. A
+  hard block, which is what invariant 2 forbids.
+- A buyer at `RESOURCE_CAP` paid in full for deliveries the reducer clamped
+  away, every tick, for as long as the agreement stood — and agreements are
+  indefinite, so that state is one the design walks into rather than an
+  accident. Flows scale to the room on the shelf now.
+- Only one trade agreement per pair of nations was possible, in one direction,
+  because the duplicate check compared the parties as a set. Two nations who
+  wanted to swap steel for oil had to use the market at four times the price.
+
+**Plus:** received offers counted against the _receiver's_ agreement limit, so
+two dozen unanswered offers could lock a nation out of proposing anything of
+its own; `accept_agreement` did not re-check the dead-partner rule; the economy
+panel showed gross construction while the queue spent the net figure, making
+its "days left" wrong by exactly the trade balance; and the diplomacy panel
+filed every standing flow under "world market".
+
+**Three gates had to be repaired to prove the fixes**, and each was measuring
+its own luck rather than the world:
+
+- **Phase 3 chose the largest nation**, which on a _young_ world is also the
+  one sitting on the most mines — sixteen factories against 2.87 steel a tick
+  mined, and a cap of twenty that could never have closed the gap. It picks
+  within a band now: enough deposits that a shortage is a fraction rather than
+  a wall, few enough that twenty factories can outrun them. The first attempt
+  overshot into a nation with _no_ steel at all, where sufficiency is zero and
+  the check that output ran "at the share of demand covered" divided by
+  nothing — which is the other end of the same band.
+- **Phase 3 also sampled progress instead of reading it.** Its wait loop polled
+  every 100 ms on a world ticking every 50, so it saw about half the ticks, and
+  a rich nation finished the factory inside twenty _samples_. It walks the tick
+  history the client already keeps now: 126 ticks observed where it used to
+  scrape 17.
+- **Phase 1's kill landed on a snapshot boundary.** It waited a fixed twenty
+  ticks after its last command, the snapshot at that exact tick became the
+  durable record, and the world came back at the very tick the client had last
+  seen — nothing to replay. It now waits until the world is between `margin`
+  and one snapshot interval past _the record itself_, and kills inside that
+  window.
+- **Phase 7 offered a trade to a nation whose warehouse was full.** Since the
+  cap fix that moves nothing, correctly, so the gate now checks the buyer has
+  room before choosing it — on a world a few hours old, a resource nobody
+  consumes is sitting at `RESOURCE_CAP`, which makes this the ordinary case
+  rather than an edge.
+
+**One finding is not fixed, and it needs a decision rather than a patch:** a
+session may claim _any_ nation in its `hello`. There is no account, no token,
+and two sessions may hold the same nation. That has been true and documented
+since phase 1, but phase 7 changes what it is worth: an impostor now reads the
+private terms of that nation's treaties (§7 says only the two parties may) and
+can cancel its agreements, which spends trust that nation can never earn back.
+Accounts are the fix and they are their own piece of work.
 
 ### From phase 7
 

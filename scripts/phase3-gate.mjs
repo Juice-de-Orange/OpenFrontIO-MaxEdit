@@ -187,6 +187,22 @@ const MAX_MILITARY_FACTORIES = 20;
 const BUILD_UP_BUDGET_MS = 180_000;
 
 /**
+ * The band of steel deposits a shortage can be demonstrated in.
+ *
+ * A deposit yields `EXTRACTION_PER_DEPOSIT` (0.05) a tick before
+ * infrastructure, and a military factory asks 0.2. Below the floor a nation
+ * has nothing to be short *of* — sufficiency is zero, output is zero, and
+ * "degrades proportionally" has no proportion in it. Above the ceiling
+ * twenty factories cannot reach `SHORTAGE_TARGET` times the extraction, which
+ * is the other way this gate fails to find anything to measure.
+ */
+const MIN_STEEL_DEPOSITS = 6;
+const MAX_STEEL_DEPOSITS = 24;
+
+/** And enough ground to put twenty factories on. */
+const MIN_PROVINCES = 6;
+
+/**
  * Put a building somewhere this nation can actually build it.
  *
  * The rules — held and owned, a free slot, coastal where required — are the
@@ -240,21 +256,73 @@ const MILITARY_FACTORY = 1;
  */
 const PER_BUILDING_TIMEOUT_MS = 45_000;
 
-function largestNation(controllers) {
+/**
+ * A nation whose mines this gate can actually outbuild.
+ *
+ * **Not simply the largest.** The shortage this gate exists to demonstrate is
+ * reached by putting `SHORTAGE_TARGET` times a nation's extraction into
+ * military factories, and the largest nation on a young world is also the one
+ * with the most deposits — measured, on a world four minutes old: sixteen
+ * factories demanded 2.20 steel a tick against 2.87 mined, and the cap of
+ * twenty could not have closed the gap. On an older world the two decouple,
+ * because territory changes hands and mines do not follow the border, which is
+ * why this only ever failed on a fresh world.
+ *
+ * So: room to build, and steel in the ground **within a band**. Both ends of
+ * that band matter, and the second was learned the hard way — the first
+ * version of this maximised provinces-per-deposit and picked a nation with no
+ * steel at all, where sufficiency is zero, industry is zero, and the check
+ * that output ran "at the share of demand covered" divided by nothing. A
+ * shortage the gate can measure is a fraction, not a wall; a nation with no
+ * mines has the wall.
+ *
+ * The deposits are read from the map artefact both sides load (decision 0006),
+ * which is reading the map rather than reimplementing the server.
+ */
+function buildableNation(controllers, deposits) {
   const held = new Map();
-  for (const nation of controllers) {
+  const steel = new Map();
+  for (let province = 0; province < controllers.length; province++) {
+    const nation = controllers[province];
     if (nation === 0) continue;
     held.set(nation, (held.get(nation) ?? 0) + 1);
+    steel.set(nation, (steel.get(nation) ?? 0) + (deposits.get(province) ?? 0));
   }
   let best = 0;
   let bestCount = 0;
   for (const [nation, count] of held) {
+    // Too small to hold twenty factories at all is no use either: a handful
+    // of provinces runs out of building slots before it runs out of mines.
+    if (count < MIN_PROVINCES) continue;
+    const mines = steel.get(nation) ?? 0;
+    if (mines < MIN_STEEL_DEPOSITS || mines > MAX_STEEL_DEPOSITS) continue;
+    // Within the band, the biggest: the most slots to put factories in.
     if (count > bestCount) {
       best = nation;
       bestCount = count;
     }
   }
   return best;
+}
+
+/** Steel in the ground per province, from the artefact both sides load. */
+async function steelDeposits(mapId) {
+  const { readFile } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const url = await import("node:url");
+  const repo = path.dirname(path.dirname(url.fileURLToPath(import.meta.url)));
+  const meta = JSON.parse(
+    await readFile(
+      path.join(repo, "resources", "maps", mapId, "provinces.json"),
+      "utf-8",
+    ),
+  );
+  return new Map(
+    meta.provinces.map((province) => [
+      province.id,
+      province.resourceDeposits?.steel ?? 0,
+    ]),
+  );
 }
 
 async function main() {
@@ -296,8 +364,24 @@ async function main() {
 
   const spectator = new Player(null);
   await spectator.ready;
-  const nation = largestNation(spectator.controllers);
+  const nation = buildableNation(
+    spectator.controllers,
+    await steelDeposits(spectator.map.id),
+  );
   spectator.close();
+  if (nation === 0) {
+    log("");
+    log(`  No nation on this world holds ${MIN_PROVINCES} provinces with`);
+    log(
+      `  between ${MIN_STEEL_DEPOSITS} and ${MAX_STEEL_DEPOSITS} steel deposits under them —`,
+    );
+    log(
+      "  too little to be short of, or too much to outbuild. That is a world",
+    );
+    log("  this gate cannot use, not a finding; let it run on and try again.");
+    log("");
+    process.exit(2);
+  }
 
   const player = new Player(nation);
   await player.ready;
@@ -343,28 +427,41 @@ async function main() {
     (p) => p.economy.queue.length > 0,
     "the queue to appear",
   );
+  const orderId = player.economy.queue[0].id;
+  const watchFrom = player.tick;
+  await player
+    .waitFor(
+      (p) => p.economy.queue.every((order) => order.id !== orderId),
+      "the factory to finish",
+    )
+    .catch((e) => {
+      if (player.economy.queue.some((order) => order.id === orderId)) throw e;
+    });
+
+  // **Read off the history, not sampled while waiting.** The wire carries an
+  // economy every tick and the client keeps all of them; the wait loop polls
+  // every hundred milliseconds, so on a fifty-millisecond world it saw about
+  // half of them. A nation with a big enough industry then finished the
+  // factory inside twenty *samples* and this check failed on a rate that was
+  // perfectly steady — the sampling was the only thing that was coarse.
   let previous = -1;
   let ticksSeen = 0;
   let regressions = 0;
   let jumps = 0;
-
-  await player
-    .waitFor((p) => {
-      const order = p.economy.queue[0];
-      if (order === undefined) return true; // finished
-      if (order.progress === previous) return false;
-      ticksSeen++;
-      if (previous >= 0) {
-        if (order.progress < previous) regressions++;
-        // Nothing arrives in a lump: one tick can never be a tenth of a project.
-        if (order.progress - previous > cost / 10) jumps++;
-      }
-      previous = order.progress;
-      return false;
-    }, "the factory to finish")
-    .catch((e) => {
-      if (player.economy.queue.length > 0) throw e;
-    });
+  for (let tick = watchFrom; tick <= player.tick; tick++) {
+    const economy = player.history.get(tick);
+    if (economy === undefined) continue;
+    const order = economy.queue.find((candidate) => candidate.id === orderId);
+    if (order === undefined) break; // finished on this tick
+    if (order.progress === previous) continue;
+    ticksSeen++;
+    if (previous >= 0) {
+      if (order.progress < previous) regressions++;
+      // Nothing arrives in a lump: one tick can never be a tenth of a project.
+      if (order.progress - previous > cost / 10) jumps++;
+    }
+    previous = order.progress;
+  }
 
   check(
     ticksSeen > 20,
@@ -499,10 +596,28 @@ async function main() {
       }
     }
   }
+  const outgrown =
+    player.economy.demandPerTick.steel > player.economy.extractionPerTick.steel;
+  if (!skipBuildUp && !outgrown) {
+    // The gate could not build a shortage, so it has nothing to measure. That
+    // is a world it cannot use — a young one, where every nation still sits on
+    // all of its own mines — and saying so is worth more than failing a check
+    // about a rule that was never exercised.
+    log("");
+    log(
+      `  ${built} factories demand ` +
+        `${player.economy.demandPerTick.steel.toFixed(2)} steel a tick against ` +
+        `${player.economy.extractionPerTick.steel.toFixed(2)} mined, and the`,
+    );
+    log("  cap is twenty. Nation " + nation + " cannot be pushed into a");
+    log("  shortage, so the degradation rule cannot be shown on it. Let the");
+    log("  world run on — mines stop following the border as it moves — and");
+    log("  try again.");
+    log("");
+    process.exit(2);
+  }
   check(
-    skipBuildUp ||
-      player.economy.demandPerTick.steel >
-        player.economy.extractionPerTick.steel,
+    skipBuildUp || outgrown,
     `${built} more military factories now demand ` +
       `${player.economy.demandPerTick.steel.toFixed(2)} steel a tick against ` +
       `${player.economy.extractionPerTick.steel.toFixed(2)} mined`,

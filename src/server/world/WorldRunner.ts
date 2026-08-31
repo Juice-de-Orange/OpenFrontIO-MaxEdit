@@ -90,10 +90,20 @@ export class WorldRunner {
     if (snapshot !== null) {
       this.world.restoreFrom(snapshot.state);
       if (this.world.stateHash() !== snapshot.stateHash) {
+        // **Usually the code, not the data.** `stateHash` mixes every field
+        // the simulation owns, so adding one to the world changes what every
+        // existing snapshot hashes to — and the honest reading of a mismatch
+        // is "this world was written by a different build", not "your
+        // database is corrupt". Saying the second sent someone looking at
+        // Postgres for an afternoon. There is no migration for it: a world
+        // whose state shape changed under it is started fresh.
         throw new Error(
-          `snapshot at tick ${snapshot.tick} does not hash to what was ` +
-            `recorded with it (${this.world.stateHash().toString(16)} vs ` +
-            `${snapshot.stateHash.toString(16)}); the stored state is damaged`,
+          `snapshot at tick ${snapshot.tick} hashes to ` +
+            `${snapshot.stateHash.toString(16)} but this build computes ` +
+            `${this.world.stateHash().toString(16)}. Either the world state ` +
+            `gained a field since it was written — in which case this world ` +
+            `cannot be resumed by this build and needs to be started fresh ` +
+            `(docker compose down -v) — or the stored state really is damaged.`,
         );
       }
       this.lastSnapshotTick = snapshot.tick;

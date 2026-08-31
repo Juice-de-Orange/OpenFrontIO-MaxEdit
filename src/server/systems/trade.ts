@@ -42,6 +42,7 @@ import {
 } from "src/shared/config/diplomacy";
 import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
+import { RESOURCE_CAP } from "src/shared/config/rates";
 import type { System } from ".";
 import {
   agreementIsLive,
@@ -139,6 +140,36 @@ function constructionOf(
  * Everything it owes, before asking whether it can pay: partners it buys from,
  * and standing orders with the market.
  */
+/**
+ * What one agreement actually ships this tick, before anyone pays for it.
+ *
+ * Only the seller's side: how much of the promised resource is really there.
+ * It is the first of three passes, and the only one that depends on nothing
+ * but the world — which is what keeps the whole calculation free of a fixpoint.
+ */
+function deliveryScale(
+  state: WorldState,
+  agreement: Agreement,
+  context: TradeContext,
+): number {
+  if (agreement.terms === null) return 0;
+  return resourceShare(
+    state,
+    agreement.parties[0],
+    agreement.terms.resource,
+    context,
+  );
+}
+
+/**
+ * Construction points this nation owes this tick — **for what it is getting**.
+ *
+ * Scaled by what the seller can actually deliver, not by the rate on paper.
+ * Counting the paper rate made a partner's shortfall into the buyer's problem
+ * twice over: the buyer received less *and* its remaining points were rationed
+ * against a bill it was never going to be sent, which quietly under-filled its
+ * world-market order — in exactly the situation §6.5 built the market for.
+ */
 function pointsOwed(
   state: WorldState,
   nation: number,
@@ -147,13 +178,52 @@ function pointsOwed(
   let owed = 0;
   for (const agreement of context.live) {
     if (agreement.parties[1] !== nation) continue;
-    owed += agreement.terms?.pointsPerTick ?? 0;
+    owed +=
+      (agreement.terms?.pointsPerTick ?? 0) *
+      deliveryScale(state, agreement, context);
   }
   for (const resource of RESOURCES) {
     const order = state.nations[nation].market[resource];
     if (order > 0) owed += order * MARKET_BUY_POINTS[resource];
   }
   return owed;
+}
+
+/**
+ * Construction points coming *in*: what this nation's exports have earned.
+ *
+ * Counted against what it owes, because points are a flow and a nation that
+ * sells steel for points can obviously spend them. Leaving this out made a
+ * nation with no civilian factories unable to buy anything at all, however
+ * much it was selling — a hard block, which is what invariant 2 forbids.
+ *
+ * Measured before the payers' own shortfalls are known, so it is what this
+ * nation is *owed* rather than what it will be handed. A payer that cannot
+ * cover its bill leaves the seller a shade over-committed for one tick;
+ * `constructionAvailable` floors at zero and nothing can go negative.
+ */
+function pointsIncome(
+  state: WorldState,
+  nation: number,
+  context: TradeContext,
+): number {
+  let income = 0;
+  for (const agreement of context.live) {
+    if (agreement.parties[0] !== nation) continue;
+    income +=
+      (agreement.terms?.pointsPerTick ?? 0) *
+      deliveryScale(state, agreement, context);
+  }
+  for (const resource of RESOURCES) {
+    const order = state.nations[nation].market[resource];
+    if (order < 0) {
+      income +=
+        -order *
+        resourceShare(state, nation, resource, context) *
+        MARKET_SELL_POINTS[resource];
+    }
+  }
+  return income;
 }
 
 /** The same for one resource: what it has promised to send out. */
@@ -175,6 +245,34 @@ function resourceOwed(
 }
 
 /**
+ * What is *arriving*, before the receiver's shelf space is considered.
+ *
+ * Needed because a stockpile has a ceiling and the reducer clamps at it. A
+ * flow that overran the ceiling used to be thrown away by the clamp while the
+ * buyer paid for it in full, every tick, for as long as the agreement stood —
+ * and standing agreements are indefinite (invariant 3), so that state is one
+ * the design walks into rather than an accident.
+ */
+function resourceIncoming(
+  state: WorldState,
+  nation: number,
+  resource: Resource,
+  context: TradeContext,
+): number {
+  let incoming = 0;
+  for (const agreement of context.live) {
+    if (agreement.parties[1] !== nation) continue;
+    if (agreement.terms?.resource !== resource) continue;
+    incoming +=
+      agreement.terms.resourcePerTick *
+      deliveryScale(state, agreement, context);
+  }
+  const order = state.nations[nation].market[resource];
+  if (order > 0) incoming += order;
+  return incoming;
+}
+
+/**
  * The share of its promises a nation can actually keep this tick, 0..1.
  *
  * One figure per nation for points and one per resource, so that a nation
@@ -189,7 +287,9 @@ function pointsShare(
 ): number {
   const owed = pointsOwed(state, nation, context);
   if (owed <= 0) return 1;
-  const made = constructionOf(state, nation, context);
+  const made =
+    constructionOf(state, nation, context) +
+    pointsIncome(state, nation, context);
   return Math.max(0, Math.min(1, made / owed));
 }
 
@@ -205,12 +305,30 @@ function resourceShare(
   return Math.max(0, Math.min(1, held / owed));
 }
 
+/** How much of what is arriving there is still room for, 0..1. */
+function intakeShare(
+  state: WorldState,
+  nation: number,
+  resource: Resource,
+  context: TradeContext,
+): number {
+  const incoming = resourceIncoming(state, nation, resource, context);
+  if (incoming <= 0) return 1;
+  const room = Math.max(
+    0,
+    RESOURCE_CAP - state.nations[nation].resources[resource],
+  );
+  return Math.max(0, Math.min(1, room / incoming));
+}
+
 /**
  * How much of one agreement runs this tick.
  *
- * The worse of the two sides. If either cannot cover its rate the whole
- * exchange scales down together — a trade where one side delivered in full
- * and the other did not would be a transfer, not a trade.
+ * The worst of three: what the seller has, what the buyer can pay for, and
+ * what the buyer has room for. If any of them falls short the whole exchange
+ * scales down together — a trade where one side delivered in full and the
+ * other did not would be a transfer, not a trade, and one where the goods
+ * arrive at a full warehouse and are paid for anyway is a tax.
  */
 function scaleOf(
   state: WorldState,
@@ -219,13 +337,9 @@ function scaleOf(
 ): number {
   if (agreement.terms === null) return 0;
   return Math.min(
-    resourceShare(
-      state,
-      agreement.parties[0],
-      agreement.terms.resource,
-      context,
-    ),
+    deliveryScale(state, agreement, context),
     pointsShare(state, agreement.parties[1], context),
+    intakeShare(state, agreement.parties[1], agreement.terms.resource, context),
   );
 }
 
@@ -262,7 +376,10 @@ export function nationTrade(
   for (const resource of RESOURCES) {
     const order = state.nations[nation].market[resource];
     if (order > 0) {
-      const bought = order * buying;
+      // Room on the shelf as well as money in the bank: the market is not
+      // allowed to bill for a delivery the stockpile cap will discard.
+      const bought =
+        order * Math.min(buying, intakeShare(state, nation, resource, context));
       flow.resourceIn[resource] += bought;
       flow.pointsOut += bought * MARKET_BUY_POINTS[resource];
     } else if (order < 0) {
