@@ -168,6 +168,17 @@ export async function startWorldClient(
     build: (province, building) =>
       send({ kind: "queue_construction", provinceId: province, building }),
     cancel: (orderId) => send({ kind: "cancel_construction", orderId }),
+    openLine: (equipment) =>
+      send({ kind: "create_production_line", equipment }),
+    closeLine: (lineId) => send({ kind: "remove_production_line", lineId }),
+    assignFactories: (lineId, factories) =>
+      send({ kind: "assign_factories", lineId, factories }),
+    switchLine: (lineId, equipment) =>
+      send({ kind: "switch_production_line", lineId, equipment }),
+    raiseDivision: (province) =>
+      send({ kind: "raise_division", provinceId: province }),
+    startResearch: (slot, tech) => send({ kind: "start_research", slot, tech }),
+    cancelResearch: (slot) => send({ kind: "cancel_research", slot }),
   });
 
   // A click selects. It used to claim, which meant the only thing a player
