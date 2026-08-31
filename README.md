@@ -60,10 +60,16 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Early. Phase 1 of 11 done.** A world server ticks every five seconds,
-persists to Postgres, accepts commands and comes back where it was after being
-killed. The inherited renderer draws what it sends. There is no economy yet —
-the world's own behaviour is one province changing hands per tick.
+**Phase 6 of 11 done.** A world server ticks every five seconds, persists to
+Postgres, accepts commands and comes back where it was after being killed. On
+top of that runs an economy: provinces extract from their deposits, civilian
+factories make construction points, military factories and dockyards draw the
+materials of whatever their line is making, equipment accumulates in a national
+stockpile, divisions draw it out, research moves the rates all of that reads,
+and supply decides how much of it reaches a division at the end of a long
+front. A shortage anywhere scales every consumer down together; nothing ever
+stops. The inherited renderer draws it, and the world's own heartbeat is still
+one province changing hands per tick.
 
 The build order and the gate each phase has to pass are in
 [CLAUDE.md § 8](CLAUDE.md). For the current state of the work — what is done,
@@ -72,10 +78,12 @@ what is next, and the traps already paid for — see
 
 - [x] Fork triage — lockstep removed, renderer kept, world server stubbed
 - [x] World persistence — tick loop, command log, snapshots, crash recovery
-- [ ] Province graph
-- [ ] Factories and construction
-- [ ] Production and equipment
-- [ ] Research · Supply · Diplomacy · Air · Naval · Regent · Deployment
+- [x] Province graph — partition, ownership from tiles, borders drawn
+- [x] Factories and construction — building slots, a queue that accrues per tick
+- [x] Production and equipment — lines, the efficiency ramp, a stockpile that drains
+- [x] Research — slots, prerequisites, modifiers the systems read
+- [x] Supply — reach over the province graph, coverage, attrition at the far end
+- [ ] Diplomacy and trade · Air · Naval · Regent · Deployment
 
 ## 🤝 Contributing
 

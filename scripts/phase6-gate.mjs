@@ -8,10 +8,17 @@
  * nobody attacked, and another one, in the same nation on the same tick, doing
  * fine because it is standing near a hub.
  *
- * So it raises exactly `sources x SUPPLY_SOURCE_THROUGHPUT` divisions, which
+ * So it raises at most `sources x SUPPLY_SOURCE_THROUGHPUT` divisions, which
  * puts national coverage at exactly 1 and leaves **distance** as the only
- * thing that can differ between them. Then it watches, and refuses to count a
- * tick on which the front moved anywhere near either division.
+ * thing that can differ between them. Both the ones it watches stand in
+ * provinces every neighbour of which is the nation's own, and so is every
+ * neighbour of those: the front cannot reach a division standing there, which
+ * is how "without enemy action" is made true rather than hoped for. The window
+ * lasts as long as that shelter does.
+ *
+ * The far one is not the furthest. A division at zero supply never holds
+ * anything to lose, so the gate stands one at every distance it can reach and
+ * watches whichever landed between `BAND_LOW` and `BAND_HIGH`.
  *
  * §8's other half — "full supply recompute stays under 50 ms on the largest
  * map" — is not here. It is a unit test, in `tests/server/Supply.test.ts`,
@@ -241,6 +248,57 @@ function hopsFromHome(player, neighbours, capitals, nation) {
 }
 
 /**
+ * A province the front cannot reach, and one whose neighbours it cannot reach
+ * either.
+ *
+ * `combat.ts` only ever flips a province that has a neighbour under someone
+ * else's control, and the equipment a flip destroys belongs to the divisions
+ * in the province that changed hands and in the one it was attacked from. A
+ * province whose every neighbour is ours can be neither. So a division
+ * standing in one cannot lose a rifle to the front, and §8's **without enemy
+ * action** becomes a property of where this gate stands rather than a hope
+ * about what the world does while it watches.
+ *
+ * `sheltered` asks the same of the neighbours, and that is what makes the
+ * shelter last: the ring around a merely interior province can still flip, and
+ * the tick it does, the province becomes a border. Measured on world-0 before
+ * this was written — twelve sheltered candidates watched for 3,001 ticks, not
+ * one lost its shelter and not one was touched.
+ */
+function interior(player, neighbours, province, nation) {
+  return (neighbours.get(province) ?? []).every(
+    (next) => player.controllers[next] === nation,
+  );
+}
+
+function sheltered(player, neighbours, province, nation) {
+  if (!interior(player, neighbours, province, nation)) return false;
+  return (neighbours.get(province) ?? []).every((next) =>
+    interior(player, neighbours, next, nation),
+  );
+}
+
+/**
+ * One province per distance, deepest first.
+ *
+ * Supply falls with weighted distance and the gate cannot compute it — the
+ * wire carries a supply figure per division, not per province (§7) — so it
+ * stands somebody at every distance it can reach and reads off which of them
+ * landed in the band it can measure. Deepest first, because the far end of the
+ * line is what this phase is about.
+ */
+function spread(entries, count) {
+  const byDepth = new Map();
+  for (const [province, hops] of entries) {
+    if (!byDepth.has(hops)) byDepth.set(hops, province);
+  }
+  return [...byDepth.keys()]
+    .sort((a, b) => b - a)
+    .slice(0, count)
+    .map((hops) => byDepth.get(hops));
+}
+
+/**
  * A nation deep enough to have a supply problem at all.
  *
  * Not simply the largest: a wide, shallow nation has every province within a
@@ -273,9 +331,22 @@ function deepestNation(player, neighbours, provinces) {
       0,
     );
     if (steel < 4) continue;
+
+    // **And somewhere sheltered to stand, at both ends.** A nation with a deep
+    // interior and a capital on the front line is no use here: the home
+    // division would be measured while a war went past it, and the gate would
+    // report the front rather than the supply.
+    const home = capitals.filter((id) =>
+      sheltered(player, neighbours, id, nation),
+    );
+    const out = usable.filter(
+      ([id, hops]) => hops >= 2 && sheltered(player, neighbours, id, nation),
+    );
+    if (home.length === 0 || out.length === 0) continue;
+
     const score = furthest * 100 + steel * 10 + usable.length;
     if (best === null || score > best.score) {
-      best = { nation, capitals, depth, usable, furthest, score };
+      best = { nation, capitals, depth, usable, furthest, home, out, score };
     }
   }
   return best;
@@ -397,17 +468,37 @@ async function sweep(player) {
 const WATCH_BUDGET_MS = 120_000;
 const SETUP_BUDGET_MS = 240_000;
 
-/** Equipment a division needs before attrition has anything to take from it. */
-const MIN_STRENGTH = 0.05;
+/**
+ * Equipment a division needs before attrition has anything to take from it.
+ *
+ * Not a token amount: the fall has to be unambiguous against a strength that
+ * was really there. With both lines running a division at half supply settles
+ * near 40% of template, so this is reached well inside the setup budget.
+ */
+const MIN_STRENGTH = 0.2;
 
 /**
- * Ticks spent making artillery before the factories retool for rifles.
+ * The supply band a division can be watched in.
  *
- * A division wants 12 guns and 100 rifles, and a gun is four industrial points
- * against a rifle's one — so guns are roughly a third of the work and get
- * roughly a third of the time.
+ * Below `BAND_LOW` it never accumulates anything: the draw is a share of the
+ * template and the loss is a share of the holding, and at zero supply the
+ * second wins from the first tick, so there is no fall to watch. Above
+ * `BAND_HIGH` the loss is a fraction of a fraction and the division outlives
+ * the window. Measured on world-0: three hops out reads 59%, four reads 48%,
+ * seven reads 0%.
  */
-const GUN_TICKS = 700;
+const BAND_LOW = 0.15;
+const BAND_HIGH = 0.7;
+
+/**
+ * How long the shelter has to hold for the window to mean anything.
+ *
+ * A division at half supply loses about a percent of what it holds per tick,
+ * so two hundred ticks is a fall to an eighth — unmistakable. A window that
+ * ends sooner has not disproved anything; it has only been interrupted, and
+ * saying so is worth more than passing on eight ticks of evidence.
+ */
+const MIN_WATCH_TICKS = 200;
 
 async function main() {
   let failures = 0;
@@ -473,8 +564,10 @@ async function main() {
   if (chosen === null) {
     log("");
     log("  No nation on this world owns four connected provinces reaching two");
-    log("  hops from a capital with steel enough to build with, so there is");
-    log("  nowhere to be out of supply that could also arm anything.");
+    log("  hops from a capital with steel enough to build with, and a capital");
+    log("  and a far province both far enough behind their own front that the");
+    log("  drift cannot reach them, so there is nowhere to be out of supply");
+    log("  that could also arm anything and be left alone while it happens.");
     log("  That is a world this gate cannot use, not a finding. Let it run on");
     log("  (ownership follows control by OCCUPATION_TICKS) and try again.");
     log("");
@@ -494,11 +587,21 @@ async function main() {
   );
   await sweep(player);
 
-  const hubs = player.buildings.filter(
-    (unused, index) =>
-      index % BUILDING_COUNT === SUPPLY_HUB && player.buildings[index] > 0,
-  ).length;
-  const sources = chosen.capitals.length + hubs;
+  // **The nation's own hubs, not the world's.** `buildings` on the wire is
+  // every province on the map (§7), so counting every supply hub in it counted
+  // fifty-one other nations' as well. `sources` is what the division count is
+  // capped by, and too high a cap puts coverage below 1 — which would leave
+  // the home division short of the 100% the last check asks it for, for a
+  // reason that has nothing to do with distance.
+  const hubs = [];
+  for (let province = 0; province < player.controllers.length; province++) {
+    if (player.controllers[province] !== nation) continue;
+    if (player.owners[province] !== nation) continue;
+    if (player.buildings[province * BUILDING_COUNT + SUPPLY_HUB] > 0) {
+      hubs.push(province);
+    }
+  }
+  const sources = chosen.capitals.length + hubs.length;
   check(sources > 0, `the nation draws supply from ${sources} source(s)`);
 
   // Only ground it owns can take a division, so only that is ranked. The path
@@ -512,23 +615,37 @@ async function main() {
   );
   const depth = chosen.depth;
 
-  // Exactly what the hubs can carry, so national coverage is 1 and the only
+  // Exactly what the sources can carry, so national coverage is 1 and the only
   // thing that can differ between these divisions is how far out they are.
   const wanted = Math.min(4, sources * SUPPLY_SOURCE_THROUGHPUT);
-  const near = ranked.slice(0, 1).map(([province]) => province);
-  // **On the source itself, not merely near it.** The first version of this
-  // counter-proof put everybody one hop out and passed: a hop is 86% supply,
+
+  // **Home is a source, not a province near one.** Supply is reach times
+  // coverage, reach is 1 only at distance 0, and the last check asks the home
+  // division for everything it wants.
+  const near = [chosen.home[0]];
+
+  // **And away is not simply the furthest province.** A division at zero
+  // supply never holds anything to lose: it draws a fixed share of its
+  // template out of the stockpile and attrition takes a share of what it holds
+  // straight back, so at zero it settles at nothing and there is no fall to
+  // watch. Measured on world-0 — seven hops out reads 0% supply, and the
+  // division this gate was watching sat at 0.0% strength for the whole window
+  // while every check downstream of it failed.
+  //
+  // What the gate wants is the middle of the line: short enough to bite,
+  // long enough to have been given something first. It cannot compute where
+  // that is, because supply reaches the wire per division and not per
+  // province — so it stands a division at every distance it can reach and
+  // then reads off which of them landed in the band.
+  //
+  // **On the source itself, not merely near it,** for the counter-proof. Its
+  // first version put everybody one hop out and passed: a hop is 86% supply,
   // 86% is short, and short divisions waste away exactly as the gate says they
-  // do. A counter-proof has to remove the subject, not reduce it — so this one
-  // stands every division on a province that is zero hops from a source, where
-  // supply is 1 and there is nothing for the gate to find.
+  // do. A counter-proof has to remove the subject, not reduce it.
   const far =
     BREAK === "supplied"
-      ? ranked
-          .filter(([, hops]) => hops === 0)
-          .slice(1, wanted)
-          .map(([province]) => province)
-      : ranked.slice(-(wanted - 1)).map(([province]) => province);
+      ? chosen.capitals.filter((id) => id !== near[0]).slice(0, wanted - 1)
+      : spread(chosen.out, wanted - 1);
   if (BREAK === "supplied") {
     log("  --break=supplied: everybody stands on a source");
   }
@@ -569,17 +686,61 @@ async function main() {
     );
   }
 
+  const supplyRead = (id) => supplyNow.get(id) ?? 0;
   const best = raised.reduce((a, b) =>
-    (supplyNow.get(a) ?? 0) >= (supplyNow.get(b) ?? 0) ? a : b,
+    supplyRead(a) >= supplyRead(b) ? a : b,
   );
-  const worst = raised.reduce((a, b) =>
-    (supplyNow.get(a) ?? 0) <= (supplyNow.get(b) ?? 0) ? a : b,
-  );
+
+  // The division to watch is the one inside the band, not the worst-off one.
+  // Below the band it holds nothing and there is nothing to take from it;
+  // above it the fall is too slow to see inside this window. Lowest in the
+  // band, because that is the one that falls fastest and stands furthest from
+  // the one at home.
+  const band = raised
+    .filter((id) => supplyRead(id) > BAND_LOW && supplyRead(id) < BAND_HIGH)
+    .sort((a, b) => supplyRead(a) - supplyRead(b));
+  if (band.length === 0 && BREAK === null) {
+    log("");
+    log("  None of these divisions is standing where this gate can measure:");
+    log(
+      `  supply strictly between ${BAND_LOW * 100}% and ${BAND_HIGH * 100}%.`,
+    );
+    log("  Below that a division never accumulates anything to lose, above it");
+    log("  it wastes away slower than this window is long. That is a world");
+    log("  this gate cannot use, not a finding: let it run on and try again.");
+    log("");
+    player.close();
+    process.exit(2);
+  }
+  // With a --break= the band may be empty on purpose — that is what
+  // `--break=supplied` does — so fall through to the check it is aimed at
+  // rather than exiting before it runs.
+  const worst =
+    band.length > 0
+      ? band[0]
+      : raised.reduce((a, b) => (supplyRead(a) <= supplyRead(b) ? a : b));
   check(
     (supplyNow.get(best) ?? 0) - (supplyNow.get(worst) ?? 0) > 0.05,
     `the division at the end of the line is worse supplied than the one at ` +
       `home: ${((supplyNow.get(worst) ?? 0) * 100).toFixed(0)}% against ` +
       `${((supplyNow.get(best) ?? 0) * 100).toFixed(0)}%`,
+  );
+
+  // Everything from here on is about two divisions, so the rest go. They were
+  // raised to find out where the band was, they have done that, and every one
+  // left standing is another mouth drawing on a stockpile that is already a
+  // pass-through.
+  for (const id of raised) {
+    if (id === best || id === worst) continue;
+    await player.command(
+      { kind: "disband_division", divisionId: id },
+      `stand-down-${id}`,
+    );
+  }
+  await player.waitUntil(
+    (p) => p.economy.divisions.length === 2,
+    "the divisions that were only there to measure to stand down",
+    30_000,
   );
 
   // A division is raised empty, and attrition cannot take anything from a
@@ -597,57 +758,41 @@ async function main() {
   const held = player.economy.militaryFactoriesTotal;
   log(`  ${held} military factor${held === 1 ? "y" : "ies"} to work with`);
 
-  // **One type at a time, on every factory the nation has.** Splitting them
-  // does not work: a nation with a single military factory gives it to
-  // whichever line asks first and the other line gets nothing, so the
-  // divisions sit at zero for ever — `divisionStrength` is the worst ratio
-  // across the template, and half a template is nothing. Moving factories
-  // between lines is free (§6.2 resets only on a type change), so the gate
-  // makes guns, then makes rifles, then stops.
-  // **Wait on strength, never on the stockpile.** The stockpile is a
+  // **Both types at once, never one after the other.** This gate ran the
+  // other way first — all the factories on guns for seven hundred ticks, then
+  // all of them on rifles — and the division it was watching finished at 0.0%
+  // both times. Measured, with the lid off: a division short of supply loses a
+  // share of what it holds every tick, so whichever type is not being made
+  // right now is decaying with a half-life of about seventy ticks at 48%
+  // supply. By the time the rifles arrived the guns were gone, and
+  // `divisionStrength` is the **worst** ratio across the template (§6.3), so
+  // a division holding a hundred rifles and no guns reads zero. One type at a
+  // time cannot arm a division that is losing equipment; it can only take
+  // turns starving it.
+  //
+  // Run in parallel they settle instead: production per tick against a loss
+  // proportional to the holding is a first-order lag, and the division sits at
+  // whatever the line can sustain. Guns get a third of the factories because a
+  // gun costs four industrial points against a rifle's one and the template
+  // wants twelve against a hundred — about two to one in work.
+  //
+  // **And wait on strength, never on the stockpile.** The stockpile is a
   // pass-through while any division is below template: `reinforce` hands out a
-  // fraction of every division's shortfall every tick, and four divisions
-  // wanting artillery drain it faster than two factories can make it. Waiting
-  // for "ten guns in store" therefore waits for ever — measured, with the
-  // warehouse reading 0.3 while the line had been running for 270 ticks and
-  // the nation sat at sufficiency 1.0 with five thousand steel. The equipment
-  // was not missing; it was already in the divisions.
-  // The guns phase runs for a fixed stretch of ticks rather than waiting for a
-  // signal, because there is no signal to wait for: `divisionStrength` is the
-  // **worst** ratio across the template (§6.3), so a division holding guns and
-  // no rifles still reads zero, and the stockpile stays near empty because the
-  // divisions draw the guns as fast as they are made. Neither number moves
-  // until both halves exist. So: make guns for a while, then make rifles, and
-  // let the strength check at the end say whether it worked.
-  const gunsFrom = player.tick;
-  const onGuns = await assignUpTo(player, guns, held, "on-guns");
-  // Asserted, not assumed. The first run of this shape spent six minutes
-  // equipping nothing because the artillery line silently held no factories,
-  // and every check after it was measuring an empty division.
+  // share of the template every tick, and the divisions draw it as fast as the
+  // factories make it. Waiting for "ten guns in store" waits for ever —
+  // measured, with the warehouse reading 0.3 while the line had been running
+  // for 270 ticks and the nation sat at sufficiency 1.0 with five thousand
+  // steel. The equipment was not missing; it was already in the divisions.
+  const forGuns = Math.max(1, Math.round(held / 3));
+  // Asserted, not assumed. An earlier run spent six minutes equipping nothing
+  // because a line silently held no factories, and every check after it was
+  // measuring an empty division.
+  const onGuns = await assignUpTo(player, guns, forGuns, "on-guns");
+  const onRifles = await assignUpTo(player, rifles, held - onGuns, "on-rifles");
   check(
-    onGuns > 0,
-    `${onGuns} factor${onGuns === 1 ? "y" : "ies"} on artillery`,
-  );
-  await player.waitUntil(
-    (p) => p.tick >= gunsFrom + GUN_TICKS,
-    `${GUN_TICKS} ticks of artillery`,
-    SETUP_BUDGET_MS / 3,
-  );
-  log(`  ${GUN_TICKS} ticks of guns made; retooling for rifles`);
-
-  await player.command(
-    { kind: "assign_factories", lineId: guns, factories: 0 },
-    "off-guns",
-  );
-  await player.waitUntil(
-    (p) => (lineOf(p.economy, guns)?.factories ?? -1) === 0,
-    "the guns line to stand down",
-    20_000,
-  );
-  const onRifles = await assignUpTo(player, rifles, held, "on-rifles");
-  check(
-    onRifles > 0,
-    `${onRifles} factor${onRifles === 1 ? "y" : "ies"} on infantry equipment`,
+    onGuns > 0 && onRifles > 0,
+    `${onRifles} factor${onRifles === 1 ? "y" : "ies"} on rifles and ` +
+      `${onGuns} on artillery, both running`,
   );
 
   const equipped = await player.waitUntil(
@@ -655,7 +800,7 @@ async function main() {
       (p.economy.divisions.find((d) => d.id === worst)?.strength ?? 0) >=
       MIN_STRENGTH,
     `the divisions to reach ${MIN_STRENGTH * 100}% equipment`,
-    SETUP_BUDGET_MS / 2,
+    SETUP_BUDGET_MS,
   );
   check(
     equipped,
@@ -681,11 +826,13 @@ async function main() {
   log("  watching the line stretch...");
 
   let lastTick = player.tick;
+  const watchFrom = player.tick;
   const startStrength = new Map(
     player.economy.divisions.map((d) => [d.id, d.strength]),
   );
   let disturbed = 0;
   let worstMax = startStrength.get(worst) ?? 0;
+  let exposed = null;
   const until = Date.now() + WATCH_BUDGET_MS;
   while (Date.now() < until) {
     await sleep(25);
@@ -709,6 +856,42 @@ async function main() {
     }
     const now = player.economy.divisions.find((d) => d.id === worst);
     if (now !== undefined) worstMax = Math.max(worstMax, now.strength);
+
+    // Both divisions stand behind a province the front cannot reach, and the
+    // window lasts exactly as long as that is still true. Losing the shelter
+    // costs nothing on the tick it happens — a flip destroys equipment in the
+    // province that changed hands and in the one it was attacked from, and
+    // neither can be a province all of whose neighbours are ours — but from
+    // the next tick on the division is reachable, and a measurement taken
+    // after that would be measuring the war.
+    for (const id of [best, worst]) {
+      const at = where.get(id);
+      if (at === undefined) continue;
+      if (!sheltered(player, neighbours, at, nation)) {
+        exposed = { id, province: at, tick: player.tick };
+        break;
+      }
+    }
+    if (exposed !== null) break;
+  }
+  const watched = player.tick - watchFrom;
+  if (exposed !== null) {
+    log(
+      `  province ${exposed.province} became reachable at tick ` +
+        `${exposed.tick}; the window ends there, ${watched} tick(s) long`,
+    );
+  } else {
+    log(`  watched ${watched} tick(s) with the shelter holding`);
+  }
+  if (watched < MIN_WATCH_TICKS && BREAK === null) {
+    log("");
+    log(`  ${watched} ticks is not long enough to say anything. The front`);
+    log("  reached one of these provinces while the gate was still watching,");
+    log("  so the window was cut short — that is the world moving, not a");
+    log("  finding. Run it again; the drift will have gone elsewhere.");
+    log("");
+    player.close();
+    process.exit(2);
   }
 
   const bestNow = player.economy.divisions.find((d) => d.id === best);
