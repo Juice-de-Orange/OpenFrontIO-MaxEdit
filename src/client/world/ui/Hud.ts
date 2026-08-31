@@ -70,6 +70,15 @@ const STYLE = `
 #world-hud, #world-hud * { box-sizing: border-box; }
 #world-hud {
   position: fixed; inset: 0; pointer-events: none;
+  /* Above the map, and this line is load-bearing. The canvas is inserted into
+     the body after the HUD and is also position:fixed inset:0, so with both at
+     z-index auto the later element wins and the map is painted straight over
+     every panel: a HUD fully built, fully populated and completely invisible.
+     elementFromPoint over the economy panel returned the canvas.
+     pointer-events above is what keeps this honest — the HUD covers the whole
+     viewport and must not swallow the drags that pan the map, so only .panel
+     takes them back. */
+  z-index: 10;
   font: 13px/1.45 system-ui, sans-serif; color: #eee;
 }
 #world-hud .panel {

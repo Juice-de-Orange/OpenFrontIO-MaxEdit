@@ -272,3 +272,21 @@ describe("raising a division", () => {
     expect(raiseButton()?.disabled).toBe(true);
   });
 });
+
+/**
+ * The HUD is inserted before the canvas and both are `position: fixed;
+ * inset: 0`, so without an explicit stacking order the map paints over every
+ * panel — a HUD that is built, populated and invisible. jsdom has no layout to
+ * assert against, so this asserts the rule that prevents it.
+ */
+describe("the HUD's stacking order", () => {
+  test("#world-hud declares a z-index, or the canvas covers it", () => {
+    new Hud(actions());
+    const css = Array.from(document.head.querySelectorAll("style"))
+      .map((style) => style.textContent ?? "")
+      .join("\n");
+    const block = /#world-hud\s*\{([^}]*)\}/.exec(css);
+    expect(block, "no #world-hud rule in the HUD's stylesheet").not.toBeNull();
+    expect(block?.[1]).toMatch(/z-index:\s*\d+/);
+  });
+});
