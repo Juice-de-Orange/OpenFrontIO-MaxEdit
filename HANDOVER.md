@@ -261,6 +261,16 @@ Phase 3:
 | ---------- | -------------------------------------------------------------------------------- |
 | `c7979ecf` | **The system framework, the economy, the construction queue, and the first HUD** |
 | `aaeda205` | **The phase-3 gate, `WORLD_TICK_MS` for the later gates, decision 0007**         |
+| `6ccdb1f4` | Two command bugs: siblings unvalidated, and cancelling by position               |
+| `cf5bf8da` | A world is identified by its artefact, not only by its terrain                   |
+| `e7ff332e` | The database migrations were never in the repository                             |
+| `59522d0d` | The phase-3 gate's build-up made readable and bounded                            |
+
+Phase 4 (built, not gated):
+
+| Commit     | What                                                                                                                                |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `3b125690` | **Production lines, the efficiency ramp and its reset, equipment, divisions, manpower, and a border clash that destroys equipment** |
 
 Phase 0's commits are in the history of this file before this rewrite.
 
