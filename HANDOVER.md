@@ -14,7 +14,7 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 8 of 12 — air zones, and §6.9 underneath it.** The ground combat
+**Phase 8 of 13 — air zones, and §6.9 underneath it.** The ground combat
 phase 8's gate needs to shift now exists: `claim_province` is a standing attack
 order, resolved every tick against equipment, supply, terrain and combat width
 with a roll seeded from `(worldSeed, tick, province)`. The border drift is gone
@@ -66,7 +66,7 @@ line.
 
 ## The whole plan, and how far along it is
 
-Eight of twelve gates passed. **The gate is the unit of progress here, not the
+Eight of thirteen gates passed. **The gate is the unit of progress here, not the
 code:** a phase is done when its gate has been demonstrated, not when it
 compiles.
 
@@ -76,14 +76,15 @@ compiles.
 | 1 · World persistence          | Kill the container mid-run; it resumes at the correct tick with no lost commands    | ✅ passed                                                          |
 | 2 · Province graph             | A province changes hands, ownership propagates from tiles, the client renders it    | ✅ passed server-side; the rendering half is the morning checklist |
 | 3 · Factories and construction | Queue a factory, watch it build over ticks, see output rise; shortage degrades it   | ✅ passed                                                          |
-| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | 🟥 **red**: its fight was the border drift, which is gone          |
+| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ✅ passed                                                          |
 | 5 · Research                   | A completed tech measurably changes a production or combat number                   | ✅ passed                                                          |
 | 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ✅ passed                                                          |
 | 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ✅ passed                                                          |
 | 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ⬜                                                                 |
 | 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ⬜                                                                 |
 | 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜                                                                 |
-| 11 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜                                                                 |
+| 11 · Accounts and identity     | A session claiming a nation it does not hold is refused and told nothing about it   | ⬜                                                                 |
+| 12 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜                                                                 |
 
 ---
 
@@ -257,8 +258,8 @@ PASS
 ```
 
 The whole difficulty of this gate is the word _measurably_. Every number on the
-wire moves for reasons that have nothing to do with research: the drift takes a
-mine, the ramp climbs a step, a shortage scales everything down. So it measures
+wire moves for reasons that have nothing to do with research: the ramp climbs a
+step, a shortage scales everything down, a front costs a province. So it measures
 the one term research actually touches, isolated. The server computes
 
 ```
@@ -287,6 +288,12 @@ FAIL (1) — stopped at the first failure, as intended
 ```
 
 ### Phase 4 — production and equipment
+
+**The transcript below is the run from _before_ the gate was rewritten**, and it
+still talks about the border drift walking a front onto a division. The gate now
+connects a second nation, garrisons the province and orders the front itself
+(commit `bdec07ff`); it passes, and the shape of the checks is unchanged. Replace
+this block with a fresh run the next time the gate is run on a world at 50 ms.
 
 ```
 phase-4 gate
@@ -592,7 +599,13 @@ Then open `http://localhost:9000/?nation=17` (or any nation number) and check:
    equipment and supply. One at the capital should read 100% supply; one out at
    a border should read less.
 10. **The numbers are all per day**, never per tick, and the stockpiles move.
-11. **The map keeps moving on its own** — one province changes hands per tick.
+11. **A world nobody is attacking stands still.** The border drift is gone
+    (decision 0014), so an idle map is correct rather than broken. To see the
+    front, click a province you do not hold: the button reads **"Attack this
+    province"**, and once pressed it becomes **"Call off the attack"** with
+    _"Your front is grinding here, every tick."_ under it. The same front is
+    listed under **Fronts** in the production panel with a button beside it.
+    Nothing marks it on the map itself.
 12. **Offer somebody an agreement.** Pick a neighbour in the diplomacy panel,
     choose a type, and send it. A trade wants a resource and two rates, both
     entered per day. Open a second browser as that nation (`?nation=<them>`)
@@ -713,11 +726,11 @@ world nobody is dead yet.
 **And one sharp edge, for the same list.** The other half of the dead-partner
 rule is "has lost its capital", and it is read as _holds no capital right
 now_. A capital that changes hands for a single tick therefore dissolves every
-agreement that nation has, with third parties included. On a 529-province map
-under the border drift that is rare; when phase 9 lets a landing take a capital
-it will not be. The alternative is a grace period, and a grace period is a
-duration, which is what invariant 3 exists to keep out — so this one needs
-thought rather than a constant.
+agreement that nation has, with third parties included. Today that takes a
+player ordering a front onto a capital and losing it again, which is rare;
+when phase 9 lets a landing take a capital it will not be. The alternative is
+a grace period, and a grace period is a duration, which is what invariant 3
+exists to keep out — so this one needs thought rather than a constant.
 
 ### Anybody may claim anybody's nation — now phase 11
 
@@ -793,7 +806,8 @@ purpose. Nothing depends on the answer, so it can wait for one.
   ([0010](docs/decisions/0010-research-modifiers-are-read-not-stored.md)).
 - Occupied provinces produce at a reduced rate (`OCCUPIED_OUTPUT_FACTOR`),
   which answers one of §10's open questions.
-- The border drift stays as the world's heartbeat.
+- The border drift is gone; an unattended world is quiet until the regent
+  ([0014](docs/decisions/0014-the-border-drift-gives-way-to-a-front.md)).
 
 **Deliberately deferred** (`CLAUDE.md` §10 says to decide these only when they
 block): season victory condition, how new players enter a running world,
@@ -883,6 +897,12 @@ not model, the worker chunk comes back and the bundle jumps.
 
 Things that cost time to find. Do not rediscover them.
 
+**Several of these are argued from the border drift, which no longer exists**
+(decision 0014, phase 8). The lesson almost always still holds — and a few of
+them hold harder now, for the opposite reason: a gate cannot wait for an
+unattended world to reach a state, because an unattended world no longer moves
+at all. Read the rule, not the reason.
+
 ### What the phase-7 review found
 
 The gates were green and the tests passed, and then a multi-dimension review
@@ -923,7 +943,9 @@ knowing that the finding as written was slightly wrong and the bug was not.)_
   refuses the _player_ an attack on a partner (§6.9) while the world went on
   taking a province off that same partner every time the sweep landed on their
   border. A promise the world breaks on your behalf is not worth the 75 trust
-  it costs to break yourself.
+  it costs to break yourself. Removing the drift settled this one by deleting
+  its subject, and `combat.ts` now calls off a standing attack the moment a
+  pact is signed — the promise holds in the only place it matters.
 
 **And four in the trade arithmetic**, all of them the same shape — a number
 that was right on its own and wrong in company:

@@ -140,7 +140,7 @@ The world lives in memory. Two things are written down: every accepted command,
 immediately, tagged with the tick it takes effect on; and a full snapshot every
 60 ticks — five minutes.
 
-So a hard crash costs **up to five minutes of simulated drift, and no player
+So a hard crash costs **up to five minutes of simulation, and no player
 command**. The world comes back at the later of the newest snapshot and the
 newest logged command, which is generally a few ticks behind where it died.
 That is deliberate, and

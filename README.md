@@ -60,7 +60,7 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Phase 7 of 12 done.** A world server ticks every five seconds, persists to
+**Phase 7 of 13 done.** A world server ticks every five seconds, persists to
 Postgres, accepts commands and comes back where it was after being killed. On
 top of that runs an economy: provinces extract from their deposits, civilian
 factories make construction points, military factories and dockyards draw the

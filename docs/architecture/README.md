@@ -28,7 +28,9 @@ remembers, and starts a clock. `index.html` boots
 `src/client/world/WorldClient.ts`, which connects over a WebSocket, loads the
 same artefact, and hands province control to the inherited renderer through one
 long-lived `FrameData` object — plus a province-border overlay as a map layer,
-toggled with `b`. A click on a province sends a `claim_province` command.
+toggled with `b`. A click on a province sends a `claim_province` command, which
+is a standing attack order rather than a request for the province: it grinds
+until the province falls or the player calls it off.
 
 A province has a **controller** and an **owner**. The controller moves the tick
 it is taken; the owner follows only after 336 ticks — fourteen in-game days —
@@ -40,14 +42,17 @@ consume and produce, a construction queue turns construction points into
 buildings over hundreds of ticks, and production lines turn industry into
 equipment that divisions draw on. Research moves the rates those systems read,
 and supply decides how much of it reaches a division at the end of a long
-front. What is still not there is everything diplomatic and the rest of what is
-military — no zones, no agreements, no convoys, and no real combat resolution.
+front. Nations hold standing agreements with each other and trade over them.
+What is still not there is the zoned half of the military — no air zones, no
+sea zones, and no convoys.
 
-The border drift remains: one province changes hands per tick, at a border,
-deterministically. A heartbeat, kept because a persistent world has to look
-alive with nobody online, and because it is what makes the replay test hard
-enough to be worth running. Since phase 4 it costs both sides equipment, and
-§6.9's resolution replaces its insides in phase 9.
+**The border drift is gone.** From phase 1 to phase 7 a deterministic sweep
+moved one province a tick regardless of who held what, so that a world with
+nobody online still looked alive. It was a placeholder for the regent, and
+leaving it beside a real resolver would have meant two ways to take a province,
+the cheaper of which ignored terrain and supply. Between here and phase 10 an
+unattended world is quiet, and that is honest: there is nobody there to attack
+([decision 0014](../decisions/0014-the-border-drift-gives-way-to-a-front.md)).
 
 ## Systems, and the order they run in
 
@@ -106,15 +111,19 @@ persistence design rests on.
   nation's total source throughput against its total demand. An under-supplied
   division loses equipment in proportion to how short it is. Land only: the
   sea path waits for convoys in phase 9.
-- **combat** — the border drift, which since phase 1 has moved one province a
-  tick to keep an empty world alive, now costs the divisions on both sides
-  equipment. That is the smallest honest version of invariant 6: a fight
-  empties divisions, divisions refill from the stockpile, and the factories
-  that refill it are the ones the player has been choosing between all along.
+- **combat** — the front. Every standing attack order is asked the same
+  question each tick: can the force that can reach this border beat what is
+  holding it, with this roll. The inputs are §6.9's own — a division's
+  equipment, its supply, the terrain it is attacking into, and a combat width
+  that keeps a twentieth division from adding anything — and the roll is seeded
+  from `(worldSeed, tick, province)` so the tick stays reproducible from the
+  log. Won or lost, the fight costs both sides equipment: divisions refill from
+  the stockpile, and the factories that refill it are the ones the player has
+  been choosing between all along. Signing a non-aggression pact calls a
+  standing attack off rather than letting it grind through the promise.
 
-§6.9's real resolution — combat width, terrain, air superiority, a seeded roll
-— is phase 9. Division strength is computed and published from phase 4 on;
-phase 9 is what consumes it.
+One input is still missing. Air superiority belongs beside that roll and is
+phase 8's to add; there is a single multiplier waiting for it.
 
 One **sufficiency** figure per nation, the worst of the per-resource ratios,
 scales every consumer down together. That is invariant 2 — _everything
@@ -325,11 +334,13 @@ with the tick it takes effect on, and a full snapshot every 60 ticks. On
 startup the newest snapshot is loaded and the world is _run forward_ through
 every tick after it, with the logged commands fed in on their own ticks —
 replaying commands without running the ticks between them would land in a
-different world, because the drift is part of the state.
+different world, because the systems make state of their own: construction
+accrues, efficiency climbs, trade moves goods and a front costs equipment, all
+without a command anywhere near them.
 
 A world therefore resumes at the later of the newest snapshot and the newest
-logged command: a hard crash costs up to five minutes of drift and **no player
-command** ([decision 0005](../decisions/0005-resume-at-the-last-durable-record.md)).
+logged command: a hard crash costs up to five minutes of simulation and **no
+player command** ([decision 0005](../decisions/0005-resume-at-the-last-durable-record.md)).
 
 Three rules hold the command path together, and all three are in `WorldRunner`:
 
