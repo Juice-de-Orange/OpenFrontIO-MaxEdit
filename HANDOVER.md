@@ -22,7 +22,14 @@ and an unattended world is quiet until phase 10 — decision 0014 has the whole
 argument. Every gate that leaned on the drift has been rebuilt around a war it
 starts itself, and the board is green again.
 
-**Phase 8's code is built and green**: 567 tests, typecheck strict, lint,
+**Phase 8 is gated.** Its gate passes and its counter-proofs fail where they
+should: without bombers the line held the whole 40-tick window and lost
+nothing; with bombers over it the same army at the same strength took both
+provinces in 1.5 ticks. The transcript is under "Phase 8 — air zones" below.
+
+The rest of this section describes what was built.
+
+**Phase 8's code**: 567 tests, typecheck strict, lint,
 build-prod. One `Formation` entity serves wings and fleets alike, and
 `systems/zones.ts` is the machine §6.8 says phase 9 must reuse — what differs
 between a fighter wing and a submarine flotilla is a row in
@@ -36,8 +43,9 @@ Wire went 10 → 11.
 **nothing** — a nation could fill a warehouse with aircraft that did not exist
 as far as the rest of the game was concerned. That is the hole this closed.
 
-**What is not done is the gate script.** Two of its three checks pass against a
-live world; the third is below, with what it kept getting wrong.
+Its gate is done too, and what it cost to get there is under "What the phase-8
+gate kept getting wrong" — five rewrites, each of which turned out to be about
+the game rather than about the script.
 
 Phases 0 to 7 have their gates demonstrated
 against the code as it stands, counter-proofs and all. Two of them went green
@@ -76,9 +84,301 @@ Without `docker compose`, `npm run start:server` still works: with no
 `DATABASE_URL` the world keeps its history in memory and says so on the first
 line.
 
+## The plan, end to end
+
+**This section is written to be worked through without asking anybody
+anything.** Every design question §10 left open has an answer now (it is in
+CLAUDE.md §10, with reasoning), so what follows is nine pieces of work in
+order, each with what to build, which files it touches, what it has to prove
+before it counts as done, and the traps that are already known.
+
+Read the two rules the project runs on before starting any of it:
+
+1. **A phase is done when its gate has been demonstrated, not when it
+   compiles.** Every gate is a script that plays a real world over a WebSocket
+   and prints what it measured.
+2. **A gate that has never failed has proved nothing.** Every one of them
+   carries `--break=` counter-proofs that disable the mechanic it measures, and
+   each must fail _at the check it aims at_ — not at an earlier one. Phase 4
+   shipped a counter-proof that failed for the wrong reason and it took a
+   rewrite to notice.
+
+### Order, and why this one
+
+Two pieces of work come before the remaining phases, at the player's own
+request after seeing the game run:
+
+The **front, tile by tile** goes first because it is not a feature but a
+repair. Taking a province is currently the only lump sum left in the game —
+`combat.ts` rolls once a tick and the province flips or does not — and
+invariant 1 forbids exactly that. It also touches `combat.ts` at its core,
+which the phase-4 and phase-8 gates both measure, so doing it _before_ writing
+more gate saves writing them twice.
+
+The **menu** goes second because it is cheap and because six panels covering
+half the map is the first thing anyone notices.
+
+Then phases 9 to 12 in CLAUDE.md's own order, then the map's borders.
+
+---
+
+### 1 · The front, tile by tile
+
+**What it is.** A standing attack gets a _progress_ value. Each tick it grows
+by an amount derived from the same strength comparison `combat.ts` already
+makes, and shrinks when the attacker is losing. The province changes hands when
+progress completes. The client paints partial progress as tiles taken from the
+attacking border inward, so a contested province visibly fills up.
+
+**Why it is right.** Invariant 1: everything is a rate. Invariant 8 stays
+intact — the player still orders provinces, and tiles remain rendering only.
+And it makes combat _simpler_ than the current all-or-nothing roll.
+
+**Server.**
+
+- `AttackOrder` in `world/WorldState.ts` gains `progress: number` (0..1).
+- `systems/combat.ts`: instead of `pressed > defence` deciding the province,
+  compute `advance = f(pressed, defence)` — positive when the attacker is
+  ahead, negative when behind — and emit `attack_progressed`. Keep the seeded
+  roll: it varies the rate, it no longer flips a coin. Emit `control_changed`
+  only when progress reaches 1.
+- New event `attack_progressed`, a case in the reducer, and the field in
+  `snapshot()`, `restoreFrom()` (optional, `?? 0`) and **`stateHash()`**.
+- `shared/config/combat.ts`: one constant for how fast a front moves at parity.
+  Tune it so an even fight takes in-game _days_, not ticks — this is the number
+  that decides whether the war feels slow, and §6.9 wants slow.
+
+**Client.**
+
+- Wire: the economy view's `attacks` becomes `{ province, progress }[]`, and
+  provinces under attack by _anyone visible_ need progress on the wire too, or
+  a defender cannot see themselves being ground down. Bump `PROTOCOL_VERSION`.
+- Rendering: a province's tiles ordered by distance from the attacking
+  border — a BFS over the tile grid from the tiles adjacent to the staging
+  province, computed client-side from `ProvinceTileIndex`. Take the first
+  `progress × tileCount` of them in the attacker's colour. The province-border
+  map layer (`ProvinceBorders.ts`) is the pattern to copy; it needs no new
+  WebGL pass.
+
+**Gate.** Extend `scripts/phase4-gate.mjs` rather than adding a script: order
+an attack, watch `progress` rise over many ticks without the province
+changing hands, then watch it complete. `--break=` a version where progress
+jumps to 1 in one tick — the check that has to fail is "the front moved
+gradually", and a lump sum must not pass it.
+
+**Traps.** The state hash change makes every running world unstartable
+(`docker compose down -v`). Progress must be _lost_ when an attack is called
+off, or calling off and re-ordering becomes a way to bank progress for free.
+
+---
+
+### 2 · A menu instead of six open panels
+
+**What it is.** An icon bar at the top left — economy, construction,
+production, research, diplomacy, air — opening one panel at a time. The
+province panel stays where it is, because it is a response to a click on the
+map.
+
+**Where.** `client/world/ui/Hud.ts` only. The panels are already built as pure
+functions of the model and already have their own `hidden` flag; what changes
+is who sets it. Keep the diplomacy and air _forms_ built-once (they hold what
+the player is typing) and only toggle visibility.
+
+**Traps.** `#world-hud` needs its `z-index` (it was invisible under the canvas
+for three phases — see "What the browser found"). Icons: no asset pipeline is
+needed, the HUD is plain DOM and a glyph or inline SVG is enough.
+
+**Done when** a person opens the game and can see the map. There is no script
+for this, and that is the point.
+
+---
+
+### 3 · Phase 9 — naval zones and convoys
+
+**The machine already exists.** `systems/zones.ts` resolves any zoned system;
+what phase 9 adds is data and a thin resolver, exactly as
+[decision 0015](docs/decisions/0015-one-formation-and-one-zone-machine.md)
+planned. If you find yourself writing a second resolver, the mistake was made
+in phase 8 and this is where it shows.
+
+**Steps.**
+
+1. **Water provinces.** Phase 2 partitions the ocean into sea zones and stores
+   them in the spare bit of the tile array; phase 9 needs water _provinces_ to
+   move and fight over. This is a `provinces.bin` format bump, and the format
+   has a version field for it. Regenerate the artefact with
+   `scripts/genProvinces.ts`.
+2. **The ship types**, as three rows in `FORMATIONS`: `submarine_flotilla`,
+   `escort_group`, `battle_fleet`, all `kind: "naval"`, `base: "naval_base"`,
+   with the weight table §6.8 describes in words — submarines strong at
+   `convoy_raiding` and weak at `sea_control`, escorts the counter, capital
+   ships deciding `sea_control`. The equipment types already exist.
+3. **`systems/naval.ts`**, the mirror of `air.ts`: attrition in contested
+   zones, formations sent home when their naval base is lost. It applies no
+   effects, for the same reason `air.ts` applies none.
+4. **Convoys become real.** `convoy` equipment is consumed by sea supply and by
+   seaborne trade, and destroyed by `convoy_raiding`. Sea supply is stubbed in
+   `supply.ts` and this is what un-stubs it. A trade route that crosses water
+   consumes convoys — `trade.ts` currently refuses such routes, and that
+   refusal is what phase 9 replaces.
+5. **Naval invasion**: units ordered from a coastal province to a hostile one
+   across a sea zone the nation controls, in transit for several ticks, landing
+   at reduced strength. Upstream's water pathfinding is the four files that did
+   not survive phase 0 (`PathFinder.ts`, `.Air`, `.Station`,
+   `spatial/SpatialQuery`); this is their real consumer.
+6. **Client**: the air panel's assignment form takes a zone _kind_, so it
+   serves both. That is the invariant-5 test in the UI.
+
+**Gate** (`scripts/phase9-gate.mjs`): cutting an opponent's convoy routes
+starves an overseas province of supply **and** cuts their trade income, with
+no land engagement. Then a naval invasion lands and holds a beachhead.
+`--break=` one where the raiders never sail.
+
+**Traps.** Everything the phase-8 gate learned applies: supply hubs before
+armies, production stopped during a measurement window, and time the fight
+rather than counting it. Sea supply must degrade, never sever (invariant 2) —
+a province with no convoys is badly supplied, not cut off.
+
+---
+
+### 4 · Phase 10 — the regent
+
+**Load-bearing, not a convenience.** With a five-second tick, the regent plays
+most of a nation's ticks. If it cannot hold a front, players do not come back.
+
+**Build** `systems/regent.ts`, running every 12 ticks, rule-based, no search.
+Baseline regardless of focus: keep units supplied, retreat collapsing ones,
+keep the construction queue non-empty, assign _idle_ military factories to a
+line, keep research slots filled. `RegentConfig.focus` only changes allocation
+weights.
+
+**The one rule that matters most**: it must **never** change an existing
+production line's equipment type. That resets the efficiency ramp to the floor
+and destroys in one decision what a player spent days building. Idle factories
+only.
+
+Per invariant 7 it never proposes, accepts or cancels an agreement, never
+declares war, never abandons a capital, never orders a naval invasion. Its one
+economic reaction is the world market, up to `marketBudget`, when an inbound
+trade flow drops to zero.
+
+**Gate**: a nation under regent control for 2,000 ticks against an active
+opponent still holds its capital, has a non-empty construction queue, and has
+not reset a single production line.
+
+**Trap.** The regent will be the first thing that plays the game as a whole.
+Expect it to find every mechanic that only works when a human is watching.
+
+---
+
+### 5 · Phase 11 — accounts and identity
+
+**Why it is a phase.** Since phase 7 a session can claim any nation in its
+`hello`, read that nation's treaty terms and cancel its agreements. §7 promises
+terms are visible only to the two parties, and a server that cannot tell who is
+asking cannot keep that promise
+([decision 0013](docs/decisions/0013-identity-is-a-phase-not-a-deferral.md)).
+
+**Build**: accounts, sessions bound to accounts, and a nation claimed by
+exactly one account for the life of a season. Reconnecting resumes the same
+session rather than opening a second. Registration is deliberately minimal —
+this is a hobby world — but it is a real credential, checked on every `hello`.
+
+**New players take a nation no account holds** (§10), inheriting whatever the
+regent built. That is what makes a persistent world joinable in week five.
+
+**Gate**: a session claiming a nation it does not hold is refused and is sent
+nothing about that nation. Two browsers on one account share one nation and one
+session; two accounts cannot hold the same nation. The refusal survives a
+world restart.
+
+**Trap.** Deployment already happened, so the world is currently reachable with
+no accounts in front of it. Until this ships, treat the deployed world as a
+demo rather than a season.
+
+---
+
+### 6 · Phase 12 — deployment, properly
+
+Most of it is done and documented in `docs/deploy/README.md`, and the
+host-specific half is in the git-ignored `HOST.local.md`. What is left:
+
+- **TLS and a hostname.** Needs a DNS record; the zone is on Cloudflare and no
+  API token exists on the machines, so this needs a token with `DNS:Edit` or
+  somebody clicking it. The ACME vhost is already in place.
+- **A backup sidecar inside the stack** — nightly `pg_dump`, an integrity check
+  as a hard abort, rotation. A stack that carries its own backup moves with
+  you. **Test a restore once, before it matters.**
+- **A watchdog** that alerts when the world stops ticking. Do not assume a
+  monitoring system elsewhere can reach this host.
+
+**Gate**: seven uninterrupted days on the host with one verified snapshot
+restore.
+
+---
+
+### 7 · The victory system
+
+Currently `planned("victory")` in the system list. §10 now specifies it: an
+alliance bloc holding **40% of all provinces for 7 in-game days** wins
+outright; otherwise the season ends after **six weeks** and the highest score
+wins (provinces, industry, trust). Blocs, not nations — evaluating individuals
+makes alliances self-defeating.
+
+Needs bloc resolution over the agreement graph (an alliance is transitive for
+victory purposes, or it is not — decide and write it down), a held-for counter
+in the world state, and an end-of-season archive path.
+
+---
+
+### 8 · Real country borders
+
+The player's standing request, and the reason is worth understanding before
+starting: `ProvincePartition.ts` grows each nation outward from its capital
+over land until the regions meet, then Lloyd relaxation evens the sizes. That
+gives the right neighbours around the right capitals with the wrong outlines —
+and _deliberately equal_ sizes, which is the third thing that looks wrong.
+
+**Wanted**: real outlines, distinguishable colours, and unequal sizes.
+
+Natural Earth's admin-0 boundaries are public domain and the standard source.
+The work is a projection onto the tile grid, a rasterisation into
+province→nation assignment, and coasts and islands. The nation list itself is
+fine — the manifest already carries real names, flags and capitals.
+
+**It invalidates every running world**, because the partition is in the map
+hash. Plan it together with a season boundary.
+
+---
+
+### 9 · The standing checklist for any phase
+
+Before calling anything done:
+
+```bash
+npm run test                          # 568 at the end of phase 8
+TEST_DATABASE_URL=... npm run test:db # skipped silently without it
+npx tsc --noEmit -p tsconfig.strict.json
+npm run lint
+npm run build-prod
+node scripts/check-doc-links.mjs
+```
+
+Then the gate, on a world at `WORLD_TICK_MS=50`, plus its counter-proofs. Then
+the documents: `HANDOVER.md` (state), `docs/architecture/README.md` (how it
+works), a decision record if a choice was made that a later reader would
+otherwise have to reconstruct, and `README.md` if the phase count moved.
+
+**And once per phase, open the browser.** Everything in this project is proved
+by a script except the client, and on 2026-08-31 that gap turned out to be
+hiding three bugs at once — a HUD that had been invisible under the map for
+three phases among them. A gate cannot tell you the game is unplayable.
+
+---
+
 ## The whole plan, and how far along it is
 
-Eight of thirteen gates passed. **The gate is the unit of progress here, not the
+Nine of thirteen gates passed. **The gate is the unit of progress here, not the
 code:** a phase is done when its gate has been demonstrated, not when it
 compiles.
 
@@ -92,7 +392,7 @@ compiles.
 | 5 · Research                   | A completed tech measurably changes a production or combat number                   | ✅ passed                                                          |
 | 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ✅ passed                                                          |
 | 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ✅ passed                                                          |
-| 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | 🟨 code green, gate unfinished                                     |
+| 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ✅ passed                                                          |
 | 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ⬜                                                                 |
 | 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜                                                                 |
 | 11 · Accounts and identity     | A session claiming a nation it does not hold is refused and told nothing about it   | ⬜                                                                 |
@@ -121,6 +421,79 @@ a timeout.
 **A fresh world starts with zero manpower**, which regrows at 0.02% of the cap
 a tick, so nothing can raise a division for the first couple of thousand ticks.
 Give a new world two minutes at 50 ms before running phase 4 or 6.
+
+### Phase 8 — air zones
+
+```
+phase-8 gate
+  world world-0 at tick 166943, 50 ms a tick
+  nation 26 faces nation 25 over 5 province(s) in air zone 22
+  clearing 3 division(s), 5 wing(s) and 2 line(s) left by an earlier run
+  clearing 4 division(s), 0 wing(s) and 2 line(s) left by an earlier run
+  air base in province 339, zone 22
+  bombers: 4 factories making bomber
+  making 90 bombers for 5 wing(s)...
+  ok    raised 5 bomber wing(s)
+  5 wing(s) at strength, on the ground
+  ok    the garrison in province 314 reports its supply
+  ok    and nothing changed hands under it, so supply is the only thing measured
+  ok    bombers over the zone cut its supply: 1.000 -> 0.893 (10.7%)
+  ok    and never to nothing — 25% is the cap, and a cut supply line is a worse one, not a severed one
+  ok    bombing the zone cut construction: 2.0000 -> 1.8286 a tick
+  ok    and left the factories running — 20% is the cap, and invariant 2 has no exception for being bombed
+  defence-rifles: 3 factories making infantry_equipment
+  defence-guns: 1 factory making artillery
+  offence-rifles: 3 factories making infantry_equipment
+  offence-guns: 1 factory making artillery
+  ok    the attacker's factories retooled from bombers to rifles
+  building supply hubs on both sides of the front...
+  nation 25: 4 of 4 front provinces have a hub
+  nation 26: 3 of 3 front provinces have a hub
+  garrisoning 4 province(s) and staging against them...
+  garrison in 318: 86%
+  garrison in 323: 86%
+  garrison in 327: 86%
+  ok    the garrisons equipped — a front against empty provinces measures nothing
+  4 garrison(s), the weakest at 86%
+  3 attacking division(s) staged
+  ok    the front splits in two
+  without bombers: held 40, 40 tick(s) — mean 40.0, 0 of 2 fell, divisions at 80%
+  with bombers   : held 2, 1 tick(s) — mean 1.5, 2 of 2 fell, divisions at 81%
+  ok    air superiority shifted the ground battle: the line held 40.0 ticks against the same army with no air, and 1.5 with bombers over it
+  ok    the world stayed healthy throughout (0 ms behind at tick 168070)
+PASS
+```
+
+**Three checks, cheapest first**, and the first two exist because they prove
+the zone machine works at all before the expensive one asks whether it changes
+a battle. Interdiction cut a garrison's supply by a tenth and stopped short of
+the cap; bombing cut what the zone's factories make. Neither reaches zero,
+which is invariant 2 twice over.
+
+**The third is §8's own sentence**, and the way it is measured matters. Ticks,
+not provinces: the two sides are deliberately close, so every province falls
+sooner or later and counting them reads "all of them" both times. What air
+changes is the chance of winning each tick's roll, and that shows up as the
+front moving faster. Forty ticks against nothing, one and a half with bombers
+overhead — same army, same strength, same garrisons.
+
+**And it was checked against itself being broken, two ways:**
+
+```
+$ node scripts/phase8-gate.mjs --break=grounded
+  without bombers: held 40, 40 tick(s) — mean 40.0, 0 of 2 fell
+  with bombers   : held 40, 40 tick(s) — mean 40.0, 0 of 2 fell
+  FAIL  air superiority shifted the ground battle
+
+$ node scripts/phase8-gate.mjs --break=idle
+  FAIL  air superiority shifted the ground battle: the line held 20.5 ticks
+        against the same army with no air, and 40.0 with bombers over it
+```
+
+`--break=grounded` never sends the wings anywhere; `--break=idle` sends them
+with no mission. Both leave every other line of the gate untouched, which is
+what makes them counter-proofs rather than different runs. Both fail at the
+check they aim at and at no earlier one.
 
 ### Phase 7 — diplomacy and trade
 
@@ -612,6 +985,36 @@ The lesson is the one this file has claimed since phase 1 and had never had to
 pay for: **everything here is proven by a script except the browser, and the
 browser is where a game is either playable or not.** Two of these three had
 been shipped for phases.
+
+## A division at a badly supplied front is a bottomless pit
+
+Found while staging the phase-8 gate, and it is about the game rather than
+about the script — a player will meet it too.
+
+§6.6 wastes an under-supplied division at `SUPPLY_ATTRITION × (1 - supply)` a
+tick. On a typical front supply runs about 0.6, so the loss is 0.8% a tick —
+and 0.8% of a division's twelve guns is 0.096, against an artillery line that
+makes 0.1. The division sits in equilibrium _just below full_. It never stops
+asking for reinforcement, and `reinforce` walks a nation's divisions in order
+and gives each what it asks for out of what is left, so it starves every
+division behind it in the list.
+
+The gate read `90% 4% 0% 0%` for ten minutes because of this, and no amount of
+extra factories fixed it — more factories on a steel-poor nation only lower
+`sufficiency` and slow every line down together.
+
+**The fix is the one a player would reach for: build a supply hub first.** 150
+points, and the province becomes a supply _source_, so reach there goes to 1
+and the attrition goes to nothing. Then the divisions fill.
+
+Two consequences worth keeping:
+
+- **Feed the front before garrisoning it**, on both sides. An attacker's
+  divisions stand at a front too, and once production stops they waste away
+  exactly the same way.
+- **Few full divisions beat many empty ones.** Because reinforcement is
+  sequential, raising four divisions at once does not share the warehouse
+  between them — it queues them, while looking like nothing is happening.
 
 ## What the phase-8 gate kept getting wrong
 
