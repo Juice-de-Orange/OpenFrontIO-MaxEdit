@@ -524,6 +524,12 @@ not be split into commits that each build:
 | `985c5936` | **Research and supply**, their gates, and decisions 0009 and 0010        |
 | `ba05c98b` | The research screen, and supply shown beside equipment on every division |
 
+Phase 7:
+
+| Commit     | What                                                                                                                                                                                                                                                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cea1894e` | **Agreements, trust, per-tick trade, the world market, the diplomacy panel, `scripts/phase7-gate.mjs` and decision 0011** — and two fixes it turned up: a production line that could not be stood down once its factories were lost, and a phase-1 gate that could not see a replay at fifty milliseconds a tick |
+
 And what it took to get phase 6's gate green, none of which was the simulation:
 
 | Commit     | What                                                                                                    |
