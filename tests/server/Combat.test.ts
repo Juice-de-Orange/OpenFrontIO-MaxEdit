@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, test } from "vitest";
+import { combatSystem } from "../../src/server/systems/combat";
 import { World, type WorldCommand } from "../../src/server/world/World";
 import {
   applyEvent,
   divisionStrength,
   type WorldState,
 } from "../../src/server/world/WorldState";
-import { COMBAT_WIDTH } from "../../src/shared/config/combat";
+import {
+  COMBAT_WIDTH,
+  FRONT_ADVANCE,
+  FRONT_MARCH_ADVANCE,
+} from "../../src/shared/config/combat";
 import {
   DIVISION_TEMPLATE,
   equipmentIndex,
@@ -102,13 +107,78 @@ describe("the front", () => {
     ({ world } = build());
   });
 
-  test("ground nobody is holding is walked into, on the tick the order lands", () => {
+  test("ground nobody is holding is marched into at a rate, never flipped", () => {
     const { attacker, province } = border(world);
+    const marchTicks = Math.round(1 / FRONT_MARCH_ADVANCE);
     order(world, attacker, province);
+
+    // Invariant 1: even empty ground changes hands as a rate. The march moves
+    // one step per tick, the province stays the defender's until it completes,
+    // and a player watching the map sees it happen.
+    for (let tick = 1; tick < marchTicks; tick++) {
+      world.step();
+      expect(world.controllerOf(province)).not.toBe(attacker);
+      const attack = world.view().nations[attacker].attacks[0];
+      expect(attack.progress).toBeCloseTo(tick * FRONT_MARCH_ADVANCE, 10);
+    }
+
     world.step();
     expect(world.controllerOf(province)).toBe(attacker);
     // And the order is spent rather than left standing on ground it took.
     expect(world.view().nations[attacker].attacks).toHaveLength(0);
+  });
+
+  test("calling an attack off loses its progress — a front cannot be banked", () => {
+    const { attacker, province } = border(world);
+    order(world, attacker, province);
+    for (let i = 0; i < 3; i++) world.step();
+    expect(world.view().nations[attacker].attacks[0].progress).toBeCloseTo(
+      3 * FRONT_MARCH_ADVANCE,
+      10,
+    );
+
+    world.queueCommand({
+      nation: attacker,
+      body: { kind: "cancel_attack", provinceId: province },
+    });
+    world.step();
+    expect(world.view().nations[attacker].attacks).toHaveLength(0);
+
+    // Re-ordering starts from zero. If progress survived the withdrawal, a
+    // player could park a nearly-finished front for free and cash it in
+    // later — which is exactly the banking invariant 1's rate is not.
+    order(world, attacker, province);
+    world.step();
+    expect(world.view().nations[attacker].attacks[0].progress).toBeCloseTo(
+      FRONT_MARCH_ADVANCE,
+      10,
+    );
+  });
+
+  test("a march into empty ground costs the marchers nothing", () => {
+    // The combat system directly, not `world.step()`: supply attrition also
+    // empties a division standing away from home, and this test is about
+    // what the *march* costs.
+    const { attacker, province, from } = border(world);
+    const state = world.view() as WorldState;
+    garrison(state, attacker, from);
+    applyEvent(state, { kind: "attack_ordered", nation: attacker, province });
+    const before = divisionStrength(state.nations[attacker].divisions[0]);
+
+    for (let tick = 1; tick <= 4; tick++) {
+      for (const event of combatSystem.run(state, tick)) {
+        applyEvent(state, event);
+      }
+    }
+
+    // No battle, no losses: the per-tick cost is what a *fight* costs
+    // (invariant 6 wants the footprint on hostile action against somebody),
+    // and before the march was a rate the one-tick flip hid the difference.
+    expect(state.nations[attacker].attacks[0].progress).toBeCloseTo(
+      4 * FRONT_MARCH_ADVANCE,
+      10,
+    );
+    expect(divisionStrength(state.nations[attacker].divisions[0])).toBe(before);
   });
 
   test("ground somebody is holding is fought for, and the order stands", () => {
@@ -160,7 +230,11 @@ describe("the front", () => {
 
     order(world, attacker, province);
     let taken = false;
-    for (let i = 0; i < 40 && !taken; i++) {
+    // Three against one moves the front about half its ceiling rate, so the
+    // grind needs on the order of 1 / (FRONT_ADVANCE / 2) ticks; three times
+    // that is margin for the luck roll, not a tuned number.
+    const budget = Math.ceil(6 / FRONT_ADVANCE);
+    for (let i = 0; i < budget && !taken; i++) {
       world.step();
       taken = world.controllerOf(province) === attacker;
     }

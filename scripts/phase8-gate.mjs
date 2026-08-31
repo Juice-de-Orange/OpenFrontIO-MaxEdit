@@ -19,16 +19,13 @@
  * 2. **Strategic bombing cuts industry.** The same wings, re-tasked, and the
  *    victim's construction and industry per tick fall. Invariant 6, in the one
  *    place a player reads: the economy screen.
- * 3. **Ground support decides a fight.** A front that is grinding without
- *    taking ground takes it once bombers are over it. This is the half that
- *    cannot be measured in one tick, because the roll is what it modifies —
- *    so it is measured as a rate over a window, and the window with the
- *    bombers has to beat the window without them.
- *
- * The third check inherits the *harder* half of the front deliberately: the
- * provinces still standing after the first window are the ones the attacker
- * already failed to take. If more of them fall once the bombers arrive, that
- * is the air and not the luck, because luck had its turn first and lost.
+ * 3. **Ground support speeds a front.** Since the front became a rate
+ *    (invariant 1), what the sky changes is how fast the line moves: the
+ *    same front is fought twice for the same fixed window — once with no
+ *    air, once with bombers overhead — and the bombers' window has to grind
+ *    measurably deeper into the same provinces. Calling an attack off
+ *    resets its progress, which is what lets the same ground be fought
+ *    twice without either window inheriting the other's work.
  *
  *   WORLD_TICK_MS=50 docker compose up -d --build
  *   node scripts/phase8-gate.mjs
@@ -50,7 +47,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 11;
+const PROTOCOL_VERSION = 12;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -371,10 +368,10 @@ async function sweep(player) {
   // still grinding, still spending equipment and still taking provinces — and
   // the third check counts provinces taken in a window. Left in place it
   // measures the last run as well as this one.
-  for (const province of attacks) {
+  for (const attack of attacks) {
     await player.command(
-      { kind: "cancel_attack", provinceId: province },
-      `sweep-a${province}`,
+      { kind: "cancel_attack", provinceId: attack.province },
+      `sweep-a${attack.province}`,
     );
   }
   if (
@@ -418,15 +415,31 @@ async function sweep(player) {
 }
 
 /**
- * How long one fight runs, in ticks.
+ * How long one fight runs, in ticks: one in-game day.
  *
- * Short on purpose. With production stood down, every tick of fighting costs
- * both sides equipment and nothing replaces it, so an attack that has not
- * succeeded inside a few dozen ticks is an attack whose divisions are now too
- * weak to ever succeed. A longer window would not add measurements, only
- * attrition.
+ * Short on purpose, twice over. With production stood down, every tick of
+ * fighting costs both sides equipment and nothing replaces it, so a longer
+ * window measures attrition rather than the sky. And the window must end
+ * *before* the front completes — the measurement is how deep the line got,
+ * and a window long enough for both runs to finish reads 100% both times.
  */
-const FIGHT_TICKS = 40;
+const FIGHT_TICKS = 24;
+
+/**
+ * How much deeper the supported window has to grind before the difference
+ * counts as the air rather than the luck. The luck roll's noise over a
+ * window this size is well under this.
+ */
+const AIR_MARGIN = 0.03;
+
+/**
+ * Divisions per staging province: the combat width, so the border is
+ * saturated. A lone division at BAND_LOW against an equipped garrison is a
+ * front at parity, and under the rate resolution parity goes nowhere at all
+ * — the fight below wants a front that moves, with the sky as the
+ * difference in speed.
+ */
+const STAGE_DIVISIONS = 3;
 
 /** The attacking strength each fight is rebuilt to before it starts. */
 const BAND_LOW = 0.8;
@@ -612,13 +625,23 @@ async function main() {
 
   /** Put every wing on one mission over the front's zone, or stand them down. */
   const fly = async (mission, tag) => {
+    // Owning the sky is part of flying close support: the first wing takes
+    // air_superiority so the rest work under a friendly sky rather than the
+    // 0.5 stalemate an uncontested zone reads as. It is what a player would
+    // order, and it is half the ground_support effect.
+    const wanted = new Map(
+      raised.map((id, i) => [
+        id,
+        mission === "ground_support" && i === 0 ? "air_superiority" : mission,
+      ]),
+    );
     for (const [i, id] of raised.entries()) {
       await attacker.require(
         {
           kind: "assign_formation",
           formationId: id,
           zone: mission === null ? null : front.zone,
-          mission,
+          mission: wanted.get(id),
         },
         `${tag}-${i}`,
       );
@@ -627,7 +650,7 @@ async function main() {
       (p) =>
         p.economy.formations
           .filter((f) => raised.includes(f.id))
-          .every((f) => f.mission === mission),
+          .every((f) => f.mission === (wanted.get(f.id) ?? null)),
       `the wings to take ${mission ?? "no mission"}`,
       30_000,
     );
@@ -946,49 +969,46 @@ async function main() {
       ).toFixed(0)}%`,
   );
 
-  // The attacker: one division per staging province, raised while the
-  // warehouse is thin so that none of them is a full division.
+  // The attacker: a combat width of divisions per staging province, raised
+  // while the warehouse is thin so that none of them is a full division. One
+  // at a time, for the reinforcement-queue reason the garrisons are.
   const staging = [...new Set(targets.map(([, from]) => from))];
+  const stagedAt = (p, province) =>
+    p.economy.divisions.filter((d) => d.provinceId === province).length;
   for (const province of staging) {
-    if (attacker.economy.divisions.some((d) => d.provinceId === province))
-      continue;
-    await attacker.waitFor(
-      (p) => p.economy.manpower >= 1000,
-      "manpower for an attacking division",
-      BUILD_BUDGET_MS,
-    );
-    await attacker.command(
-      { kind: "raise_division", provinceId: province },
-      `stage-${province}`,
-    );
+    while (stagedAt(attacker, province) < STAGE_DIVISIONS) {
+      const have = attacker.economy.divisions.length;
+      await attacker.waitFor(
+        (p) => p.economy.manpower >= 1000,
+        "manpower for an attacking division",
+        BUILD_BUDGET_MS,
+      );
+      const ack = await attacker.command(
+        { kind: "raise_division", provinceId: province },
+        `stage-${province}-${have}`,
+      );
+      if (!ack.accepted) {
+        log(`  cannot stage more in ${province}: ${ack.reason}`);
+        break;
+      }
+      await attacker.waitUntil(
+        (p) => p.economy.divisions.length > have,
+        "the attacking division to appear",
+        30_000,
+      );
+    }
   }
-  await attacker.waitUntil(
-    (p) => p.economy.divisions.length >= staging.length,
-    "the attacking divisions to appear",
-    BUILD_BUDGET_MS,
-  );
 
   log(`  ${attacker.economy.divisions.length} attacking division(s) staged`);
 
-  // **Two groups of provinces, not two windows over one.**
-  //
-  // The first version of this check ran one window without bombers and a
-  // second with them, over the same front. It failed for a reason worth
-  // keeping: the attacker took every province in the first window, so the
-  // second had nothing left to measure. The factories were still running, and
-  // a division that starts a fight at 35% is at full strength forty ticks
-  // later — the warehouse refills it faster than the fighting empties it.
-  //
-  // So: the front is split in half, the halves are fought one after the other
-  // with the same army rebuilt to the same strength, and production is stood
-  // down for the duration of each window. A division that cannot be
-  // reinforced mid-fight is one whose strength is the number this gate set,
-  // rather than whatever the factories made of it.
-  const half = Math.floor(targets.length / 2);
-  const groups = [targets.slice(0, half), targets.slice(half)];
-  if (!check(half >= 1 && groups[1].length >= 1, "the front splits in two")) {
-    process.exit(1);
-  }
+  // **The same ground, fought twice.** An earlier version split the front in
+  // two and fought the halves — one with air, one without — because under the
+  // one-roll resolution the first window took every province and left the
+  // second nothing to measure. The rate resolution removed that problem and
+  // the asymmetry with it: the window ends before any front completes, the
+  // attacks are then called off, and calling off loses the progress — so the
+  // second window starts from zero on the very same provinces, same terrain,
+  // same garrisons. What differs between the windows is the sky, only.
 
   /** Stand every line down, or put them all back on. */
   const production = async (on, tag) => {
@@ -1007,20 +1027,17 @@ async function main() {
   };
 
   /**
-   * Fight one group, and report how long the defenders held.
+   * Fight the whole front for one fixed window, and report how deep the
+   * line ground in: the mean of each province's furthest progress, 0..1,
+   * with a fall counting as 1.
    *
-   * **Ticks, not provinces.** Counting how many fell measures nothing here:
-   * the two sides are deliberately close, so every province falls sooner or
-   * later and both windows read "all of them". What the sky changes is the
-   * chance of winning *each tick's roll* — with bombers overhead the attacker
-   * needs a worse roll to get through — and that shows up as the front moving
-   * faster, not as more of it moving.
-   *
-   * The army is rebuilt to `BAND_LOW` with the factories running, then the
-   * factories stop, so that a division's strength is the number this gate set
-   * rather than whatever the lines made of it mid-fight.
+   * The army is rebuilt to `BAND_LOW` with the factories running — and so
+   * are the garrisons, because window one hurt them and a second window
+   * against weaker defenders would flatter the sky. Then the factories
+   * stop, so that a division's strength is the number this gate set rather
+   * than whatever the lines made of it mid-fight.
    */
-  const fight = async (group, withAir, tag) => {
+  const fight = async (withAir, tag) => {
     await production(true, `${tag}-on`);
     await attacker.waitUntil(
       (p) =>
@@ -1029,19 +1046,29 @@ async function main() {
       "the attacking divisions to come back to strength",
       BUILD_BUDGET_MS,
     );
+    await defender.waitUntil(
+      (p) =>
+        targets.every(
+          ([target]) =>
+            attacker.controllers[target] === front.attacker ||
+            (p.economy.divisions.find((d) => d.provinceId === target)
+              ?.strength ?? 0) >= BAND_LOW,
+        ),
+      "the garrisons to come back to strength",
+      BUILD_BUDGET_MS,
+    );
     const at = Math.min(...attacker.economy.divisions.map((d) => d.strength));
     await production(false, `${tag}-off`);
 
     if (withAir) await send("ground_support", `${tag}-air`);
     else await send(null, `${tag}-noair`);
 
-    // Only provinces the defender still holds are worth timing.
-    const contested = group.filter(
+    // Only provinces the defender still holds are worth fighting over.
+    const contested = targets.filter(
       ([target]) => attacker.controllers[target] !== front.attacker,
     );
     if (contested.length === 0) return null;
 
-    const startTick = attacker.tick;
     for (const [target] of contested) {
       await attacker.command(
         { kind: "claim_province", provinceId: target },
@@ -1049,53 +1076,63 @@ async function main() {
       );
     }
 
-    // Watch each province and note the tick it changed hands on.
-    const fell = new Map();
-    const deadline = attacker.tick + FIGHT_TICKS;
-    while (attacker.tick < deadline && fell.size < contested.length) {
+    // Watch each front's progress and keep the deepest reading. Progress is
+    // on the wire (`economy.attacks`), so this is the number the player's
+    // own screen would show.
+    const startTick = attacker.tick;
+    const deepest = new Map();
+    while (attacker.tick < startTick + FIGHT_TICKS) {
       for (const [target] of contested) {
-        if (fell.has(target)) continue;
         if (attacker.controllers[target] === front.attacker) {
-          fell.set(target, attacker.tick - startTick);
+          deepest.set(target, 1);
+        } else {
+          const standing = attacker.economy?.attacks.find(
+            (a) => a.province === target,
+          );
+          if (standing !== undefined) {
+            deepest.set(
+              target,
+              Math.max(deepest.get(target) ?? 0, standing.progress),
+            );
+          }
         }
       }
       await sleep(20);
     }
 
+    // Call the window's attacks off. Cancelling loses the progress, which is
+    // exactly what lets the next window fight the same ground from zero.
     for (const [target] of contested) {
+      if (attacker.controllers[target] === front.attacker) continue;
       await attacker.command(
         { kind: "cancel_attack", provinceId: target },
         `${tag}-stop-${target}`,
       );
     }
 
-    // A province that never fell counts as the whole window: it held at least
-    // that long, and treating it as missing data would flatter whichever side
-    // failed to take it.
-    const times = contested.map(([target]) => fell.get(target) ?? FIGHT_TICKS);
-    const mean = times.reduce((a, b) => a + b, 0) / times.length;
+    const scores = contested.map(([target]) => deepest.get(target) ?? 0);
+    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
     log(
-      `  ${withAir ? "with bombers   " : "without bombers"}: held ` +
-        `${times.join(", ")} tick(s) — mean ${mean.toFixed(1)}, ` +
-        `${fell.size} of ${contested.length} fell, divisions at ` +
-        `${(at * 100).toFixed(0)}%`,
+      `  ${withAir ? "with bombers   " : "without bombers"}: the line gave ` +
+        `${scores.map((score) => `${(score * 100).toFixed(0)}%`).join(", ")}` +
+        ` — mean ${(mean * 100).toFixed(1)}%, ` +
+        `${scores.filter((score) => score >= 1).length} of ` +
+        `${contested.length} fell, divisions at ${(at * 100).toFixed(0)}%`,
     );
     return mean;
   };
 
-  const heldQuiet = await fight(groups[0], false, "quiet");
-  const heldSupported = await fight(groups[1], true, "supported");
+  const quiet = await fight(false, "quiet");
+  const supported = await fight(true, "supported");
 
-  if (heldQuiet === null || heldSupported === null) {
-    fail(
-      "a world this gate cannot use: one half of the front was already lost",
-    );
+  if (quiet === null || supported === null) {
+    fail("a world this gate cannot use: the front was already lost");
   } else {
     check(
-      heldSupported < heldQuiet,
-      `air superiority shifted the ground battle: the line held ` +
-        `${heldQuiet.toFixed(1)} ticks against the same army with no air, and ` +
-        `${heldSupported.toFixed(1)} with bombers over it`,
+      supported > quiet + AIR_MARGIN,
+      `air superiority shifted the ground battle: the same front gave way ` +
+        `${(quiet * 100).toFixed(1)}% deep in ${FIGHT_TICKS} ticks with no ` +
+        `air, and ${(supported * 100).toFixed(1)}% with bombers over it`,
     );
   }
 

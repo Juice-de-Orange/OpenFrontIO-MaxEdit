@@ -30,12 +30,17 @@ same artefact, and hands province control to the inherited renderer through one
 long-lived `FrameData` object — plus a province-border overlay as a map layer,
 toggled with `b`. A click on a province sends a `claim_province` command, which
 is a standing attack order rather than a request for the province: it grinds
-until the province falls or the player calls it off.
+until the province falls or the player calls it off. The grinding is visible
+tile by tile — each front carries a **progress** value that the client paints
+as tiles taken from the attacking border inward, so a contested province
+fills up with the attacker's colour while its controller is still the
+defender's. Tiles stay a projection (decision 0002); only the paint moves.
 
-A province has a **controller** and an **owner**. The controller moves the tick
-it is taken; the owner follows only after 336 ticks — fourteen in-game days —
-of unbroken control (docs/decisions/0002). The map is coloured by controller,
-because that is where the line is.
+A province has a **controller** and an **owner**. The controller moves the
+tick a front's progress completes; the owner follows only after 336 ticks —
+fourteen in-game days — of unbroken control (docs/decisions/0002). The map is
+coloured by controller, because that is where the line is — plus the partial
+front described above, because that is where the line is moving.
 
 Underneath that is an economy: provinces extract from their deposits, factories
 consume and produce, a construction queue turns construction points into
@@ -112,15 +117,25 @@ persistence design rests on.
   division loses equipment in proportion to how short it is. Land only: the
   sea path waits for convoys in phase 9.
 - **combat** — the front. Every standing attack order is asked the same
-  question each tick: can the force that can reach this border beat what is
-  holding it, with this roll. The inputs are §6.9's own — a division's
-  equipment, its supply, the terrain it is attacking into, and a combat width
-  that keeps a twentieth division from adding anything — and the roll is seeded
-  from `(worldSeed, tick, province)` so the tick stays reproducible from the
-  log. Won or lost, the fight costs both sides equipment: divisions refill from
+  question each tick — how does the force that can reach this border compare
+  to what is holding it, with this roll — and the answer moves a **progress**
+  value on the order rather than flipping the province:
+  `advance = FRONT_ADVANCE × (pressed − defence) / (pressed + defence)`,
+  positive when the attacker is ahead, negative when behind, clamped to 0..1,
+  with control changing only when it completes (invariant 1: taking a
+  province is a rate, never a lump sum). Empty ground is marched into at a
+  flat rate rather than walked into in one tick. The inputs are §6.9's own —
+  a division's equipment, its supply, the terrain it is attacking into, and a
+  combat width that keeps a twentieth division from adding anything — and the
+  roll is seeded from `(worldSeed, tick, province)`, varying the rate rather
+  than flipping a coin, so the tick stays reproducible from the log. A
+  *battle* costs both sides equipment every tick, win or lose; a march costs
+  nothing, which the one-tick flip used to hide. An even fight therefore goes
+  nowhere on the map and is decided by the warehouses. Divisions refill from
   the stockpile, and the factories that refill it are the ones the player has
   been choosing between all along. Signing a non-aggression pact calls a
-  standing attack off rather than letting it grind through the promise.
+  standing attack off rather than letting it grind through the promise, and a
+  called-off attack loses its progress — a front cannot be banked.
 
 Air superiority is in that roll as of phase 8: the attacker's strength is
 multiplied by what `ground_support` over the province's air zone is worth to
@@ -402,9 +417,13 @@ Every command gets exactly one ack — including the ones a dropped connection
 ate, which the client fails locally rather than leaving a click that produced
 nothing and explained nothing.
 
-A delta carries `control`, `owner` and `buildings`. The second is empty on
-almost every tick, which is the point: a front moves constantly and a map
-changes hands rarely.
+A delta carries `control`, `owner`, `buildings` and `fronts`. The second is
+empty on almost every tick, which is the point: a front moves constantly and a
+map changes hands rarely. `fronts` is every standing attack in the world —
+province, attacker, progress — in full every tick, public the way `control`
+is public: the defender watches themselves being ground down, and every
+client, spectators included, paints the partial progress as tiles, which it
+could not do for a front it is not told about.
 
 **An economy is private.** The map half of a delta is identical for everybody
 and is encoded once; the economy half is built per session and carries only

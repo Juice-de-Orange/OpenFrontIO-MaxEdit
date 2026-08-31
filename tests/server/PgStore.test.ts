@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { PgStore } from "../../src/server/db/PgStore";
 import { World } from "../../src/server/world/World";
 import { WorldRunner } from "../../src/server/world/WorldRunner";
+import { FRONT_MARCH_ADVANCE } from "../../src/shared/config/combat";
 import { mapFixture } from "../util/worldFixture";
 
 const URL = process.env.TEST_DATABASE_URL;
@@ -275,14 +276,22 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
     expect(restored.currentTick()).toBe(41);
 
     // The command logged at 41 is after the last snapshot, so it exists only
-    // in the log. If the log were not read, this province would not be ours.
+    // in the log. If the log were not read, this order would not be standing.
     //
-    // Control, not ownership. A claim moves the controller at once and the
-    // owner only after OCCUPATION_TICKS, which is longer than this whole run
-    // — so asserting ownership here asserts something the commands were never
-    // going to change. This test is skipped without TEST_DATABASE_URL, which
-    // is why it was still asserting the phase-1 shape after phase 2 split the
-    // two: `npm run test` does not run it. `npm run test:db` does.
+    // The *order*, not yet the province: a claim starts a march that takes
+    // `1 / FRONT_MARCH_ADVANCE` ticks (invariant 1), so at tick 41 the front
+    // has taken one step and the controller has not moved. Stepping the world
+    // past the march is what turns the replayed command into ground. This
+    // test is skipped without TEST_DATABASE_URL, which is why it was still
+    // asserting the phase-1 shape after phase 2 split owner from controller:
+    // `npm run test` does not run it. `npm run test:db` does.
+    expect(
+      restored
+        .view()
+        .nations[1].attacks.some((a) => a.province === claimed[1].province),
+    ).toBe(true);
+    const marchTicks = Math.round(1 / FRONT_MARCH_ADVANCE);
+    for (let i = 0; i < marchTicks; i++) restored.step();
     expect(restored.controllerOf(claimed[1].province)).toBe(1);
 
     // And the same world reached without the log lands somewhere else.
@@ -290,7 +299,9 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
     expect(snapshot?.tick).toBe(40);
     const snapshotOnly = newWorld();
     snapshotOnly.restoreFrom((snapshot as NonNullable<typeof snapshot>).state);
-    while (snapshotOnly.currentTick() < 41) snapshotOnly.step();
+    while (snapshotOnly.currentTick() < restored.currentTick()) {
+      snapshotOnly.step();
+    }
     expect(snapshotOnly.controllerSnapshot()).not.toEqual(
       restored.controllerSnapshot(),
     );

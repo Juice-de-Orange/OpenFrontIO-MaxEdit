@@ -189,7 +189,7 @@ export interface WorldChanges {
  * a changed function cannot tell corruption from its own history. That is
  * what lets a season survive a deploy (docs/decisions/0016).
  */
-export const STATE_HASH_VERSION = 1;
+export const STATE_HASH_VERSION = 2;
 
 /**
  * Everything needed to put the world back, and nothing that can be derived.
@@ -251,7 +251,8 @@ export interface WorldSnapshot {
     trust?: number;
     lastSeenTick?: number;
     market?: Record<Resource, number>;
-    attacks?: { province: number; since: number }[];
+    /** `progress` is optional: a snapshot from before the front was a rate. */
+    attacks?: { province: number; since: number; progress?: number }[];
     /** Optional: a snapshot taken before phase 8 has neither. */
     formations?: Formation[];
     nextFormationId?: number;
@@ -420,6 +421,31 @@ export class World {
   }
 
   /**
+   * Every standing attack in the world: who is grinding into which province,
+   * and how far in they are.
+   *
+   * Public like `controllers` is public, and for the same reason: a front is
+   * something anyone looking at the map can see. The defender needs it to
+   * watch themselves being ground down, a third party to see a war happening
+   * next door — and the client paints partial progress as tiles, which it
+   * cannot do for fronts it is not told about.
+   */
+  frontsView(): { province: number; attacker: number; progress: number }[] {
+    const fronts: { province: number; attacker: number; progress: number }[] =
+      [];
+    for (let nation = 1; nation <= this.state.nationCount; nation++) {
+      for (const attack of this.state.nations[nation].attacks) {
+        fronts.push({
+          province: attack.province,
+          attacker: nation,
+          progress: attack.progress,
+        });
+      }
+    }
+    return fronts;
+  }
+
+  /**
    * The agreements one session may see, with the terms it may see.
    *
    * §7 draws the line and it is drawn here rather than in the client: *that*
@@ -488,7 +514,7 @@ export class World {
     dockyardsTotal: number;
     researchSlots: ResearchSlotView[];
     unlockedTechs: TechId[];
-    attacks: number[];
+    attacks: { province: number; progress: number }[];
     formations: FormationView[];
     zones: ZoneView[];
   } {
@@ -530,7 +556,10 @@ export class World {
         unlocked: index < slotsFor(state.unlockedTechs),
       })),
       unlockedTechs: [...state.unlockedTechs],
-      attacks: state.attacks.map((attack) => attack.province),
+      attacks: state.attacks.map((attack) => ({
+        province: attack.province,
+        progress: attack.progress,
+      })),
       formations: state.formations.map((formation) => ({
         id: formation.id,
         template: formation.template,
@@ -746,7 +775,10 @@ export class World {
       for (const resource of RESOURCES) {
         live.market[resource] = stored.market?.[resource] ?? 0;
       }
-      live.attacks = (stored.attacks ?? []).map((attack) => ({ ...attack }));
+      live.attacks = (stored.attacks ?? []).map((attack) => ({
+        ...attack,
+        progress: attack.progress ?? 0,
+      }));
     }
     // A world is its seed as much as its provinces: restoring the arrays and
     // leaving the seed behind would give a resumed world a different future
@@ -864,6 +896,7 @@ export class World {
       for (const attack of nation.attacks) {
         mix(attack.province);
         mix(attack.since);
+        mixFloat(attack.progress);
       }
     }
     mix(this.state.worldSeed);

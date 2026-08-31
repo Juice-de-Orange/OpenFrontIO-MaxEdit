@@ -34,7 +34,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -580,7 +580,13 @@ export const NationEconomySchema = z.object({
    * equipment goes on being spent — so the list is on the wire and the HUD
    * puts a button next to each one.
    */
-  attacks: z.array(z.number().int().nonnegative()),
+  attacks: z.array(
+    z.object({
+      province: z.number().int().nonnegative(),
+      /** How far the front has ground in, 0..1 (invariant 1: a rate). */
+      progress: z.number().min(0).max(1),
+    }),
+  ),
   /** Wings and fleets this nation has raised, wherever they are (§6.7). */
   formations: z.array(FormationSchema),
   /** The zones it can see something in, and how the air over them stands. */
@@ -631,6 +637,23 @@ export const AgreementViewSchema = z.object({
 });
 export type AgreementView = z.infer<typeof AgreementViewSchema>;
 
+/**
+ * One standing attack, as anyone may see it.
+ *
+ * Public the way `controllers` is public: a front is visible to anyone
+ * looking at the map. The defender watches themselves being ground down, a
+ * third party sees a war next door, and every client — spectators included —
+ * paints partial progress as tiles, which it cannot do for a front it is not
+ * told about.
+ */
+export const FrontViewSchema = z.object({
+  province: z.number().int().nonnegative(),
+  attacker: z.number().int().positive(),
+  /** 0..1; the province changes hands when it completes (invariant 1). */
+  progress: z.number().min(0).max(1),
+});
+export type FrontView = z.infer<typeof FrontViewSchema>;
+
 export const FullStateSchema = z.object({
   t: z.literal("full"),
   tick: z.number().int().nonnegative(),
@@ -664,6 +687,8 @@ export const FullStateSchema = z.object({
   trust: z.array(z.number()),
   /** Agreements and proposals this session may see. */
   agreements: z.array(AgreementViewSchema),
+  /** Every standing attack in the world, in full. Small, like agreements. */
+  fronts: z.array(FrontViewSchema),
   /** This session's own economy, or null when watching. */
   economy: NationEconomySchema.nullable(),
 });
@@ -689,6 +714,13 @@ export const DeltaSchema = z.object({
    * than it could ever save.
    */
   agreements: z.array(AgreementViewSchema),
+  /**
+   * Every standing attack, in full, every tick — not a change list, for the
+   * same reason `agreements` is not: there are a handful of these in a world,
+   * and a front whose progress update was missed is a map lying about where
+   * the line is.
+   */
+  fronts: z.array(FrontViewSchema),
   /** This session's own economy, recomputed every tick, or null when watching. */
   economy: NationEconomySchema.nullable(),
 });

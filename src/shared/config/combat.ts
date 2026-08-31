@@ -63,6 +63,34 @@ export const ATTACKER_LOSS = 0.05;
 export const DEFENDER_LOSS = 0.035;
 
 /**
+ * How fast a front moves when one side completely dominates the other.
+ *
+ * Each tick a standing attack advances by
+ * `FRONT_ADVANCE × (pressed − defence) / (pressed + defence)` — positive when
+ * the attacker is ahead, negative when behind — and the province changes
+ * hands when the accumulated progress reaches 1. This is the number that
+ * decides whether the war feels slow, and §6.9 wants slow: at total dominance
+ * a province falls in 20 ticks, most of an in-game day; at two-to-one the
+ * ratio is a third and the front needs two and a half days; at parity it
+ * wobbles with the luck roll and goes nowhere, which turns an even fight into
+ * the attrition war the per-tick losses are for.
+ */
+export const FRONT_ADVANCE = 0.05;
+
+/**
+ * How fast an uncontested province is walked into.
+ *
+ * No defending division means no battle (§6.9 resolves battles, not marches),
+ * but invariant 1 still forbids the lump sum this used to be: empty ground
+ * changed hands in one tick. A third of an in-game day to march in — fast
+ * enough that `claim_province` stays the instrument the early phases built
+ * on, slow enough that a player watching the map sees it happen. An eighth
+ * exactly, because eight additions of it reach 1.0 without floating-point
+ * residue: the march takes eight ticks, not sometimes nine.
+ */
+export const FRONT_MARCH_ADVANCE = 1 / 8;
+
+/**
  * How far below its supply a division fights.
  *
  * Strength is multiplied by `SUPPLY_FLOOR + (1 - SUPPLY_FLOOR) * supply`, so a

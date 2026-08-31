@@ -26,6 +26,7 @@
  *   node scripts/phase4-gate.mjs --break=quiet   # nothing on the frontier
  *   node scripts/phase4-gate.mjs --break=drain   # the fight destroys nothing
  *   node scripts/phase4-gate.mjs --break=reset   # a switch keeps its ramp
+ *   node scripts/phase4-gate.mjs --break=lump    # watch the front only after the fact
  */
 
 import { WebSocket } from "ws";
@@ -38,7 +39,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 11;
+const PROTOCOL_VERSION = 12;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -82,6 +83,12 @@ const EFFICIENCY_GAIN = 0.001;
 
 /** TICKS_PER_DAY in src/shared/config/time.ts — invariant 9, output is per day. */
 const TICKS_PER_DAY = 24;
+
+/**
+ * The march rate from shared/config/combat.ts, restated: the fastest step any
+ * front may take in one tick. A step past this is a lump, not a rate.
+ */
+const FRONT_MAX_STEP = 1 / 8;
 
 const BREAK = (() => {
   const arg = process.argv.find((a) => a.startsWith("--break="));
@@ -888,6 +895,7 @@ async function main() {
   // `DEFENDER_LOSS` of what their engaged divisions hold, for as long as the
   // order stands.
   const attackedProvinces = [];
+  let firstAttackTick = Infinity;
   let defenderPlayer = null;
   if (BREAK !== "quiet") {
     const stations = player.economy.divisions
@@ -929,7 +937,10 @@ async function main() {
         { kind: "claim_province", provinceId: target },
         `attack-${target}`,
       );
-      if (ack.accepted) attackedProvinces.push(target);
+      if (ack.accepted) {
+        attackedProvinces.push(target);
+        firstAttackTick = Math.min(firstAttackTick, ack.tick);
+      }
     }
   }
   check(
@@ -966,6 +977,7 @@ async function main() {
   );
   let clashTicks = 0;
   let lastStock = baseStock;
+
   let quietFell = 0;
   let unexplained = 0;
   let stockRose = 0;
@@ -1075,6 +1087,57 @@ async function main() {
       `  the control division behind the line lost equipment on ${quietFell} ` +
         `tick(s); the drift can walk the front onto it, which is why the ` +
         `check above is the attribution and not its silence`,
+    );
+  }
+
+  // Invariant 1 on the front itself: a province is taken as a rate the wire
+  // shows moving, never as a lump. Walked out of the tick history the client
+  // already keeps rather than sampled live, because the marches into empty
+  // ground are over in eight ticks — 0.4 seconds at this clock — and the
+  // first version of this check started watching after the fill-up wait and
+  // saw nothing but the completions.
+  //
+  // `--break=lump` watches the way the pre-rate client would have: it looks
+  // only at the completions, so it never sees a value between 0 and 1 and
+  // the largest step it records is one whole province. The largest tolerated
+  // step is the march rate — the fastest the config lets any front move.
+  {
+    const watched = [...new Set(attackedProvinces)];
+    const last = new Map(watched.map((target) => [target, 0]));
+    const fell = new Set();
+    let between = 0;
+    let biggest = 0;
+    for (let tick = firstAttackTick; tick <= lastTick; tick++) {
+      const economy = player.history.get(tick);
+      if (economy === undefined) continue;
+      for (const target of watched) {
+        if (fell.has(target)) continue;
+        const attack = economy.attacks.find((a) => a.province === target);
+        if (attack !== undefined) {
+          if (BREAK === "lump") continue;
+          if (attack.progress > 0 && attack.progress < 1) between++;
+          biggest = Math.max(biggest, attack.progress - last.get(target));
+          last.set(target, attack.progress);
+        } else if (player.clashes.get(tick)?.has(target)) {
+          // The order is spent on the tick the province moved: it completed.
+          // The final step is whatever lay between the last reading and 1 —
+          // which is how a server that lumps the whole province into the
+          // closing tick gets caught even if every earlier step was small.
+          fell.add(target);
+          biggest = Math.max(biggest, 1 - last.get(target));
+        }
+      }
+    }
+    check(
+      BREAK === "quiet" || (between >= 8 && biggest <= FRONT_MAX_STEP + 1e-9),
+      `the front moved gradually: progress was seen strictly between 0 and 1 ` +
+        `on ${between} reading(s), and the largest one-tick step was ` +
+        `${biggest.toFixed(3)} against a march rate of ${FRONT_MAX_STEP}`,
+    );
+    check(
+      BREAK === "quiet" || fell.size > 0,
+      `and a front completed: ${fell.size} of ${watched.length} attacked ` +
+        `province(s) fell while the gate watched`,
     );
   }
   check(

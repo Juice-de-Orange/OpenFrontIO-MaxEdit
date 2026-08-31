@@ -1,8 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { World, type WorldCommand } from "../../src/server/world/World";
+import { FRONT_MARCH_ADVANCE } from "../../src/shared/config/combat";
 import { OCCUPATION_TICKS } from "../../src/shared/config/provinces";
 import type { ProvinceMap } from "../../src/shared/map/ProvinceMap";
 import { mapFixture } from "../util/worldFixture";
+
+/** How many ticks a march into empty ground takes to complete. */
+const MARCH_TICKS = Math.round(1 / FRONT_MARCH_ADVANCE);
 
 /** A small continent with three capitals, enough for real borders. */
 function fixture(): { world: World; map: ProvinceMap } {
@@ -73,7 +77,7 @@ function assertInvariants(world: World, map: ProvinceMap): void {
 }
 
 describe("holding and owning", () => {
-  test("a claim moves the controller at once and the owner not at all", () => {
+  test("a completed march moves the controller and the owner not at all", () => {
     const { world, map } = fixture();
     const { theirs } = borderProvince(world, map, 1);
     const before = world.ownerOf(theirs);
@@ -82,7 +86,11 @@ describe("holding and owning", () => {
       nation: 1,
       body: { kind: "claim_province", provinceId: theirs },
     });
-    const changes = world.step();
+    // Empty ground is marched into at a rate (invariant 1), so the control
+    // change arrives on the tick the march completes rather than on the tick
+    // the order lands.
+    let changes = world.step();
+    for (let i = 1; i < MARCH_TICKS; i++) changes = world.step();
 
     expect(world.controllerOf(theirs)).toBe(1);
     expect(world.ownerOf(theirs)).toBe(before);
@@ -225,10 +233,17 @@ describe("World commands", () => {
     expect(at.tick).toBe(world.currentTick() + 1);
     expect(at.seq).toBe(0);
 
-    // Not before its tick.
-    expect(world.controllerOf(theirs)).not.toBe(1);
-    const changes = world.step();
+    // Not before its tick: no order stands until the promised tick has run.
+    expect(world.view().nations[1].attacks).toHaveLength(0);
+    world.step();
     expect(world.currentTick()).toBe(at.tick);
+    // The front starts on the promised tick — one march step in, not zero and
+    // not the whole province.
+    const attack = world.view().nations[1].attacks[0];
+    expect(attack.province).toBe(theirs);
+    expect(attack.progress).toBeCloseTo(FRONT_MARCH_ADVANCE, 10);
+    let changes = world.step();
+    for (let i = 2; i < MARCH_TICKS; i++) changes = world.step();
     expect(world.controllerOf(theirs)).toBe(1);
     expect(changes.control).toContainEqual([theirs, 1]);
   });
@@ -248,41 +263,50 @@ describe("World commands", () => {
     expect(first.tick).toBe(second.tick);
     expect(second.seq).toBe(first.seq + 1);
 
-    const changes = world.step();
-    // Order is what `seq` records, and it is the order a replay has to put
-    // them back in.
+    // Both marches start on the same tick and run in lockstep, so both
+    // complete on the same tick — and the control list of that tick keeps the
+    // order `seq` records, which is the order a replay has to put them back
+    // in.
+    let changes = world.step();
+    for (let i = 1; i < MARCH_TICKS; i++) changes = world.step();
     expect(changes.control.slice(0, 2)).toEqual([
       [targets[0], 1],
       [targets[1], 1],
     ]);
   });
 
-  test("a command is revalidated on the tick it applies, not only when it arrives", () => {
+  test("a duplicated order collapses into one front, identically on replay", () => {
     const { world, map } = fixture();
     const { theirs } = borderProvince(world, map, 1);
     const body = { kind: "claim_province", provinceId: theirs } as const;
 
-    // Both are valid when they arrive. By the time the second one applies the
-    // first has already made it pointless, and it is skipped -- silently, but
-    // identically on every replay, which is the property that matters.
+    // Both are valid when they arrive, and both apply — the second collapses
+    // into the first at the reducer, so a double click neither restarts the
+    // front nor produces a second one. Silently, but identically on every
+    // replay, which is the property that matters.
     expect(world.rejectionFor({ nation: 1, body })).toBeNull();
     world.queueCommand({ nation: 1, body });
     expect(world.rejectionFor({ nation: 1, body })).toBeNull();
     world.queueCommand({ nation: 1, body });
 
-    const changes = world.step();
-    expect(changes.control.filter(([p]) => p === theirs)).toEqual([
-      [theirs, 1],
-    ]);
+    let taken: [number, number][] = [];
+    for (let i = 0; i < MARCH_TICKS; i++) {
+      const changes = world.step();
+      taken = taken.concat(
+        changes.control.filter(([p]) => p === theirs) as [number, number][],
+      );
+      expect(world.view().nations[1].attacks.length).toBeLessThanOrEqual(1);
+    }
+    expect(taken).toEqual([[theirs, 1]]);
   });
 
-  test("an attack on ground nobody is holding takes it on the same tick", () => {
+  test("an attack on ground nobody is holding takes it at the march rate", () => {
     const { world, map } = fixture();
     // The heartbeat this test used to be about is gone: nothing moves unless
     // somebody orders it (decision 0014). What replaces it is the property the
     // early phases actually depend on — an order against a province with no
-    // division in it is not a battle, and the ground changes hands on the tick
-    // the order applies rather than some ticks later.
+    // division in it is not a battle: it is a march, at a flat rate, and the
+    // ground changes hands when it completes (invariant 1).
     const target = map.provinces.find(
       (province) =>
         world.controllerOf(province.id) !== 0 &&
@@ -304,7 +328,7 @@ describe("World commands", () => {
       nation: claimant as number,
       body: { kind: "claim_province", provinceId: province },
     });
-    world.step();
+    for (let i = 0; i < MARCH_TICKS; i++) world.step();
     expect(world.controllerOf(province)).toBe(claimant);
     // And the order is spent: it took what it was for.
     expect(world.view().nations[claimant as number].attacks).toHaveLength(0);

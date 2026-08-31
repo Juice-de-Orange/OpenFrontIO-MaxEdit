@@ -31,6 +31,8 @@ import {
   COMBAT_SUPPLY_FLOOR,
   COMBAT_WIDTH,
   DEFENDER_LOSS,
+  FRONT_ADVANCE,
+  FRONT_MARCH_ADVANCE,
   TERRAIN_DEFENCE,
 } from "src/shared/config/combat";
 import { PseudoRandom } from "src/shared/util/PseudoRandom";
@@ -221,25 +223,55 @@ export const combatSystem: System = {
         const air = 1 + GROUND_SUPPORT_SWING * support;
         const pressed = attacker.strength * luck * air;
 
-        if (!contested || pressed > defence) {
+        // **The front is a rate, never a flip** (invariant 1). The same
+        // strength comparison that used to decide the province now decides
+        // how far the line moves this tick: forward when the attacker is
+        // ahead, back when behind, and the roll varies the rate instead of
+        // flipping a coin. An empty province is still walked into, at the
+        // march rate — no battle, but no lump sum either.
+        let advance: number;
+        if (!contested) {
+          advance = FRONT_MARCH_ADVANCE;
+        } else if (pressed + defence <= 0) {
+          // Two spent armies staring at each other move nothing.
+          advance = 0;
+        } else {
+          advance = (FRONT_ADVANCE * (pressed - defence)) / (pressed + defence);
+        }
+
+        const progress = Math.min(1, Math.max(0, attack.progress + advance));
+        if (progress !== attack.progress) {
+          events.push({
+            kind: "attack_progressed",
+            nation,
+            province,
+            progress,
+          });
+        }
+        if (progress >= 1) {
           events.push({ kind: "control_changed", province, nation });
           events.push({ kind: "attack_ended", nation, province });
         }
 
-        // Won or lost, the fight costs both sides. Only what was engaged pays:
-        // the divisions that could not fit in the combat width were not there.
-        const shelter =
-          defender <= 0 || defender > state.nationCount
-            ? 0
-            : nationModifiers(state, defender).defenderLoss;
-        events.push(
-          ...losses(nation, attacker.divisions, ATTACKER_LOSS),
-          ...losses(
-            defender,
-            holding.divisions,
-            Math.max(0, DEFENDER_LOSS * (1 + shelter)),
-          ),
-        );
+        // A battle costs both sides, won ground or lost — but only a battle:
+        // a march into empty ground spends nothing, where the one-tick flip
+        // used to hide that a slower march must not bleed the marchers. Only
+        // what was engaged pays: the divisions that could not fit in the
+        // combat width were not there.
+        if (contested) {
+          const shelter =
+            defender <= 0 || defender > state.nationCount
+              ? 0
+              : nationModifiers(state, defender).defenderLoss;
+          events.push(
+            ...losses(nation, attacker.divisions, ATTACKER_LOSS),
+            ...losses(
+              defender,
+              holding.divisions,
+              Math.max(0, DEFENDER_LOSS * (1 + shelter)),
+            ),
+          );
+        }
       }
     }
 

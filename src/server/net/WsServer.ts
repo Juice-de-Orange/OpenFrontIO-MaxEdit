@@ -325,6 +325,7 @@ export class WorldSocketServer {
       buildings: this.world.buildingSnapshot(),
       trust: this.world.trustSnapshot(),
       agreements: this.world.agreementsFor(session.nation),
+      fronts: this.world.frontsView(),
       economy: this.economyView(session.nation),
     });
   }
@@ -367,9 +368,11 @@ export class WorldSocketServer {
       buildings: changes.buildings,
     };
     const trust = this.world.trustSnapshot();
+    const fronts = this.world.frontsView();
     const spectatorPayload = encodeServer({
       ...shared,
       trust,
+      fronts,
       agreements: this.world.agreementsFor(null),
       economy: null,
     });
@@ -386,6 +389,7 @@ export class WorldSocketServer {
         encodeServer({
           ...shared,
           trust,
+          fronts,
           agreements: this.world.agreementsFor(s.nation),
           economy: this.economyView(s.nation),
         }),

@@ -231,12 +231,14 @@ export async function startWorldClient(
             adapter = built.adapter;
             model.provinces = built.provinces;
             adapter.applyFullState(state.controllers, state.tick);
+            adapter.applyFronts(state.fronts, model.controllers);
             uploadFrameData(view, adapter.frameData());
             hud.update(model);
           });
           return;
         }
         adapter.applyFullState(state.controllers, state.tick);
+        adapter.applyFronts(state.fronts, model.controllers);
         uploadFrameData(view, adapter.frameData());
         hud.update(model);
       },
@@ -263,6 +265,9 @@ export async function startWorldClient(
         // Control, not ownership: the map shows where the line is, not who
         // holds the title deeds (docs/decisions/0002).
         adapter.applyDelta(delta.control, delta.tick);
+        // After the base ownership, so a repainted province gets its front
+        // back — and a front that shrank or ended gets unwound.
+        adapter.applyFronts(delta.fronts, model.controllers);
         uploadFrameData(view, adapter.frameData());
         hud.update(model);
       },
@@ -361,7 +366,7 @@ async function buildFrom(
   }
 
   const index = new ProvinceTileIndex(grid);
-  const adapter = new FrameAdapter(index, state.nations.length);
+  const adapter = new FrameAdapter(index, grid, state.nations.length);
 
   const canvas = createCanvas();
   const view = new MapRenderer(

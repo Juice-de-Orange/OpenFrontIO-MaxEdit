@@ -440,7 +440,9 @@ export class Hud {
       // a front that grinds every tick and costs equipment for as long as it
       // stands, so the panel says which of the two it is doing and offers the
       // way back out.
-      const attacking = model.economy?.attacks.includes(id) === true;
+      const attacking =
+        model.economy?.attacks.some((attack) => attack.province === id) ===
+        true;
       const button = document.createElement("button");
       button.textContent = attacking
         ? t("province.callOff")
@@ -653,14 +655,21 @@ export class Hud {
 
     if (economy.attacks.length > 0) {
       children.push(spacer(), heading(t("production.fronts")));
-      for (const province of economy.attacks) {
+      for (const attack of economy.attacks) {
         const item = document.createElement("div");
         item.className = "line";
-        item.append(row(t("province.title", { id: province }), ""));
+        // The front is a rate now (invariant 1), so the list can say how far
+        // in it is instead of only that it exists.
+        item.append(
+          row(
+            t("province.title", { id: attack.province }),
+            share(attack.progress),
+          ),
+        );
         const off = document.createElement("button");
         off.textContent = t("province.callOff");
         off.addEventListener("click", () =>
-          this.actions.cancelAttack(province),
+          this.actions.cancelAttack(attack.province),
         );
         item.append(off);
         children.push(item);

@@ -24,6 +24,20 @@ import type { ProvinceTileIndex } from "./ProvinceTileIndex";
 /** Above this share of the map, a full upload beats a delta. */
 const FULL_UPLOAD_FRACTION = 0.25;
 
+/** What the adapter needs to know about the tile grid to paint a front. */
+export interface FrontGrid {
+  provinceOfTile: Int32Array;
+  width: number;
+  height: number;
+}
+
+/** One standing attack as the wire reports it. */
+export interface FrontUpdate {
+  province: number;
+  attacker: number;
+  progress: number;
+}
+
 export class FrameAdapter {
   private readonly tileState: Uint16Array;
   private readonly trailState: Uint16Array;
@@ -39,8 +53,12 @@ export class FrameAdapter {
 
   private readonly frame: FrameData;
 
+  /** Provinces whose tiles currently carry a partial front's colours. */
+  private readonly frontedProvinces = new Set<number>();
+
   constructor(
     private readonly index: ProvinceTileIndex,
+    private readonly grid: FrontGrid,
     nationCount: number,
   ) {
     const tiles = index.tileCount;
@@ -124,6 +142,161 @@ export class FrameAdapter {
         this.changedTiles.push(tiles[i]);
       }
     }
+  }
+
+  /**
+   * Paint every front's partial progress over the base ownership.
+   *
+   * Call after `applyFullState` or `applyDelta`, which paint whole provinces
+   * in their controller's colour and would otherwise erase a front. The lead
+   * tiles — `progress × tileCount`, ordered by breadth-first distance from
+   * the attacking border — take the attacker's colour; the rest are put back
+   * to the controller's, which is also what unwinds a front that shrank or
+   * ended. Only tiles whose value actually changed enter `changedTiles`.
+   *
+   * The province's *controller* is untouched: tiles are a projection
+   * (decision 0002), and a contested province still belongs to its defender
+   * everywhere the game can see (invariant 8).
+   */
+  applyFronts(
+    fronts: readonly FrontUpdate[],
+    controllers: readonly number[],
+  ): void {
+    const seen = new Set<number>();
+    for (const front of fronts) {
+      const controller = controllers[front.province];
+      // The tick a march completes, the wire can briefly carry both the new
+      // controller and the spent front; painting it would colour the whole
+      // province as "contested by its own controller".
+      if (front.attacker === controller) continue;
+      seen.add(front.province);
+      this.paintFront(front, controller, controllers);
+    }
+    for (const province of [...this.frontedProvinces]) {
+      if (!seen.has(province)) {
+        this.paintChecked(province, controllers[province]);
+        this.frontedProvinces.delete(province);
+      }
+    }
+  }
+
+  private paintFront(
+    front: FrontUpdate,
+    controller: number,
+    controllers: readonly number[],
+  ): void {
+    const tiles = this.index.tilesOf(front.province);
+    const count = Math.floor(front.progress * tiles.length);
+    if (count <= 0 && !this.frontedProvinces.has(front.province)) return;
+
+    const order = this.frontOrder(front.province, front.attacker, controllers);
+    for (let i = 0; i < order.length; i++) {
+      const wanted = i < count ? front.attacker : controller;
+      const tile = order[i];
+      if (this.tileState[tile] !== wanted) {
+        this.tileState[tile] = wanted;
+        this.changedTiles.push(tile);
+      }
+    }
+    if (count > 0) this.frontedProvinces.add(front.province);
+    else this.frontedProvinces.delete(front.province);
+  }
+
+  /** Repaint a whole province, pushing only the tiles that actually moved. */
+  private paintChecked(province: number, owner: number): void {
+    const tiles = this.index.tilesOf(province);
+    for (let i = 0; i < tiles.length; i++) {
+      if (this.tileState[tiles[i]] !== owner) {
+        this.tileState[tiles[i]] = owner;
+        this.changedTiles.push(tiles[i]);
+      }
+    }
+  }
+
+  /**
+   * The province's tiles, nearest-to-the-attacker first.
+   *
+   * A breadth-first flood from the tiles that touch the attacker's own
+   * territory, so the province fills from the border the attack comes over —
+   * which is where the front actually is. Recomputed per call rather than
+   * cached: a province is a few hundred tiles, there are a handful of fronts,
+   * and the attacking border moves as the war does.
+   */
+  private frontOrder(
+    province: number,
+    attacker: number,
+    controllers: readonly number[],
+  ): Int32Array {
+    const { provinceOfTile, width } = this.grid;
+    const tiles = this.index.tilesOf(province);
+    const order = new Int32Array(tiles.length);
+    const queued = new Set<number>();
+    let filled = 0;
+
+    const borders = (tile: number, wantAttacker: boolean): boolean => {
+      const x = tile % width;
+      const neighbours = [
+        x > 0 ? tile - 1 : -1,
+        x < width - 1 ? tile + 1 : -1,
+        tile - width,
+        tile + width,
+      ];
+      for (const next of neighbours) {
+        if (next < 0 || next >= provinceOfTile.length) continue;
+        const other = provinceOfTile[next];
+        if (other === province || other < 0) continue;
+        if (!wantAttacker) return true;
+        // The neighbour's *controller*, not its painted colour: the
+        // neighbouring province may itself be mid-front.
+        if (controllers[other] === attacker) return true;
+      }
+      return false;
+    };
+
+    // Seeds: tiles touching a province the attacker's colour is on. If the
+    // attacker holds nothing adjacent any more, fall back to the province's
+    // whole edge — the front is stale and about to end, but until the server
+    // says so it still has to be drawn somewhere honest.
+    for (const tile of tiles) {
+      if (borders(tile, true)) {
+        order[filled++] = tile;
+        queued.add(tile);
+      }
+    }
+    if (filled === 0) {
+      for (const tile of tiles) {
+        if (borders(tile, false)) {
+          order[filled++] = tile;
+          queued.add(tile);
+        }
+      }
+    }
+
+    // Breadth-first: the order array doubles as the queue.
+    for (let read = 0; read < filled && filled < tiles.length; read++) {
+      const tile = order[read];
+      const x = tile % width;
+      const neighbours = [
+        x > 0 ? tile - 1 : -1,
+        x < width - 1 ? tile + 1 : -1,
+        tile - width,
+        tile + width,
+      ];
+      for (const next of neighbours) {
+        if (next < 0 || next >= provinceOfTile.length) continue;
+        if (provinceOfTile[next] !== province || queued.has(next)) continue;
+        order[filled++] = next;
+        queued.add(next);
+      }
+    }
+
+    // Disconnected pockets (or no seeds at all): append in raster order.
+    if (filled < tiles.length) {
+      for (const tile of tiles) {
+        if (!queued.has(tile)) order[filled++] = tile;
+      }
+    }
+    return order;
   }
 
   private paint(province: number, owner: number): void {

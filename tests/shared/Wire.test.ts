@@ -80,6 +80,7 @@ describe("the wire protocol", () => {
             noticeBy: null,
           },
         ],
+        fronts: [{ province: 11, attacker: 1, progress: 0.25 }],
         economy: {
           nation: 1,
           resources: { steel: 200, oil: 100, aluminium: 100, rubber: 50 },
@@ -128,7 +129,10 @@ describe("the wire protocol", () => {
             { tech: null, progress: 0, unlocked: false },
           ],
           unlockedTechs: ["excavation"],
-          attacks: [11, 12],
+          attacks: [
+            { province: 11, progress: 0.25 },
+            { province: 12, progress: 0 },
+          ],
           formations: [
             {
               id: 1,
@@ -158,6 +162,7 @@ describe("the wire protocol", () => {
         buildings: [],
         trust: [0, 100, 45],
         agreements: [],
+        fronts: [],
         economy: null,
       },
       {
@@ -168,6 +173,7 @@ describe("the wire protocol", () => {
         buildings: [[3, 0, 4]],
         trust: [0, 100, 45],
         agreements: [],
+        fronts: [],
         economy: null,
       },
     ];
@@ -237,6 +243,11 @@ describe("the wire protocol", () => {
     // 11 adds `formations` and `zones` to the economy view and three
     // formation commands to the union (§6.7). A v10 client would render an
     // air force it cannot see and could not stand a wing down.
-    expect(PROTOCOL_VERSION).toBe(11);
+    //
+    // 12 makes the front a rate (invariant 1): `attacks` carries progress,
+    // and `fronts` rides on every full state and delta so defenders and
+    // spectators can watch a province being ground into. An v11 client would
+    // read an attack list of objects as numbers and paint no front at all.
+    expect(PROTOCOL_VERSION).toBe(12);
   });
 });

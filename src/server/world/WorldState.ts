@@ -209,6 +209,16 @@ export interface Agreement {
 export interface AttackOrder {
   province: number;
   since: number;
+  /**
+   * How far the front has ground into the province, 0..1.
+   *
+   * Invariant 1: taking a province is a rate, never a lump sum. Each tick the
+   * strength comparison moves this by a little — forward when the attacker is
+   * ahead, back when behind — and control changes only when it completes. It
+   * lives on the order so calling the attack off loses it: an order withdrawn
+   * and re-given starts at zero, and there is no way to bank a front.
+   */
+  progress: number;
 }
 
 export interface NationState {
@@ -750,6 +760,13 @@ export type WorldEvent =
       perTick: number;
     }
   | { kind: "attack_ordered"; nation: number; province: number }
+  /** The front moved. `progress` is the new absolute value, clamped to 0..1. */
+  | {
+      kind: "attack_progressed";
+      nation: number;
+      province: number;
+      progress: number;
+    }
   /** Withdrawn, or spent: the province is theirs and the order has nothing left. */
   | { kind: "attack_ended"; nation: number; province: number };
 
@@ -1085,7 +1102,23 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
       // later phase will read to know how long a front has been grinding, and
       // a player clicking twice must not be able to reset that.
       if (attacks.some((attack) => attack.province === event.province)) return;
-      attacks.push({ province: event.province, since: state.tick });
+      attacks.push({
+        province: event.province,
+        since: state.tick,
+        progress: 0,
+      });
+      return;
+    }
+
+    case "attack_progressed": {
+      const attacks = state.nations[event.nation].attacks;
+      const attack = attacks.find((it) => it.province === event.province);
+      // An absolute value, not a delta: the reducer must land on the same
+      // number whether it is applied live or replayed, and accumulating
+      // floats in two places is how replays drift.
+      if (attack !== undefined) {
+        attack.progress = Math.min(1, Math.max(0, event.progress));
+      }
       return;
     }
 

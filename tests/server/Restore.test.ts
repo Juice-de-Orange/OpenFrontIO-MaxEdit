@@ -402,7 +402,8 @@ describe("restore", () => {
       store,
       worldId: WORLD_ID,
     });
-    if (STATE_HASH_VERSION === 1) {
+    const current: number = STATE_HASH_VERSION;
+    if (current === 1) {
       await expect(runner.restore()).rejects.toThrow(/damaged/);
     } else {
       // Once the version has moved past 1, an unversioned snapshot really is

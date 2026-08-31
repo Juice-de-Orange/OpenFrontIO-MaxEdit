@@ -331,17 +331,21 @@ describe("the air war", () => {
 
   test("air superiority measurably shifts a ground battle — §8's gate, in one test", () => {
     const { attacker, defender, province, from } = border(build());
-    const LIMIT = 200;
+    const WINDOW = 24;
 
     /**
      * The same fight twice, with and without bombers over it.
      *
-     * The attacker's division is deliberately *under*-equipped by `share`,
-     * because a fight either side wins outright proves nothing about the air:
-     * a stack that walks the province on tick one walks it just as fast with
-     * no aircraft anywhere. What has to be shown is a fight whose outcome the
-     * sky decides, so the attacker is put just below the line and the bombers
-     * are the only thing that changes.
+     * Since the front became a rate (invariant 1), what the sky changes is
+     * how fast the line moves: the ground-support multiplier raises `pressed`
+     * and with it every tick's advance. The two runs build identical worlds,
+     * so the luck rolls and the attrition are the same in both and the
+     * bombers are the only thing that differs — the progress the front made
+     * inside the window is then a clean reading of the air alone.
+     *
+     * The attacker is taken down to `share` of a division because a fight one
+     * side wins at the ceiling rate proves nothing: the advance is capped,
+     * and both runs would sit at the cap together.
      */
     const fight = (support: boolean, share: number): number => {
       const world = build();
@@ -382,23 +386,29 @@ describe("the air war", () => {
       expect(world.rejectionFor(command)).toBeNull();
       world.queueCommand(command);
 
-      let ticks = 0;
-      while (ticks < LIMIT && world.controllerOf(province) === defender) {
+      for (
+        let tick = 0;
+        tick < WINDOW && world.controllerOf(province) === defender;
+        tick++
+      ) {
         world.step();
-        ticks++;
       }
-      return ticks;
+      // Completed inside the window counts as the whole province.
+      const attack = world
+        .view()
+        .nations[attacker].attacks.find((it) => it.province === province);
+      return attack?.progress ?? 1;
     };
 
-    // Somewhere in here is a fight the bombers decide. Walking the range
-    // rather than hard-coding one share keeps the test alive when the combat
-    // constants are retuned — which they will be, repeatedly.
+    // Somewhere in here is a fight the bombers visibly speed up. Walking the
+    // range rather than hard-coding one share keeps the test alive when the
+    // combat constants are retuned — which they will be, repeatedly.
     let decided: { share: number; alone: number; supported: number } | null =
       null;
-    for (const share of [0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6]) {
+    for (const share of [1, 0.95, 0.9, 0.85, 0.8, 0.75]) {
       const alone = fight(false, share);
       const supported = fight(true, share);
-      if (alone === LIMIT && supported < LIMIT) {
+      if (supported >= alone + 0.01) {
         decided = { share, alone, supported };
         break;
       }
@@ -406,7 +416,7 @@ describe("the air war", () => {
 
     expect(
       decided,
-      "no attacker strength was found where the bombers were the difference",
+      "no attacker strength was found where the bombers moved the front further",
     ).not.toBeNull();
   });
 });
