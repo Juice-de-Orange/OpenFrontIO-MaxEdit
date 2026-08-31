@@ -45,7 +45,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 10;
+const PROTOCOL_VERSION = 11;
 
 /** Above this the notice period alone would take four minutes. */
 const MAX_TICK_MS = 200;

@@ -62,6 +62,12 @@ import {
   type EquipmentType,
   type Yard,
 } from "src/shared/economy/Equipment";
+import {
+  FORMATIONS,
+  type FormationTemplate,
+  type Mission,
+} from "src/shared/economy/Formations";
+import type { ZoneId } from "src/shared/map/Province";
 import type { ProvinceMap } from "src/shared/map/ProvinceMap";
 
 /** One item in a nation's construction queue. */
@@ -110,6 +116,30 @@ export interface ProductionLine {
 export interface Division {
   id: number;
   province: number;
+  /** Held equipment, indexed by `equipmentIndex`. */
+  equipment: number[];
+}
+
+/**
+ * A wing or a fleet: what a player puts in a zone.
+ *
+ * §6.7 and §6.8 are one system with two mission sets, so this is one entity
+ * with a template that says which (`shared/economy/Formations.ts`). A
+ * formation is raised at a base, assigned to a zone with a mission, and left
+ * there — invariant 4: the player allocates, never micromanages.
+ *
+ * `zone` and `mission` are null together or set together. A formation with
+ * neither is on the ground: it costs nothing, contributes nothing, and loses
+ * nothing.
+ */
+export interface Formation {
+  id: number;
+  template: FormationTemplate;
+  /** The province whose air or naval base it flies out of. */
+  base: number;
+  /** The zone it is assigned to, or null when it is standing down. */
+  zone: ZoneId | null;
+  mission: Mission | null;
   /** Held equipment, indexed by `equipmentIndex`. */
   equipment: number[];
 }
@@ -190,6 +220,8 @@ export interface NationState {
   manpower: number;
   productionLines: ProductionLine[];
   divisions: Division[];
+  /** Wings and fleets. §6.7 and §6.8 share the list, as they share the code. */
+  formations: Formation[];
   /**
    * The id the next order will get. Monotonic, never reused.
    *
@@ -198,9 +230,10 @@ export interface NationState {
    * apart.
    */
   nextOrderId: number;
-  /** The same, for production lines and divisions. */
+  /** The same, for production lines, divisions and formations. */
   nextLineId: number;
   nextDivisionId: number;
+  nextFormationId: number;
   researchSlots: ResearchSlot[];
   /** Finished techs, in the order they finished. Order is not significant. */
   unlockedTechs: TechId[];
@@ -340,6 +373,26 @@ export function divisionStrength(division: Division): number {
   for (const [type, wanted] of Object.entries(DIVISION_TEMPLATE)) {
     if (wanted === undefined || wanted <= 0) continue;
     const held = division.equipment[equipmentIndex(type as EquipmentType)] ?? 0;
+    worst = Math.min(worst, held / wanted);
+  }
+  return Math.max(0, Math.min(1, worst));
+}
+
+/**
+ * The same, for a wing or a fleet, against its own template.
+ *
+ * Deliberately the same rule and the same worst-ratio reasoning as a division,
+ * so a player reads one number vocabulary across the whole military
+ * (invariant 9). A wing at half strength is half a wing in its zone.
+ */
+export function formationStrength(formation: Formation): number {
+  let worst = 1;
+  for (const [type, wanted] of Object.entries(
+    FORMATIONS[formation.template].equipment,
+  )) {
+    if (wanted === undefined || wanted <= 0) continue;
+    const held =
+      formation.equipment[equipmentIndex(type as EquipmentType)] ?? 0;
     worst = Math.min(worst, held / wanted);
   }
   return Math.max(0, Math.min(1, worst));
@@ -526,9 +579,11 @@ export function createWorldState(
       manpower: 0,
       productionLines: [],
       divisions: [],
+      formations: [],
       nextOrderId: 1,
       nextLineId: 1,
       nextDivisionId: 1,
+      nextFormationId: 1,
       // Every slot exists from tick 0; `slotsFor` decides how many of them a
       // nation may use. Growing the array when a tech lands would change the
       // snapshot's shape mid-season for no gain.
@@ -644,6 +699,28 @@ export type WorldEvent =
       kind: "division_equipment_changed";
       nation: number;
       divisionId: number;
+      /** [equipmentIndex, signed amount]. Reinforcement and losses alike. */
+      delta: [number, number][];
+    }
+  | {
+      kind: "formation_raised";
+      nation: number;
+      template: FormationTemplate;
+      base: number;
+    }
+  | { kind: "formation_disbanded"; nation: number; formationId: number }
+  | {
+      kind: "formation_assigned";
+      nation: number;
+      formationId: number;
+      /** Both null together: the formation stands down at its base. */
+      zone: ZoneId | null;
+      mission: Mission | null;
+    }
+  | {
+      kind: "formation_equipment_changed";
+      nation: number;
+      formationId: number;
       /** [equipmentIndex, signed amount]. Reinforcement and losses alike. */
       delta: [number, number][];
     }
@@ -881,6 +958,59 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
         division.equipment[index] = Math.max(
           0,
           division.equipment[index] + amount,
+        );
+      }
+      return;
+    }
+
+    case "formation_raised": {
+      const nation = state.nations[event.nation];
+      nation.formations.push({
+        id: nation.nextFormationId++,
+        template: event.template,
+        base: event.base,
+        // Raised on the ground and empty, for the same reason a division is:
+        // it draws from the stockpile over the following ticks, and a nation
+        // that raises more wings than it can equip has weaker ones rather
+        // than fewer (invariant 2).
+        zone: null,
+        mission: null,
+        equipment: new Array<number>(EQUIPMENT_TYPES.length).fill(0),
+      });
+      return;
+    }
+
+    case "formation_disbanded": {
+      const formations = state.nations[event.nation].formations;
+      const at = formations.findIndex(
+        (formation) => formation.id === event.formationId,
+      );
+      if (at >= 0) formations.splice(at, 1);
+      return;
+    }
+
+    case "formation_assigned": {
+      const formation = state.nations[event.nation].formations.find(
+        (candidate) => candidate.id === event.formationId,
+      );
+      if (formation === undefined) return;
+      // Zone and mission move together. A formation assigned to a zone with
+      // no mission would be in the sky doing nothing while paying the zone's
+      // attrition, which is a state a player cannot have meant to ask for.
+      formation.zone = event.zone;
+      formation.mission = event.mission;
+      return;
+    }
+
+    case "formation_equipment_changed": {
+      const formation = state.nations[event.nation].formations.find(
+        (candidate) => candidate.id === event.formationId,
+      );
+      if (formation === undefined) return;
+      for (const [index, amount] of event.delta) {
+        formation.equipment[index] = Math.max(
+          0,
+          formation.equipment[index] + amount,
         );
       }
       return;

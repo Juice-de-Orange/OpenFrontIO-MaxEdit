@@ -9,9 +9,9 @@
  * province falls or the player calls it off.
  *
  * The inputs are §6.9's own: equipment (a division's strength), supply, terrain,
- * combat width, and a roll seeded from `(worldSeed, tick, province)` so the
- * tick stays reproducible from the log (§9). Air superiority is the one that
- * is missing and phase 8 adds it; there is a single multiplier waiting for it.
+ * combat width, air superiority over the province's zone, and a roll seeded
+ * from `(worldSeed, tick, province)` so the tick stays reproducible from the
+ * log (§9).
  *
  * **The border drift is gone.** From phase 1 to phase 7 this system was a
  * deterministic sweep that moved one province a tick regardless of who held
@@ -24,6 +24,7 @@
  * nobody there to attack.
  */
 
+import { GROUND_SUPPORT_SWING } from "src/shared/config/air";
 import {
   ATTACKER_LOSS,
   COMBAT_LUCK,
@@ -43,6 +44,7 @@ import {
   type WorldState,
 } from "../world/WorldState";
 import { supplyCoverage, supplyOf, supplyReach } from "./supply";
+import { missionEffect } from "./zones";
 
 /**
  * What a division brings to a fight.
@@ -197,7 +199,27 @@ export const combatSystem: System = {
           (state.worldSeed ^ Math.imul(tick, 0x9e3779b1) ^ province) >>> 0,
         );
         const luck = 1 - COMBAT_LUCK + random.next() * 2 * COMBAT_LUCK;
-        const pressed = attacker.strength * luck;
+
+        // **Air superiority, and this is the multiplier this file has been
+        // holding a place for since §6.9 became real.** §6.7: a superiority
+        // ratio modifies ground combat strength through `ground_support`.
+        // Both sides' bombers count, against each other, so the term is what
+        // one side has over the other rather than what it has: an air force
+        // matched by the enemy's shifts nothing, which is the honest answer
+        // and the one a player can reason about.
+        //
+        // It is bounded by `GROUND_SUPPORT_SWING` and it multiplies rather
+        // than decides. Air never takes a province on its own — it makes an
+        // attack that was close land, and one that was hopeless slightly less
+        // hopeless (invariant 2).
+        const zone = state.map.provinces[province].airZone;
+        const support =
+          missionEffect(state, zone, nation, "ground_support", "air") -
+          (defender > 0 && defender <= state.nationCount
+            ? missionEffect(state, zone, defender, "ground_support", "air")
+            : 0);
+        const air = 1 + GROUND_SUPPORT_SWING * support;
+        const pressed = attacker.strength * luck * air;
 
         if (!contested || pressed > defence) {
           events.push({ kind: "control_changed", province, nation });

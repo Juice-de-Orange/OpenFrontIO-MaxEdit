@@ -193,6 +193,12 @@ export async function startWorldClient(
       send({ kind: "cancel_agreement", agreementId }),
     setMarketOrder: (resource, perTick) =>
       send({ kind: "set_market_order", resource, perTick }),
+    raiseFormation: (province, template) =>
+      send({ kind: "raise_formation", provinceId: province, template }),
+    assignFormation: (formationId, zone, mission) =>
+      send({ kind: "assign_formation", formationId, zone, mission }),
+    disbandFormation: (formationId) =>
+      send({ kind: "disband_formation", formationId }),
   });
 
   // A click selects. It used to claim, which meant the only thing a player

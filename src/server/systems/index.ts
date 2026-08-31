@@ -23,6 +23,7 @@
  */
 
 import type { WorldEvent, WorldState } from "../world/WorldState";
+import { airSystem } from "./air";
 import { combatSystem } from "./combat";
 import { constructionSystem } from "./construction";
 import { economySystem } from "./economy";
@@ -56,7 +57,7 @@ export const SYSTEMS: readonly System[] = [
   researchSystem,
   tradeSystem,
   supplySystem,
-  planned("air"),
+  airSystem,
   planned("naval"),
   combatSystem,
   planned("regent"),

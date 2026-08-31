@@ -30,6 +30,7 @@ import {
   equipmentIndex,
   type EquipmentType,
 } from "src/shared/economy/Equipment";
+import { FORMATIONS } from "src/shared/economy/Formations";
 import type { System } from ".";
 import {
   efficiencyCapFor,
@@ -109,21 +110,27 @@ export const productionSystem: System = {
 };
 
 /**
- * Divisions draw what they are short of out of the stockpile.
+ * Divisions, wings and fleets draw what they are short of out of the stockpile.
  *
- * A fraction of the shortfall per tick rather than all of it, so a division
- * fills quickly at first and then tails off — and so a thin stockpile is
- * shared out between several divisions instead of being emptied by whichever
- * one is asked for first. Nothing is ever refused: a division simply gets
- * less, and is weaker for it (§6.3, invariant 2).
+ * A fraction of the shortfall per tick rather than all of it, so a unit fills
+ * quickly at first and then tails off — and so a thin stockpile is shared out
+ * between several of them instead of being emptied by whichever one is asked
+ * for first. Nothing is ever refused: a unit simply gets less, and is weaker
+ * for it (§6.3, invariant 2).
+ *
+ * **One pass over both kinds**, against one copy of the stockpile. §6.3 gives
+ * divisions and formations the same warehouse, and two passes would let the
+ * first kind empty it before the second was asked — which today would be
+ * invisible, because no template shares an equipment type with another, and
+ * tomorrow would be a bug nobody could see coming. Deterministic in the order
+ * they were raised.
  *
  * The draw is computed against the stockpile as it stood at the start of the
- * tick, and capped by it, so several divisions can never take more than there
- * is. Deterministic in division order, which is the order they were raised in.
+ * tick, and capped by it, so nothing can take more than there is.
  */
 function reinforce(state: WorldState, nation: number): WorldEvent[] {
-  const divisions = state.nations[nation].divisions;
-  if (divisions.length === 0) return [];
+  const { divisions, formations } = state.nations[nation];
+  if (divisions.length === 0 && formations.length === 0) return [];
 
   const available = [...state.nations[nation].stockpile];
   const rate =
@@ -132,12 +139,16 @@ function reinforce(state: WorldState, nation: number): WorldEvent[] {
   const events: WorldEvent[] = [];
   const takenTotal = new Map<number, number>();
 
-  for (const division of divisions) {
+  /** One unit's draw against `available`, as an equipment delta. */
+  const draw = (
+    held: number[],
+    template: Partial<Record<EquipmentType, number>>,
+  ): [number, number][] => {
     const delta: [number, number][] = [];
-    for (const [type, wanted] of Object.entries(DIVISION_TEMPLATE)) {
+    for (const [type, wanted] of Object.entries(template)) {
       if (wanted === undefined || wanted <= 0) continue;
       const index = equipmentIndex(type as EquipmentType);
-      const short = wanted - division.equipment[index];
+      const short = wanted - held[index];
       if (short <= 0) continue;
 
       const asked = Math.min(short, wanted * rate);
@@ -148,11 +159,31 @@ function reinforce(state: WorldState, nation: number): WorldEvent[] {
       takenTotal.set(index, (takenTotal.get(index) ?? 0) + taken);
       delta.push([index, taken]);
     }
+    return delta;
+  };
+
+  for (const division of divisions) {
+    const delta = draw(division.equipment, DIVISION_TEMPLATE);
     if (delta.length > 0) {
       events.push({
         kind: "division_equipment_changed",
         nation,
         divisionId: division.id,
+        delta,
+      });
+    }
+  }
+
+  for (const formation of formations) {
+    const delta = draw(
+      formation.equipment,
+      FORMATIONS[formation.template].equipment,
+    );
+    if (delta.length > 0) {
+      events.push({
+        kind: "formation_equipment_changed",
+        nation,
+        formationId: formation.id,
         delta,
       });
     }

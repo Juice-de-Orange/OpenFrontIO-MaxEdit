@@ -17,6 +17,7 @@
  * deal, because it is what makes "the client derives no state" checkable.
  */
 
+import { WING_MANPOWER } from "src/shared/config/air";
 import {
   AGREEMENT_TYPES,
   MARKET_BUY_POINTS,
@@ -47,6 +48,13 @@ import {
   EQUIPMENT_TYPES,
   type EquipmentType,
 } from "src/shared/economy/Equipment";
+import {
+  AIR_MISSIONS,
+  FORMATION_TEMPLATES,
+  FORMATIONS,
+  type FormationTemplate,
+  type Mission,
+} from "src/shared/economy/Formations";
 import type { Province } from "src/shared/map/Province";
 import { TerrainType } from "src/shared/map/Terrain";
 import type {
@@ -83,6 +91,7 @@ const STYLE = `
 #world-production { bottom: 1rem; left: 1rem; width: 20rem; max-height: 60vh; }
 #world-research { bottom: 1rem; right: 1rem; width: 18rem; max-height: 50vh; }
 #world-diplomacy { bottom: 1rem; left: 21.5rem; width: 21rem; max-height: 70vh; }
+#world-air { top: 1rem; left: 34rem; width: 19rem; max-height: 60vh; }
 #world-hud input[type=number] {
   width: 100%; margin-top: .25rem; padding: .25rem;
   background: rgba(255,255,255,.06); color: #eee; font: inherit;
@@ -159,6 +168,15 @@ export interface HudActions {
   /** The expensive one. The button that calls this says what it costs. */
   cancelAgreement(agreementId: number): void;
   setMarketOrder(resource: Resource, perTick: number): void;
+  /** Raise a wing at a province holding the base its template needs (§6.7). */
+  raiseFormation(province: number, template: FormationTemplate): void;
+  /** Send it to a zone with a mission, or bring it home with both null. */
+  assignFormation(
+    formationId: number,
+    zone: number | null,
+    mission: Mission | null,
+  ): void;
+  disbandFormation(formationId: number): void;
 }
 
 const TERRAIN_KEY: Partial<Record<TerrainType, StringKey>> = {
@@ -175,6 +193,7 @@ export class Hud {
   private readonly productionPanel: HTMLElement;
   private readonly researchPanel: HTMLElement;
   private readonly diplomacyPanel: HTMLElement;
+  private readonly airPanel: HTMLElement;
   /**
    * The diplomacy panel is the only one with a form in it, and a form cannot
    * be rebuilt once a tick.
@@ -189,6 +208,11 @@ export class Hud {
   private diplomacyList: HTMLElement | null = null;
   private diplomacyForm: HTMLElement | null = null;
   private diplomacyWho: HTMLSelectElement | null = null;
+  /** The air panel's assignment form, kept for the same reason. */
+  private airList: HTMLElement | null = null;
+  private airForm: HTMLElement | null = null;
+  private airWhich: HTMLSelectElement | null = null;
+  private airZone: HTMLSelectElement | null = null;
 
   constructor(private readonly actions: HudActions) {
     const style = document.createElement("style");
@@ -203,6 +227,7 @@ export class Hud {
     this.productionPanel = this.panel("world-production");
     this.researchPanel = this.panel("world-research");
     this.diplomacyPanel = this.panel("world-diplomacy");
+    this.airPanel = this.panel("world-air");
     document.body.appendChild(this.root);
   }
 
@@ -222,6 +247,7 @@ export class Hud {
     this.renderProduction(model);
     this.renderResearch(model);
     this.renderDiplomacy(model);
+    this.renderAir(model);
   }
 
   // -------------------------------------------------------------------------
@@ -422,6 +448,29 @@ export class Hud {
         model.economy === null || model.economy.manpower < DIVISION_MANPOWER;
       raise.addEventListener("click", () => this.actions.raiseDivision(id));
       children.push(spacer(), raise);
+
+      // A wing needs the base its template flies out of, so the button only
+      // appears where one stands. The same rule the server applies, shown
+      // rather than discovered by being refused.
+      for (const template of FORMATION_TEMPLATES) {
+        const spec = FORMATIONS[template];
+        const built =
+          model.buildings[
+            id * BUILDING_TYPES.length + buildingIndex(spec.base)
+          ];
+        if (built === undefined || built === 0) continue;
+        const button = document.createElement("button");
+        button.textContent = t("air.raise", {
+          what: t(`formation.${template}` as StringKey),
+          cost: WING_MANPOWER,
+        });
+        button.disabled =
+          model.economy === null || model.economy.manpower < WING_MANPOWER;
+        button.addEventListener("click", () =>
+          this.actions.raiseFormation(id, template),
+        );
+        children.push(button);
+      }
 
       children.push(spacer(), heading(t("province.build")));
       for (const type of BUILDING_TYPES) {
@@ -922,6 +971,155 @@ export class Hud {
    * full state — and once, because a player entering a rate is mid-sentence
    * and an update every five seconds would take the field out from under them.
    */
+  /**
+   * The air panel: what is in the sky, and where it is.
+   *
+   * Two lists and a form, and the split between them is the same one the
+   * diplomacy panel makes. The lists are a pure function of the model and are
+   * redrawn every update; the form is built once and kept, because a player
+   * halfway through choosing a zone is mid-sentence.
+   *
+   * Zones are named by number rather than by geography, which is honest — the
+   * partition comes out of the generator and has no names to give (§6.7).
+   */
+  private renderAir(model: HudModel): void {
+    const economy = model.economy;
+    this.airPanel.hidden = economy === null;
+    if (economy === null) return;
+
+    if (this.airList === null) {
+      this.airList = document.createElement("div");
+      this.airPanel.append(this.airList);
+    }
+
+    const children: Node[] = [heading(t("air.title"))];
+
+    if (economy.zones.length === 0) {
+      children.push(muted(t("air.noZones")));
+    }
+    for (const zone of economy.zones) {
+      // Only zones somebody is contesting are worth a line: a player holding
+      // twelve quiet zones does not need twelve rows saying so.
+      if (!zone.contested && zone.ownStrength === 0) continue;
+      children.push(
+        row(
+          t("air.zone", { zone: zone.zone }),
+          zone.contested
+            ? t("air.superiority", { value: share(zone.superiority) })
+            : t("air.uncontested"),
+        ),
+      );
+    }
+
+    children.push(spacer(), heading(t("air.formations")));
+    if (economy.formations.length === 0) {
+      children.push(muted(t("air.noFormations")));
+    }
+    for (const formation of economy.formations) {
+      const line = document.createElement("div");
+      line.className = "line";
+      line.append(
+        row(
+          t(`formation.${formation.template}` as StringKey),
+          share(formation.strength),
+        ),
+      );
+      line.append(
+        muted(
+          formation.zone === null || formation.mission === null
+            ? t("air.onTheGround", { province: formation.baseProvinceId })
+            : t("air.flying", {
+                zone: formation.zone,
+                mission: t(`mission.${formation.mission}` as StringKey),
+              }),
+        ),
+      );
+      if (formation.zone !== null) {
+        const home = document.createElement("button");
+        home.textContent = t("air.bringHome");
+        home.addEventListener("click", () =>
+          this.actions.assignFormation(formation.id, null, null),
+        );
+        line.append(home);
+      }
+      children.push(line);
+    }
+
+    this.airList.replaceChildren(...children);
+    this.buildAirForm(model);
+    this.refreshAirOptions(model);
+  }
+
+  /**
+   * The formation and zone options, kept current in place.
+   *
+   * In place rather than rebuilt, for the reason `refreshNationOptions` gives:
+   * a rebuilt select throws away whatever the player had chosen, every tick.
+   * Options are added and removed as wings are raised and lost, and the
+   * selection survives unless the thing it named is gone.
+   */
+  private refreshAirOptions(model: HudModel): void {
+    const which = this.airWhich;
+    const zone = this.airZone;
+    const economy = model.economy;
+    if (which === null || zone === null || economy === null) return;
+
+    const chosen = which.value;
+    const wanted = economy.formations.map((formation) => ({
+      value: String(formation.id),
+      label: `${t(`formation.${formation.template}` as StringKey)} #${formation.id}`,
+    }));
+    syncOptions(which, wanted);
+    if (wanted.some((option) => option.value === chosen)) which.value = chosen;
+
+    // Every zone the nation can see. Out-of-reach ones are left in and
+    // refused by the server, which is the one whose answer counts (§7) — and
+    // a zone that vanished from the list mid-click would be worse.
+    const zoneChosen = zone.value;
+    const zones = economy.zones.map((view) => ({
+      value: String(view.zone),
+      label: t("air.zone", { zone: view.zone }),
+    }));
+    syncOptions(zone, zones);
+    if (zones.some((option) => option.value === zoneChosen)) {
+      zone.value = zoneChosen;
+    }
+  }
+
+  /** The assignment form, built exactly once. */
+  private buildAirForm(model: HudModel): void {
+    if (this.airForm !== null) return;
+    if (model.economy === null) return;
+
+    const form = document.createElement("div");
+    const which = document.createElement("select");
+    const zone = document.createElement("select");
+    const mission = document.createElement("select");
+    for (const id of AIR_MISSIONS) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = t(`mission.${id}` as StringKey);
+      mission.append(option);
+    }
+
+    const send = document.createElement("button");
+    send.textContent = t("air.send");
+    send.addEventListener("click", () => {
+      if (which.value === "" || zone.value === "") return;
+      this.actions.assignFormation(
+        Number(which.value),
+        Number(zone.value),
+        mission.value as Mission,
+      );
+    });
+
+    form.append(spacer(), heading(t("air.assign")), which, zone, mission, send);
+    this.airForm = form;
+    this.airWhich = which;
+    this.airZone = zone;
+    this.airPanel.append(form);
+  }
+
   private buildDiplomacyForm(model: HudModel): void {
     if (this.diplomacyForm !== null) return;
     if (model.nation === null || model.nations.length === 0) return;
@@ -1126,6 +1324,38 @@ function depositLine(province: Province): string | null {
         `${t(`economy.${resource}` as StringKey)} ${String(size)}`,
     );
   return parts.length === 0 ? null : parts.join(", ");
+}
+
+/**
+ * Bring a select's options in line with a list, without rebuilding it.
+ *
+ * Options are matched by value and only what differs is touched, so a player
+ * who has chosen one keeps it across an update that did not remove it. The
+ * caller restores the selection, because only the caller knows whether the
+ * thing it named is still there.
+ */
+function syncOptions(
+  select: HTMLSelectElement,
+  wanted: { value: string; label: string }[],
+): void {
+  const have = new Map<string, HTMLOptionElement>();
+  for (const option of Array.from(select.options))
+    have.set(option.value, option);
+
+  for (const [value, option] of have) {
+    if (!wanted.some((entry) => entry.value === value)) option.remove();
+  }
+  for (const entry of wanted) {
+    const existing = have.get(entry.value);
+    if (existing === undefined) {
+      const option = document.createElement("option");
+      option.value = entry.value;
+      option.textContent = entry.label;
+      select.append(option);
+    } else if (existing.textContent !== entry.label) {
+      existing.textContent = entry.label;
+    }
+  }
 }
 
 function heading(text: string): HTMLElement {

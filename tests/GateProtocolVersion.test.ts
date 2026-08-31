@@ -10,16 +10,21 @@ import { PROTOCOL_VERSION } from "../src/shared/protocol/Wire";
  * gate failing rather than the world, which is the failure that wastes the
  * most time because it looks like a real one.
  */
-const GATES = [
-  "phase1-gate.mjs",
-  "phase2-gate.mjs",
-  "phase3-gate.mjs",
-  "phase4-gate.mjs",
-  "phase5-gate.mjs",
-  "phase6-gate.mjs",
-];
+/**
+ * Found rather than listed. The hand-kept version of this list silently missed
+ * `phase7-gate.mjs` for a whole phase — the drift this test exists to catch,
+ * happening to the test itself. A directory read cannot forget a file.
+ */
+const GATES = fs
+  .readdirSync(path.resolve(__dirname, "../scripts"))
+  .filter((name) => /^phase\d+-gate\.mjs$/.test(name))
+  .sort();
 
 describe("gate scripts speak the current protocol", () => {
+  test("there are gates to check", () => {
+    expect(GATES.length).toBeGreaterThan(0);
+  });
+
   for (const gate of GATES) {
     test(gate, () => {
       const source = fs.readFileSync(

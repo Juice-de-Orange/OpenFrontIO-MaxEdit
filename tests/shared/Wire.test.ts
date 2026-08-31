@@ -129,6 +129,25 @@ describe("the wire protocol", () => {
           ],
           unlockedTechs: ["excavation"],
           attacks: [11, 12],
+          formations: [
+            {
+              id: 1,
+              template: "fighter_wing",
+              baseProvinceId: 3,
+              zone: 4,
+              mission: "air_superiority",
+              strength: 0.75,
+            },
+          ],
+          zones: [
+            {
+              zone: 4,
+              kind: "air",
+              superiority: 0.6,
+              contested: true,
+              ownStrength: 0.75,
+            },
+          ],
         },
       },
       {
@@ -214,6 +233,10 @@ describe("the wire protocol", () => {
     // deadline attached to it. 9 -> 10 when an attack became a standing order
     // (decision 0014): a v9 client shows no front and offers no way to call one
     // off, so a player would spend equipment on a war they cannot see.
-    expect(PROTOCOL_VERSION).toBe(10);
+    //
+    // 11 adds `formations` and `zones` to the economy view and three
+    // formation commands to the union (§6.7). A v10 client would render an
+    // air force it cannot see and could not stand a wing down.
+    expect(PROTOCOL_VERSION).toBe(11);
   });
 });

@@ -17,6 +17,7 @@
  * rather than four.
  */
 
+import { STRATEGIC_BOMBING_MAX } from "src/shared/config/air";
 import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
 import {
@@ -34,6 +35,7 @@ import { SYNTHETIC } from "src/shared/economy/Buildings";
 import type { System } from ".";
 import {
   assignedFactories,
+  atPeace,
   countBuilding,
   effectiveInfrastructure,
   factoryOutput,
@@ -42,6 +44,7 @@ import {
   type WorldEvent,
   type WorldState,
 } from "../world/WorldState";
+import { hostileMissionEffect } from "./zones";
 
 /** What a nation's economy is doing this tick. Pure; nothing is stored. */
 export interface NationEconomy {
@@ -86,6 +89,24 @@ export function measureNation(
   const tech = nationModifiers(state, nation);
   const militaryOutput = factoryOutput(state, nation, "military_factory");
   const dockyardOutput = factoryOutput(state, nation, "dockyard");
+  // One answer per zone rather than one per province: a nation's provinces
+  // fall into a handful of air zones and the arithmetic is the same for every
+  // province in one of them.
+  const bombing = new Map<number, number>();
+  const bombingOver = (zone: number): number => {
+    const known = bombing.get(zone);
+    if (known !== undefined) return known;
+    const share = hostileMissionEffect(
+      state,
+      zone,
+      nation,
+      "strategic_bombing",
+      "air",
+      (a, b) => atPeace(state, a, b),
+    );
+    bombing.set(zone, share);
+    return share;
+  };
   let construction = 0;
   let industry = 0;
   let militaryHeld = 0;
@@ -104,6 +125,23 @@ export function measureNation(
     const occupied = state.provinceOwner[province] !== nation;
     const factor = occupied ? OCCUPIED_OUTPUT_FACTOR : 1;
 
+    // **Strategic bombing, §6.7.** Enemy aircraft over this province's zone
+    // take its factories off the board, up to `STRATEGIC_BOMBING_MAX` and
+    // never further — invariant 2, and it is invariant 6 read literally: this
+    // is a purely military action whose whole effect is a number on the
+    // economy screen.
+    //
+    // It scales what factories *make* and not what the ground yields.
+    // §6.7 says factory output, and a mine is not a factory: bombing a
+    // hillside does not stop the ore being there. The distinction also keeps
+    // the two levers separable for a player trying to work out what happened
+    // to their industry.
+    const industryFactor =
+      factor *
+      (1 -
+        STRATEGIC_BOMBING_MAX *
+          bombingOver(state.map.provinces[province].airZone));
+
     const deposits = state.map.provinces[province].resourceDeposits;
     const infrastructure = effectiveInfrastructure(state, province);
     const upgrades = countBuilding(state, province, "extraction_upgrade");
@@ -121,13 +159,13 @@ export function measureNation(
     construction +=
       countBuilding(state, province, "civilian_factory") *
       CIVILIAN_FACTORY_OUTPUT *
-      factor *
+      industryFactor *
       (1 + tech.construction);
 
     const military = countBuilding(state, province, "military_factory");
     const dockyards = countBuilding(state, province, "dockyard");
     industry +=
-      (military * militaryOutput + dockyards * dockyardOutput) * factor;
+      (military * militaryOutput + dockyards * dockyardOutput) * industryFactor;
     militaryHeld += military;
     dockyardsHeld += dockyards;
 

@@ -28,6 +28,7 @@
 
 import fs from "fs/promises";
 import path from "path";
+import { WING_MANPOWER } from "src/shared/config/air";
 import {
   AGREEMENT_TYPES,
   MAX_MARKET_PER_TICK,
@@ -58,6 +59,12 @@ import {
 } from "src/shared/economy/Buildings";
 import { EQUIPMENT, equipmentIndex } from "src/shared/economy/Equipment";
 import {
+  FORMATIONS,
+  formationTemplateIndex,
+  MISSIONS,
+  missionSuitsKind,
+} from "src/shared/economy/Formations";
+import {
   decodeProvinceMap,
   type ProvinceMap,
   type ProvinceMapMeta,
@@ -67,15 +74,23 @@ import type {
   AgreementView,
   CommandBody,
   DivisionView,
+  FormationView,
   MapDescriptor,
   NationStatic,
   ProductionLineView,
   ResearchSlotView,
+  ZoneView,
 } from "src/shared/protocol/Wire";
 import { SYSTEMS } from "../systems";
 import { measureNation, type NationEconomy } from "../systems/economy";
 import { supplyCoverage, supplyOf, supplyReach } from "../systems/supply";
 import { isDeadPartner, nationTrade } from "../systems/trade";
+import {
+  contestOf,
+  isContested,
+  superiorityOf,
+  zoneInReach,
+} from "../systems/zones";
 import {
   applyEvent,
   assignedFactories,
@@ -86,11 +101,13 @@ import {
   divisionStrength,
   effectiveInfrastructure,
   factoryOutput,
+  formationStrength,
   manpowerCap,
   usedSlots,
   type Agreement,
   type ConstructionOrder,
   type Division,
+  type Formation,
   type ProductionLine,
   type ResearchSlot,
   type WorldEvent,
@@ -103,6 +120,8 @@ const MAX_QUEUE_LENGTH = 24;
 /** And the same reasoning for the other two lists a command can grow. */
 const MAX_PRODUCTION_LINES = 12;
 const MAX_DIVISIONS = 200;
+/** Wings and fleets share one list and one ceiling (§6.7, §6.8). */
+const MAX_FORMATIONS = 60;
 
 /**
  * And for agreements, proposals included.
@@ -215,6 +234,9 @@ export interface WorldSnapshot {
     lastSeenTick?: number;
     market?: Record<Resource, number>;
     attacks?: { province: number; since: number }[];
+    /** Optional: a snapshot taken before phase 8 has neither. */
+    formations?: Formation[];
+    nextFormationId?: number;
   }[];
 }
 
@@ -449,6 +471,8 @@ export class World {
     researchSlots: ResearchSlotView[];
     unlockedTechs: TechId[];
     attacks: number[];
+    formations: FormationView[];
+    zones: ZoneView[];
   } {
     const state = this.state.nations[nation];
     // Computed once for the whole view rather than per division: the reach is
@@ -489,6 +513,15 @@ export class World {
       })),
       unlockedTechs: [...state.unlockedTechs],
       attacks: state.attacks.map((attack) => attack.province),
+      formations: state.formations.map((formation) => ({
+        id: formation.id,
+        template: formation.template,
+        baseProvinceId: formation.base,
+        zone: formation.zone,
+        mission: formation.mission,
+        strength: formationStrength(formation),
+      })),
+      zones: this.zoneViews(nation),
       militaryFactoriesAssigned: assignedFactories(
         this.state,
         nation,
@@ -552,6 +585,11 @@ export class World {
         lastSeenTick: nation.lastSeenTick,
         market: { ...nation.market },
         attacks: nation.attacks.map((attack) => ({ ...attack })),
+        formations: nation.formations.map((formation) => ({
+          ...formation,
+          equipment: [...formation.equipment],
+        })),
+        nextFormationId: nation.nextFormationId,
       })),
     };
   }
@@ -654,6 +692,19 @@ export class World {
         );
       live.nextLineId = stored.nextLineId;
       live.nextDivisionId = stored.nextDivisionId;
+      // A world from before phase 8 has no air force, which is the correct
+      // thing for it to come back with: nothing was lost, because there was
+      // nothing there. The counter starts at 1 for the same reason.
+      live.formations = (stored.formations ?? []).map((formation) => ({
+        ...formation,
+        equipment: [...formation.equipment],
+      }));
+      live.nextFormationId =
+        stored.nextFormationId ??
+        (stored.formations ?? []).reduce(
+          (next, formation) => Math.max(next, formation.id + 1),
+          1,
+        );
       // A world that was running before phase 5 has no research in its
       // snapshot. It comes back with empty slots rather than refusing to
       // start: a season in progress is not something to throw away over a
@@ -768,6 +819,21 @@ export class World {
         mix(division.id);
         mix(division.province);
         for (const held of division.equipment) mixFloat(held);
+      }
+      // Wings and fleets, on the same terms. Where a formation is assigned is
+      // part of the state as much as what it holds: two worlds whose air
+      // forces are over different zones are not the same world.
+      mix(nation.nextFormationId);
+      mix(nation.formations.length);
+      for (const formation of nation.formations) {
+        mix(formation.id);
+        mix(formationTemplateIndex(formation.template));
+        mix(formation.base);
+        mix(formation.zone ?? -1);
+        mix(
+          formation.mission === null ? -1 : MISSIONS.indexOf(formation.mission),
+        );
+        for (const held of formation.equipment) mixFloat(held);
       }
       // Diplomacy is in the hash for the same reason everything else is. A
       // world that came back having forgotten who it had promised what would
@@ -965,6 +1031,73 @@ export class World {
         )
           ? null
           : `you have no division ${body.divisionId}`;
+
+      case "raise_formation": {
+        const province = body.provinceId;
+        if (!this.hasProvince(province)) {
+          return `no province ${province} on this map`;
+        }
+        if (this.state.provinceController[province] !== nation) {
+          return "you do not hold that province";
+        }
+        if (this.state.provinceOwner[province] !== nation) {
+          return "that province is occupied territory, not yours to recruit in";
+        }
+        const spec = FORMATIONS[body.template];
+        if (countBuilding(this.state, province, spec.base) === 0) {
+          return `that province has no ${spec.base.replace("_", " ")}`;
+        }
+        const state = this.state.nations[nation];
+        if (state.formations.length >= MAX_FORMATIONS) {
+          return `you already have ${MAX_FORMATIONS} wings and fleets`;
+        }
+        if (state.manpower < WING_MANPOWER) {
+          return (
+            `you have ${Math.floor(state.manpower)} manpower; a wing ` +
+            `costs ${WING_MANPOWER}`
+          );
+        }
+        return null;
+      }
+
+      case "disband_formation":
+        return this.state.nations[nation].formations.some(
+          (formation) => formation.id === body.formationId,
+        )
+          ? null
+          : `you have no formation ${body.formationId}`;
+
+      case "assign_formation": {
+        const formation = this.state.nations[nation].formations.find(
+          (candidate) => candidate.id === body.formationId,
+        );
+        if (formation === undefined) {
+          return `you have no formation ${body.formationId}`;
+        }
+        // Standing down is always allowed, for the same reason standing a
+        // production line down is: it is the way out, and a player reacting to
+        // having lost the ground under a base must not be refused it.
+        if (body.zone === null && body.mission === null) return null;
+        if (body.zone === null || body.mission === null) {
+          return "a formation takes a zone and a mission together, or neither";
+        }
+        const spec = FORMATIONS[formation.template];
+        if (!missionSuitsKind(body.mission, spec.kind)) {
+          return `a ${formation.template} cannot fly ${body.mission}`;
+        }
+        if (spec.weight[body.mission] <= 0) {
+          return `a ${formation.template} is no use on ${body.mission}`;
+        }
+        if (this.state.provinceController[formation.base] !== nation) {
+          return "you no longer hold the province that base is in";
+        }
+        if (
+          !zoneInReach(this.state.map, formation.base, body.zone, spec.kind)
+        ) {
+          return `zone ${body.zone} is out of reach of that base`;
+        }
+        return null;
+      }
 
       case "start_research": {
         const state = this.state.nations[nation];
@@ -1571,6 +1704,28 @@ export class World {
           { kind: "manpower_changed", nation, delta: -DIVISION_MANPOWER },
         ];
 
+      case "raise_formation":
+        return [
+          {
+            kind: "formation_raised",
+            nation,
+            template: body.template,
+            base: body.provinceId,
+          },
+          { kind: "manpower_changed", nation, delta: -WING_MANPOWER },
+        ];
+
+      case "assign_formation":
+        return [
+          {
+            kind: "formation_assigned",
+            nation,
+            formationId: body.formationId,
+            zone: body.zone,
+            mission: body.mission,
+          },
+        ];
+
       case "start_research":
         return [
           {
@@ -1657,7 +1812,77 @@ export class World {
           { kind: "division_disbanded", nation, divisionId: body.divisionId },
         ];
       }
+
+      case "disband_formation": {
+        // Same terms as a division: the aircraft go back to the warehouse,
+        // the ground crew do not come back.
+        const formation = this.state.nations[nation].formations.find(
+          (candidate) => candidate.id === body.formationId,
+        );
+        const returned: WorldEvent[] =
+          formation === undefined
+            ? []
+            : [
+                {
+                  kind: "stockpile_changed",
+                  nation,
+                  delta: formation.equipment
+                    .map((held, index) => [index, held] as [number, number])
+                    .filter(([, held]) => held > 0),
+                },
+              ];
+        return [
+          ...returned,
+          {
+            kind: "formation_disbanded",
+            nation,
+            formationId: body.formationId,
+          },
+        ];
+      }
     }
+  }
+
+  /**
+   * The zones this nation can see something in, and how they stand.
+   *
+   * "Something" is ground it holds or a formation it has sent — a player is
+   * told about the sky over their own country and over the places they have
+   * chosen to fly, and about nothing else. What the enemy has *assigned* is
+   * never on the wire: that is intelligence a player would have to fly a
+   * mission to learn, and §7 is clear that the server sends a nation what it
+   * can see rather than what it would like to know.
+   *
+   * The superiority figure itself is not a secret, because it is the only way
+   * a player can tell a zone they are losing from one they are winning, and a
+   * ratio they cannot see is a decision they cannot make (invariant 4).
+   */
+  private zoneViews(nation: number): ZoneView[] {
+    const zones = new Set<number>();
+    for (
+      let province = 0;
+      province < this.state.provinceController.length;
+      province++
+    ) {
+      if (this.state.provinceController[province] !== nation) continue;
+      zones.add(this.state.map.provinces[province].airZone);
+    }
+    for (const formation of this.state.nations[nation].formations) {
+      if (formation.zone !== null) zones.add(formation.zone);
+    }
+
+    const views: ZoneView[] = [];
+    for (const zone of [...zones].sort((a, b) => a - b)) {
+      const contest = contestOf(this.state, zone, "air");
+      views.push({
+        zone,
+        kind: "air",
+        superiority: superiorityOf(contest, nation),
+        contested: isContested(contest, nation),
+        ownStrength: contest.get(nation) ?? 0,
+      });
+    }
+    return views;
   }
 
   /**

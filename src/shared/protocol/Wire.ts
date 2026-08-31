@@ -23,13 +23,18 @@ import { RESOURCES } from "../config/provinces";
 import { TECH_IDS } from "../config/techs";
 import { BUILDING_TYPES } from "../economy/Buildings";
 import { EQUIPMENT_TYPES } from "../economy/Equipment";
+import {
+  FORMATION_TEMPLATES,
+  MISSIONS,
+  ZONE_KINDS,
+} from "../economy/Formations";
 
 /**
  * Bumped whenever a message shape changes in a way an older peer would
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -180,6 +185,35 @@ export const DisbandDivisionSchema = z.object({
   divisionId: z.number().int().positive(),
 });
 
+/** Raise a wing or a fleet at a base, at the cost of manpower (§6.7). */
+export const RaiseFormationSchema = z.object({
+  kind: z.literal("raise_formation"),
+  template: z.enum(FORMATION_TEMPLATES),
+  provinceId: z.number().int().nonnegative(),
+});
+
+/** Disband one. Same terms as a division. */
+export const DisbandFormationSchema = z.object({
+  kind: z.literal("disband_formation"),
+  formationId: z.number().int().positive(),
+});
+
+/**
+ * Send a formation to a zone with a mission, or bring it home.
+ *
+ * Absolute, for the same reason `assign_factories` is: a delta applied twice
+ * means something different from one applied once and the player cannot see
+ * which happened. `zone` and `mission` are null together — that is the
+ * formation standing down at its base, where it costs and contributes
+ * nothing.
+ */
+export const AssignFormationSchema = z.object({
+  kind: z.literal("assign_formation"),
+  formationId: z.number().int().positive(),
+  zone: z.number().int().nonnegative().nullable(),
+  mission: z.enum(MISSIONS).nullable(),
+});
+
 /**
  * Put a slot to work on a tech.
  *
@@ -310,6 +344,9 @@ export const CommandBodySchema = z.discriminatedUnion("kind", [
   AssignFactoriesSchema,
   RaiseDivisionSchema,
   DisbandDivisionSchema,
+  RaiseFormationSchema,
+  DisbandFormationSchema,
+  AssignFormationSchema,
   StartResearchSchema,
   CancelResearchSchema,
   ProposeAgreementSchema,
@@ -452,6 +489,40 @@ export const DivisionSchema = z.object({
 });
 export type DivisionView = z.infer<typeof DivisionSchema>;
 
+export const FormationSchema = z.object({
+  id: z.number().int().positive(),
+  template: z.enum(FORMATION_TEMPLATES),
+  /** The province whose base it flies out of. */
+  baseProvinceId: z.number().int().nonnegative(),
+  /** The zone it is assigned to, or null when it is standing down. */
+  zone: z.number().int().nonnegative().nullable(),
+  mission: z.enum(MISSIONS).nullable(),
+  /** 0..1 — held equipment against what the template asks for. */
+  strength: z.number(),
+});
+export type FormationView = z.infer<typeof FormationSchema>;
+
+/**
+ * What a nation can see of one zone: who is winning the sky over it.
+ *
+ * Only zones this nation has something to do with — one it holds ground in,
+ * or one it has sent a formation to. Superiority is public in the sense that
+ * both sides of a contested zone can see their own share of it; what the
+ * other side has *assigned* is not on the wire, because that is the same
+ * intelligence a player would have to fly a mission to learn.
+ */
+export const ZoneSchema = z.object({
+  zone: z.number().int().nonnegative(),
+  kind: z.enum(ZONE_KINDS),
+  /** 0..1 — this nation's share of the air over the zone. 0.5 is a stalemate. */
+  superiority: z.number(),
+  /** Whether anybody else has anything there at all. */
+  contested: z.boolean(),
+  /** This nation's own strength in the zone, summed over its formations. */
+  ownStrength: z.number(),
+});
+export type ZoneView = z.infer<typeof ZoneSchema>;
+
 export const ResearchSlotSchema = z.object({
   /** What this slot is working on, or null when it is idle. */
   tech: z.enum(TECH_IDS).nullable(),
@@ -510,6 +581,10 @@ export const NationEconomySchema = z.object({
    * puts a button next to each one.
    */
   attacks: z.array(z.number().int().nonnegative()),
+  /** Wings and fleets this nation has raised, wherever they are (§6.7). */
+  formations: z.array(FormationSchema),
+  /** The zones it can see something in, and how the air over them stands. */
+  zones: z.array(ZoneSchema),
 });
 export type NationEconomyView = z.infer<typeof NationEconomySchema>;
 

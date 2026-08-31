@@ -28,6 +28,7 @@
  * needs. Revisit it if a map arrives with ten times the provinces.
  */
 
+import { INTERDICTION_MAX } from "src/shared/config/air";
 import {
   SUPPLY_ATTRITION,
   SUPPLY_HOP_COST,
@@ -39,11 +40,13 @@ import {
 } from "src/shared/config/supply";
 import type { System } from ".";
 import {
+  atPeace,
   countBuilding,
   effectiveInfrastructure,
   type WorldEvent,
   type WorldState,
 } from "../world/WorldState";
+import { hostileMissionEffect } from "./zones";
 
 /**
  * Provinces a nation draws supply from: its capitals, and its supply hubs.
@@ -109,9 +112,38 @@ export function supplyReach(
     }
   }
 
+  // **Interdiction, §6.7.** Enemy aircraft over a zone cut what gets through
+  // to the provinces in it. It scales the finished reach rather than the hop
+  // costs, because interdiction is not bad roads — the road is fine and the
+  // convoy on it is being strafed — and because scaling here means every
+  // consumer of reach gets it without asking: the supply system's attrition,
+  // combat's strength term, and the number the player is shown.
+  //
+  // Capped at `INTERDICTION_MAX`, so a province with a hostile air force
+  // overhead is badly supplied and never cut off. Degrade, never block.
+  const interdiction = new Map<number, number>();
+  const interdictionOver = (zone: number): number => {
+    const known = interdiction.get(zone);
+    if (known !== undefined) return known;
+    const share = hostileMissionEffect(
+      state,
+      zone,
+      nation,
+      "interdiction",
+      "air",
+      (a, b) => atPeace(state, a, b),
+    );
+    interdiction.set(zone, share);
+    return share;
+  };
+
   const reach = new Map<number, number>();
   for (const [province, distance] of cost) {
-    reach.set(province, Math.max(0, 1 - distance / SUPPLY_RANGE));
+    const base = Math.max(0, 1 - distance / SUPPLY_RANGE);
+    const cut =
+      INTERDICTION_MAX *
+      interdictionOver(state.map.provinces[province].airZone);
+    reach.set(province, base * (1 - cut));
   }
   return reach;
 }
