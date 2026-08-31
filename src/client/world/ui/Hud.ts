@@ -150,6 +150,8 @@ export interface HudActions {
   raiseDivision(province: number): void;
   startResearch(slot: number, tech: TechId): void;
   cancelResearch(slot: number): void;
+  /** Call off a standing attack. The order costs equipment until it stops. */
+  cancelAttack(province: number): void;
   /** Terms for a trade, null for everything else. Rates are per tick. */
   propose(to: number, type: AgreementType, terms: TradeTermsView | null): void;
   acceptAgreement(agreementId: number): void;
@@ -391,10 +393,20 @@ export class Hud {
     }
 
     if (model.nation !== null && controller !== model.nation) {
-      const claim = document.createElement("button");
-      claim.textContent = t("province.claim");
-      claim.addEventListener("click", () => this.actions.claim(id));
-      children.push(spacer(), claim);
+      // **An order, not an outcome** (§6.9, decision 0014). The button starts
+      // a front that grinds every tick and costs equipment for as long as it
+      // stands, so the panel says which of the two it is doing and offers the
+      // way back out.
+      const attacking = model.economy?.attacks.includes(id) === true;
+      const button = document.createElement("button");
+      button.textContent = attacking
+        ? t("province.callOff")
+        : t("province.attack");
+      button.addEventListener("click", () =>
+        attacking ? this.actions.cancelAttack(id) : this.actions.claim(id),
+      );
+      children.push(spacer(), button);
+      if (attacking) children.push(muted(t("province.attacking")));
     }
 
     // The build menu is only shown where a building could actually go: a menu
@@ -571,6 +583,22 @@ export class Hud {
           amount(economy.stockpile[EQUIPMENT_TYPES.indexOf(type)]),
         ),
       );
+    }
+
+    if (economy.attacks.length > 0) {
+      children.push(spacer(), heading(t("production.fronts")));
+      for (const province of economy.attacks) {
+        const item = document.createElement("div");
+        item.className = "line";
+        item.append(row(t("province.title", { id: province }), ""));
+        const off = document.createElement("button");
+        off.textContent = t("province.callOff");
+        off.addEventListener("click", () =>
+          this.actions.cancelAttack(province),
+        );
+        item.append(off);
+        children.push(item);
+      }
     }
 
     children.push(spacer(), heading(t("production.divisions")));

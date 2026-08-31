@@ -128,6 +128,7 @@ describe("the wire protocol", () => {
             { tech: null, progress: 0, unlocked: false },
           ],
           unlockedTechs: ["excavation"],
+          attacks: [11, 12],
         },
       },
       {
@@ -210,7 +211,9 @@ describe("the wire protocol", () => {
     // the wrong fix. 8 -> 9 for diplomacy: trust and agreements ride on every
     // full state and every delta, and a v8 client would show a player no offer
     // and no notice of cancellation — the one message in the game that has a
-    // deadline attached to it.
-    expect(PROTOCOL_VERSION).toBe(9);
+    // deadline attached to it. 9 -> 10 when an attack became a standing order
+    // (decision 0014): a v9 client shows no front and offers no way to call one
+    // off, so a player would spend equipment on a war they cannot see.
+    expect(PROTOCOL_VERSION).toBe(10);
   });
 });

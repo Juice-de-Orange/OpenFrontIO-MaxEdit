@@ -448,6 +448,7 @@ export class World {
     dockyardsTotal: number;
     researchSlots: ResearchSlotView[];
     unlockedTechs: TechId[];
+    attacks: number[];
   } {
     const state = this.state.nations[nation];
     // Computed once for the whole view rather than per division: the reach is
@@ -487,6 +488,7 @@ export class World {
         unlocked: index < slotsFor(state.unlockedTechs),
       })),
       unlockedTechs: [...state.unlockedTechs],
+      attacks: state.attacks.map((attack) => attack.province),
       militaryFactoriesAssigned: assignedFactories(
         this.state,
         nation,

@@ -48,6 +48,7 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
       { tech: null, progress: 0, unlocked: false },
     ],
     unlockedTechs: [],
+    attacks: [],
     ...over,
   };
 }
@@ -85,6 +86,7 @@ function actions(): HudActions {
     declineAgreement: vi.fn(),
     cancelAgreement: vi.fn(),
     setMarketOrder: vi.fn(),
+    cancelAttack: vi.fn(),
   };
 }
 

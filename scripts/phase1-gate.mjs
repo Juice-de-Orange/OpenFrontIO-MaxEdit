@@ -54,7 +54,7 @@ const WS_URL = process.env.GATE_WS ?? "ws://localhost:3000/ws";
  * gate failing rather than the world, and the worst way for a gate to fail.
  * `tests/GateProtocolVersion.test.ts` now reads this line and compares it.
  */
-const PROTOCOL_VERSION = 9;
+const PROTOCOL_VERSION = 10;
 /** How long to wait for the snapshot the gate needs. Six minutes of ticks. */
 const SNAPSHOT_TIMEOUT_MS = 8 * 60 * 1000;
 
@@ -286,6 +286,9 @@ let TICK_MS = 5000;
 /** SNAPSHOT_INTERVAL_TICKS in shared/config/time.ts. */
 const SNAPSHOT_TICKS = 60;
 
+/** Ticks to allow for the kill itself to land after the window is chosen. */
+const KILL_TICKS = 8;
+
 async function compose(...args) {
   const { stdout, stderr } = await run("docker", ["compose", ...args], {
     maxBuffer: 8 * 1024 * 1024,
@@ -379,12 +382,18 @@ async function main() {
   const margin = Math.max(4, Math.min(20, Math.ceil(1000 / TICK_MS)));
   let beforeKill;
   let durable;
-  const window = Math.max(margin + 10, SNAPSHOT_TICKS - 5);
   for (;;) {
     beforeKill = await waitForHealth();
     durable = Math.max(beforeKill.lastSnapshotTick, late.tick);
+    // Far enough past the durable record to have something to replay, and
+    // **before the next snapshot can become the record instead**. Measuring
+    // the window from the record alone was not enough: the record was the last
+    // *command*, and the next snapshot arrived twenty-two ticks later, so the
+    // world came back at a point the client had never got to see.
+    const nextSnapshot =
+      (Math.floor(beforeKill.tick / SNAPSHOT_TICKS) + 1) * SNAPSHOT_TICKS;
     const past = beforeKill.tick - durable;
-    if (past >= margin && past < window) break;
+    if (past >= margin && beforeKill.tick + KILL_TICKS < nextSnapshot) break;
     await sleep(100);
   }
   await watcher.reaches(durable + margin, 60_000);

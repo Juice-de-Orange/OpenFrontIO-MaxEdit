@@ -29,7 +29,7 @@ import { EQUIPMENT_TYPES } from "../economy/Equipment";
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -500,6 +500,16 @@ export const NationEconomySchema = z.object({
   researchSlots: z.array(ResearchSlotSchema),
   /** Techs this nation has finished. Order is not significant. */
   unlockedTechs: z.array(z.enum(TECH_IDS)),
+  /**
+   * Provinces this nation is attacking, in the order the orders were given.
+   *
+   * An attack is a standing order since §6.9 became real (decision 0014): it
+   * grinds every tick until the province falls or the player calls it off. A
+   * player who cannot see what they have ordered cannot call it off, and the
+   * equipment goes on being spent — so the list is on the wire and the HUD
+   * puts a button next to each one.
+   */
+  attacks: z.array(z.number().int().nonnegative()),
 });
 export type NationEconomyView = z.infer<typeof NationEconomySchema>;
 

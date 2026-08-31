@@ -42,7 +42,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 9;
+const PROTOCOL_VERSION = 10;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -185,21 +185,16 @@ class Player {
   }
 }
 
-function largestNation(controllers) {
+/** Nations by how much of the map they hold, largest first. */
+function nationsByHoldings(controllers) {
   const held = new Map();
   for (const nation of controllers) {
     if (nation === 0) continue;
     held.set(nation, (held.get(nation) ?? 0) + 1);
   }
-  let best = 0;
-  let bestCount = 0;
-  for (const [nation, count] of held) {
-    if (count > bestCount) {
-      best = nation;
-      bestCount = count;
-    }
-  }
-  return best;
+  return [...held.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([nation]) => nation);
 }
 
 /**
@@ -322,7 +317,37 @@ async function main() {
 
   const spectator = new Player(null);
   await spectator.ready;
-  const nation = largestNation(spectator.controllers);
+
+  // **A nation that does not already know it.** A tech is kept for good, so a
+  // second run of this gate on the same world would pick the nation it taught
+  // last time, find the base rate already 10% high, and be refused the
+  // research it came to watch. The largest nation is the first choice and the
+  // ones behind it are the fallback.
+  const ranked = nationsByHoldings(spectator.controllers);
+  let nation = 0;
+  for (const candidate of ranked.slice(0, 12)) {
+    const probe = new Player(candidate);
+    await probe.ready;
+    const knows = probe.economy?.unlockedTechs.includes(TECH) === true;
+    const hasSlot =
+      probe.economy?.researchSlots.some((slot) => slot.unlocked) === true;
+    probe.close();
+    if (!knows && hasSlot) {
+      nation = candidate;
+      break;
+    }
+  }
+  if (nation === 0) {
+    log("");
+    log(
+      `  Every nation this gate can reach already knows ${TECH}, so there is`,
+    );
+    log("  no research left to watch. That is a world this gate has already");
+    log("  been run on, not a finding: start a fresh one.");
+    log("");
+    spectator.close();
+    process.exit(2);
+  }
   spectator.close();
 
   const player = new Player(nation);

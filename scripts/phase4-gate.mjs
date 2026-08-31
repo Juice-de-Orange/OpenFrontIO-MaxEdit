@@ -38,7 +38,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 9;
+const PROTOCOL_VERSION = 10;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -875,6 +875,68 @@ async function main() {
     `raised ${raised} divisions on the frontier` +
       (quiet === null ? "" : ", and one behind it as a control"),
   );
+  // **The fight has to be started.** Until the border drift was replaced by
+  // §6.9 (decision 0014) this gate raised divisions along a border and waited
+  // for the world's own heartbeat to walk into them. Nothing moves on its own
+  // any more, and that is the point of the change — so the gate starts a war,
+  // which is what the sentence in §8 was always describing.
+  //
+  // A real one, with somebody on the other side: an attack on empty ground is
+  // taken on the first tick and costs one tick of losses. So a second nation
+  // is connected, garrisons the province being attacked, and the front then
+  // grinds every tick — the attacker paying `ATTACKER_LOSS` and the defender
+  // `DEFENDER_LOSS` of what their engaged divisions hold, for as long as the
+  // order stands.
+  const attackedProvinces = [];
+  let defenderPlayer = null;
+  if (BREAK !== "quiet") {
+    const stations = player.economy.divisions
+      .filter((division) => division.id !== quiet)
+      .map((division) => division.provinceId);
+    for (const from of stations) {
+      const target = (neighbours.get(from) ?? []).find(
+        (province) =>
+          player.controllers[province] !== nation &&
+          player.controllers[province] !== 0,
+      );
+      if (target === undefined) continue;
+      const foe = player.controllers[target];
+
+      if (defenderPlayer === null) {
+        defenderPlayer = new Player(foe);
+        await defenderPlayer.ready;
+        const garrison = await defenderPlayer.command(
+          { kind: "raise_division", provinceId: target },
+          `garrison-${target}`,
+        );
+        if (!garrison.accepted) {
+          log(
+            `  nation ${foe} cannot garrison province ${target}: ${garrison.reason}`,
+          );
+          defenderPlayer.close();
+          defenderPlayer = null;
+          continue;
+        }
+        await defenderPlayer.waitUntil(
+          (p) => p.economy.divisions.some((d) => d.provinceId === target),
+          `nation ${foe} to garrison province ${target}`,
+          20_000,
+        );
+        log(`  nation ${foe} garrisons province ${target}: there is a war now`);
+      }
+
+      const ack = await player.command(
+        { kind: "claim_province", provinceId: target },
+        `attack-${target}`,
+      );
+      if (ack.accepted) attackedProvinces.push(target);
+    }
+  }
+  check(
+    BREAK === "quiet" || attackedProvinces.length > 0,
+    `${attackedProvinces.length} standing attack(s) ordered on the frontier`,
+  );
+
   log("  letting them draw what there is, then watching the front...");
   // Either they are full or the warehouse is empty — whichever comes first.
   // Waiting only for "empty" burned two minutes against a world whose earlier
@@ -903,6 +965,7 @@ async function main() {
     player.economy.divisions.map((d) => [d.id, d.provinceId]),
   );
   let clashTicks = 0;
+  let lastStock = baseStock;
   let quietFell = 0;
   let unexplained = 0;
   let stockRose = 0;
@@ -935,23 +998,45 @@ async function main() {
         if (division.id === quiet) quietFell++;
         else fell = true;
 
-        // The clash destroys equipment in the province that changed hands and
-        // in the one it was taken from — and nothing else in this game takes
-        // equipment out of a division. So a division that got weaker has to be
-        // standing in a province that moved this tick, or next door to one. A
-        // fall anywhere else is something the gate does not understand, and it
-        // would be measuring that instead of the fight.
+        // Nothing in this game takes equipment out of a division except
+        // attrition and the front, so a division that got weaker by more than
+        // attrition has to be **in the fight**: staged next to a province this
+        // nation is attacking, or standing in one that changed hands this
+        // tick. A fall anywhere else is something the gate does not
+        // understand, and it would be measuring that instead of the war.
         const at = stationed.get(division.id);
         let near = false;
-        if (moved !== undefined && at !== undefined) {
-          if (moved.has(at)) near = true;
-          else near = (neighbours.get(at) ?? []).some((n) => moved.has(n));
+        if (at !== undefined) {
+          near = (neighbours.get(at) ?? []).some((n) =>
+            attackedProvinces.includes(n),
+          );
+          if (!near && moved !== undefined) {
+            if (moved.has(at)) near = true;
+            else near = (neighbours.get(at) ?? []).some((n) => moved.has(n));
+          }
         }
         if (!near) unexplained++;
       }
-      if (fell) clashTicks++;
-
+      // **Or the warehouse paid instead.** A division whose losses are made
+      // good the same tick shows no net fall at all — `reinforce` hands out a
+      // share of every division's shortfall every tick, and a stockpile with
+      // six thousand rifles in it replaces a five-percent loss before anybody
+      // can see it. With production stopped, equipment can only leave the
+      // warehouse to replace what the front destroyed, so a stockpile that
+      // fell is a tick the war cost this nation something. That is §8's own
+      // sentence — "a sustained fight visibly drains a stockpile" — and it is
+      // what the drift used to make visible in rarer, larger steps.
       const stock = templateStock(economy);
+      //
+      // **Only while there is a war**, which `--break=quiet` proved the hard
+      // way: with nothing on the frontier this counted the leftover divisions
+      // of an earlier run topping themselves up, and the counter-proof passed
+      // when it had to fail. A warehouse that empties is evidence of a fight
+      // only if a fight was ordered.
+      const drained = attackedProvinces.length > 0 && stock < lastStock - 1e-9;
+      lastStock = stock;
+      if (fell || drained) clashTicks++;
+
       if (stock > peakStock + 1e-6) stockRose++;
       peakStock = Math.max(peakStock, stock);
 

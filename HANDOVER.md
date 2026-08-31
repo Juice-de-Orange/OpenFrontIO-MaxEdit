@@ -19,8 +19,13 @@ phase 8's gate needs to shift now exists: `claim_province` is a standing attack
 order, resolved every tick against equipment, supply, terrain and combat width
 with a roll seeded from `(worldSeed, tick, province)`. The border drift is gone
 and an unattended world is quiet until phase 10 — decision 0014 has the whole
-argument. **Phase 4's gate is red because of it**, and that is the first thing
-to fix; the plan is in the same decision record and repeated below.
+argument. Every gate that leaned on the drift has been rebuilt around a war it
+starts itself, and the board is green again.
+
+What phase 8 still has to build is the air itself. The partition is already
+checked in: `airZone` per province and `airZoneCount` come from phase 2's
+artefact, so §6.7 starts at wing assignment rather than at geography. And the
+resolution it has to shift is one multiplier in `systems/combat.ts`.
 
 Phases 0 to 7 have their gates demonstrated
 against the code as it stands, counter-proofs and all. Two of them went green
@@ -155,6 +160,12 @@ under "Traps already paid for" below: the clock override does not survive a
 `compose up`, and a restore replays the command log up to its **last command**
 and no further, so a dissolution with no command after it is rolled back by a
 kill and simply happens again on the way up.
+
+**Run the counter-proofs on a world the phase-7 gate has not already used.**
+Its own run signs an agreement between the only pair it found workable, so a
+counter-proof straight afterwards exits 2 with "a world this gate cannot use"
+rather than failing. That is the gate refusing to measure nothing, and it is
+why the two runs above were taken on separate worlds.
 
 ### Phase 6 — supply
 
@@ -607,22 +618,7 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**Rewrite the phase-4 gate first.** It is the only red one on the board and it
-is red for a good reason: its first half, "a sustained fight visibly drains a
-stockpile", used the border drift _as_ the fight — it raised divisions along a
-border and waited for the sweep to land on them. There is no sweep now.
-
-What it needs instead is a war it starts itself, which the phase-7 gate already
-shows how to do: connect as two nations, garrison a province with one of them,
-and order the other to attack it. The front then grinds every tick, both sides
-lose equipment, the divisions reinforce out of the stockpile, and the stockpile
-falls — which is a better demonstration of the sentence than waiting for a
-heartbeat ever was. Roughly an hour, most of it in the parts of the gate that
-attributed a division's losses to a province that had moved: with a standing
-order, the attacker's engaged divisions pay every tick wherever they stand, and
-that attribution can go.
-
-**Then phase 8: air zones.** §6.7, and the thing to get right is not the air: §6.8
+**Phase 8: air zones.** §6.7, and the thing to get right is not the air: §6.8
 is explicit that phase 9's naval zones are **the same code** with a different
 mission set. Build the zone abstraction, the assignment UI and the per-tick
 resolution loop as though phase 9 already existed, because it does. If you
@@ -630,7 +626,15 @@ find yourself writing a second one later, the mistake was made here.
 
 The three effects a superiority ratio has all land on systems that already
 exist — ground combat strength, enemy supply throughput, enemy factory output
-— so phase 8 is mostly about the zone, and only a little about aircraft.
+— so phase 8 is mostly about the zone, and only a little about aircraft. The
+first of the three has a place waiting for it: `combat.ts` multiplies the
+attacker's strength by a roll and nothing else, and superiority belongs beside
+that roll.
+
+**The partition is not phase 8's problem.** `airZone` is on every province and
+`airZoneCount` is in the artefact, both from phase 2. What is missing is air
+bases, wings, the four missions, and the per-tick resolution — built once, for
+phase 9 to reuse with a different mission set (§6.8).
 
 **What phase 7 actually built**, for anyone reading §6.5 against the code:
 
@@ -967,6 +971,17 @@ its own luck rather than the world:
   seen — nothing to replay. It now waits until the world is between `margin`
   and one snapshot interval past _the record itself_, and kills inside that
   window.
+- **Phase 5 could not be run twice on the same world.** A tech is kept for
+  good, so the second run picked the nation it had taught the first time,
+  measured a base factory rate that was already ten percent high, and was
+  refused the research it came to watch. It picks a nation that does not know
+  the tech yet, and says so when every nation does.
+- **Phase 1's kill kept landing on a snapshot.** The window was measured from
+  the durable record, and when that record was the last _command_ the next
+  snapshot could arrive twenty-two ticks later and become the record instead —
+  so the world came back at a tick the client had never seen. The kill now has
+  to fit between the record and the next snapshot, both computed from
+  `/health`.
 - **Phase 6 could not find a nation with two military factories.** It needs
   two to run a rifle line and an artillery line at once, every nation starts
   with exactly one, and since the drift was removed an unattended world does
