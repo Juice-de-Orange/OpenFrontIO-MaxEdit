@@ -13,7 +13,7 @@
  */
 
 import type { Resource } from "./provinces";
-import { TICKS_PER_DAY } from "./time";
+import { TICK_MS, TICKS_PER_DAY } from "./time";
 
 /**
  * What two nations can agree to. All bilateral, all indefinite.
@@ -81,17 +81,31 @@ export const TRUST_COST: Readonly<Record<AgreementType, number>> = {
  * How long a nation may be silent before its agreements dissolve by
  * themselves, at no cost to either side.
  *
- * §6.5's dead-partner rule: fourteen in-game days with no sign of the player,
- * or a nation that no longer holds a capital. Without it, indefinite
- * agreements pile up as dead weight across a six-week season, and a player
- * comes back to a web of obligations with nations that stopped existing.
+ * §6.5's dead-partner rule exists so that indefinite agreements do not pile up
+ * as dead weight across a six-week season, leaving a player with a web of
+ * obligations to nations that stopped existing.
+ *
+ * **This is seven days of wall clock, and §6.5 says fourteen in-game days.**
+ * Fourteen in-game days is 336 ticks, which at five seconds a tick is
+ * twenty-eight real minutes — so a player who closed the tab over lunch would
+ * come back to dissolved agreements. The sentence in §6.5 plainly means "has
+ * stopped playing", and in this world's time scale that is days rather than
+ * minutes. See docs/decisions/0012.
+ *
+ * Derived from `TICK_MS` rather than written out, so that it stays seven days
+ * if the tick rate is ever retuned. Not from `WORLD_TICK_MS`: a gate running
+ * a world a hundred times faster runs the same world sooner, not a different
+ * one, and the schedule is anchored to the tick (decision 0003).
  *
  * "No sign of the player" is measured from the command log and nothing else
  * (§4): a session that connects writes a `nation_present` command, so being
  * there is a thing the log records and a replay can reconstruct. A connection
  * that is not in the log would make this rule un-replayable.
  */
-export const DEAD_PARTNER_TICKS = 14 * TICKS_PER_DAY;
+const SILENT_REAL_DAYS = 7;
+export const DEAD_PARTNER_TICKS = Math.round(
+  (SILENT_REAL_DAYS * 24 * 60 * 60 * 1000) / TICK_MS,
+);
 
 /** How often a connected session says it is still there. */
 export const PRESENCE_REFRESH_TICKS = 5 * TICKS_PER_DAY;

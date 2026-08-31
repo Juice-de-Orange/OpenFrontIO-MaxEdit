@@ -652,11 +652,11 @@ Still worth doing, and still deferred:
 
 ## Open questions
 
-### Three balance questions phase 7 leaves on the table
+### Balance questions phase 7 leaves on the table
 
-None of these blocked the gate. All three are one line in
-`shared/config/diplomacy.ts` and all three want a decision from Max rather than
-from whoever is next in the code.
+None of these blocked the gate, and all are one line in
+`shared/config/diplomacy.ts`. The third was decided on the day and is kept here
+with its answer; the first two are still open.
 
 **Trust never comes back.** §6.5 says what cancelling costs and says nothing
 about recovery, so nothing recovers it: a nation that breaks a non-aggression
@@ -672,13 +672,15 @@ is deliberate — breaking a non-aggression pact costs more than breaking an
 alliance, because there is only one reason to do it. The magnitudes are a
 guess.
 
-**Fourteen in-game days is twenty-eight real minutes.** `DEAD_PARTNER_TICKS`
-is 336 ticks, straight out of §6.5, and at five seconds a tick that is under
-half an hour of wall clock. A player who closes the tab over lunch comes back
-to dissolved agreements. The rule is right and the unit may not be: the same
-sentence in §6.5 plainly means "has stopped playing", which in this world's
-time scale is days rather than minutes. Worth deciding before a real season
-runs.
+**Fourteen in-game days was twenty-eight real minutes — decided and changed.**
+`DEAD_PARTNER_TICKS` is now seven days of wall clock (120,960 ticks), derived
+from `TICK_MS`. §6.5's own unit made the rule fire on a player who closed the
+tab over lunch, which is plainly not what "no player login" means in a world
+whose in-game clock runs a hundred and eighty times faster than the real one.
+Decision 0012 has the reasoning and the two consequences: the rule is no longer
+observable in a gate run and is unit-tested instead, and an offer to a nation
+nobody has ever played is now accepted rather than refused, because on a young
+world nobody is dead yet.
 
 **And one sharp edge, for the same list.** The other half of the dead-partner
 rule is "has lost its capital", and it is read as _holds no capital right
