@@ -26,6 +26,7 @@ import {
   EXTRACTION_PER_DEPOSIT,
   EXTRACTION_UPGRADE_BONUS,
   INFRASTRUCTURE_EXTRACTION_BONUS,
+  MANPOWER_REGROWTH,
   MILITARY_FACTORY_DEMAND,
   MILITARY_FACTORY_OUTPUT,
   OCCUPIED_OUTPUT_FACTOR,
@@ -35,6 +36,7 @@ import type { System } from ".";
 import {
   countBuilding,
   effectiveInfrastructure,
+  manpowerCap,
   type WorldEvent,
   type WorldState,
 } from "../world/WorldState";
@@ -209,6 +211,23 @@ export const economySystem: System = {
       }
 
       if (moved) events.push({ kind: "resources_changed", nation, delta });
+
+      // Manpower regrows toward what the nation's land can support, at a
+      // rate like everything else (invariant 1). Losing land lowers the
+      // ceiling and the pool is cut to it in the same tick — the men were in
+      // the province that changed hands, and there is nowhere for them to
+      // walk to. Growth is the slow direction; loss is not.
+      const cap = manpowerCap(state, nation);
+      const held = state.nations[nation].manpower;
+      if (held < cap) {
+        events.push({
+          kind: "manpower_changed",
+          nation,
+          delta: Math.min(cap - held, cap * MANPOWER_REGROWTH),
+        });
+      } else if (held > cap) {
+        events.push({ kind: "manpower_changed", nation, delta: cap - held });
+      }
     }
     return events;
   },

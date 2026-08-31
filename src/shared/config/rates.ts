@@ -96,6 +96,85 @@ export const CONSTRUCTION_PARALLEL_ITEMS = 1;
 export const INFRASTRUCTURE_CONSTRUCTION_BONUS = 0.03;
 
 // ---------------------------------------------------------------------------
+// Production lines (§6.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * The efficiency floor and cap of a production line.
+ *
+ * A line starts at the floor, climbs while it runs, and is knocked back to the
+ * floor whenever its equipment type changes. This is the mechanic the whole
+ * game's pace rests on (§6.2): a player who commits to producing one thing for
+ * a long time massively out-produces one who reacts constantly.
+ */
+export const EFFICIENCY_FLOOR = 0.1;
+export const EFFICIENCY_CAP = 1;
+
+/**
+ * How much efficiency a line gains per tick it runs uninterrupted.
+ *
+ * From floor to cap in 900 ticks — a bit under 38 in-game days, or an hour and
+ * a quarter of wall clock. Long enough that switching hurts for a week of
+ * play, short enough that a committed line pays off inside a six-week season.
+ */
+export const EFFICIENCY_GAIN = 0.001;
+
+/**
+ * Efficiency lost per tick by a line with no factories on it.
+ *
+ * Slower than the gain, so a line briefly stripped to move factories elsewhere
+ * is not ruined — but a line left idle for a season does not keep the
+ * efficiency it earned. Adding or removing factories never resets it (§6.2);
+ * only switching the equipment type does.
+ */
+export const EFFICIENCY_DECAY = 0.0004;
+
+// ---------------------------------------------------------------------------
+// Manpower and divisions
+// ---------------------------------------------------------------------------
+
+/**
+ * Manpower a province contributes to its owner's cap, per land tile.
+ *
+ * CLAUDE.md §10 leaves the manpower model open between conscription laws and a
+ * simple population-scaled cap. This is the second — see
+ * docs/decisions/0008. Conscription laws would need political power or
+ * stability to be gated by, and §10 excludes the politics layer that would
+ * gate them, so they would be a free lunch.
+ */
+export const MANPOWER_PER_TILE = 0.6;
+
+/** Manpower regained per tick, as a share of the nation's cap. */
+export const MANPOWER_REGROWTH = 0.0002;
+
+/** What raising one division costs, and what a full-strength one holds. */
+export const DIVISION_MANPOWER = 1000;
+
+/**
+ * How much of its equipment a division takes from the stockpile per tick.
+ *
+ * A fraction of what it is still short of, so a division fills up quickly at
+ * first and then tails off — and so a stockpile with several divisions drawing
+ * on it is shared out rather than emptied by whichever one asked first.
+ */
+export const DIVISION_REINFORCE_RATE = 0.02;
+
+// ---------------------------------------------------------------------------
+// The border clash
+// ---------------------------------------------------------------------------
+
+/**
+ * What one clash destroys, as a share of what the divisions there are holding.
+ *
+ * The defender loses more: it is the one being pushed out of the province.
+ * Both numbers are small on purpose — a front that grinds for in-game weeks is
+ * the shape this game wants, and a single tick should be a scratch. What makes
+ * it felt is that it happens every tick, for as long as the war lasts.
+ */
+export const COMBAT_DEFENDER_LOSS = 0.08;
+export const COMBAT_ATTACKER_LOSS = 0.05;
+
+// ---------------------------------------------------------------------------
 // What a nation starts with
 // ---------------------------------------------------------------------------
 
@@ -127,3 +206,9 @@ export const STARTING_RESOURCES: Record<Resource, number> = {
  * meant to feel never engages again.
  */
 export const RESOURCE_CAP = 5000;
+
+/** And the same for one equipment type. */
+export const EQUIPMENT_CAP = 100_000;
+
+/** Divisions a nation starts with, in its capital. */
+export const STARTING_DIVISIONS = 2;

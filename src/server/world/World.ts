@@ -31,6 +31,9 @@ import path from "path";
 import type { Resource } from "src/shared/config/provinces";
 import { OCCUPATION_TICKS, RESOURCES } from "src/shared/config/provinces";
 import {
+  DIVISION_MANPOWER,
+  DOCKYARD_OUTPUT,
+  MILITARY_FACTORY_OUTPUT,
   STARTING_CAPITAL_BUILDINGS,
   STARTING_RESOURCES,
 } from "src/shared/config/rates";
@@ -39,6 +42,7 @@ import {
   BUILDINGS,
   type BuildingType,
 } from "src/shared/economy/Buildings";
+import { EQUIPMENT, equipmentIndex } from "src/shared/economy/Equipment";
 import {
   decodeProvinceMap,
   type ProvinceMap,
@@ -47,24 +51,36 @@ import {
 import { terrainHashFnv1a } from "src/shared/map/TerrainHash";
 import type {
   CommandBody,
+  DivisionView,
   MapDescriptor,
   NationStatic,
+  ProductionLineView,
 } from "src/shared/protocol/Wire";
 import { SYSTEMS } from "../systems";
 import { measureNation, type NationEconomy } from "../systems/economy";
 import {
   applyEvent,
+  assignedFactories,
+  availableFactories,
   countBuilding,
   createWorldState,
+  divisionStrength,
   effectiveInfrastructure,
+  manpowerCap,
   usedSlots,
   type ConstructionOrder,
+  type Division,
+  type ProductionLine,
   type WorldEvent,
   type WorldState,
 } from "./WorldState";
 
 /** A queue nobody could work through is a queue used as a memory leak. */
 const MAX_QUEUE_LENGTH = 24;
+
+/** And the same reasoning for the other two lists a command can grow. */
+const MAX_PRODUCTION_LINES = 12;
+const MAX_DIVISIONS = 200;
 
 interface ManifestNation {
   name: string;
@@ -138,6 +154,12 @@ export interface WorldSnapshot {
   nations: {
     resources: Record<Resource, number>;
     constructionQueue: ConstructionOrder[];
+    stockpile: number[];
+    manpower: number;
+    productionLines: ProductionLine[];
+    divisions: Division[];
+    nextLineId: number;
+    nextDivisionId: number;
   }[];
 }
 
@@ -269,6 +291,66 @@ export class World {
     return measureNation(this.state, nation);
   }
 
+  /**
+   * The military half of a nation's private view: stockpile, lines, divisions.
+   *
+   * Computed rather than stored, like everything else the wire carries about
+   * an economy. `outputPerTick` in particular is a derived figure the player
+   * needs and the simulation does not, so it exists only here and in the HUD.
+   */
+  militaryView(
+    nation: number,
+    sufficiency: number,
+  ): {
+    stockpile: number[];
+    manpower: number;
+    manpowerCap: number;
+    productionLines: ProductionLineView[];
+    divisions: DivisionView[];
+    militaryFactoriesAssigned: number;
+    militaryFactoriesTotal: number;
+    dockyardsAssigned: number;
+    dockyardsTotal: number;
+  } {
+    const state = this.state.nations[nation];
+    return {
+      stockpile: [...state.stockpile],
+      manpower: state.manpower,
+      manpowerCap: manpowerCap(this.state, nation),
+      productionLines: state.productionLines.map((line) => {
+        const spec = EQUIPMENT[line.equipment];
+        const perFactory =
+          spec.yard === "dockyard" ? DOCKYARD_OUTPUT : MILITARY_FACTORY_OUTPUT;
+        return {
+          id: line.id,
+          equipment: line.equipment,
+          factories: line.factories,
+          efficiency: line.efficiency,
+          outputPerTick:
+            (line.factories * perFactory * line.efficiency * sufficiency) /
+            spec.cost,
+        };
+      }),
+      divisions: state.divisions.map((division) => ({
+        id: division.id,
+        provinceId: division.province,
+        strength: divisionStrength(division),
+      })),
+      militaryFactoriesAssigned: assignedFactories(
+        this.state,
+        nation,
+        "military_factory",
+      ),
+      militaryFactoriesTotal: availableFactories(
+        this.state,
+        nation,
+        "military_factory",
+      ),
+      dockyardsAssigned: assignedFactories(this.state, nation, "dockyard"),
+      dockyardsTotal: availableFactories(this.state, nation, "dockyard"),
+    };
+  }
+
   constructionQueueOf(nation: number): readonly ConstructionOrder[] {
     return this.state.nations[nation]?.constructionQueue ?? [];
   }
@@ -294,6 +376,15 @@ export class World {
         constructionQueue: nation.constructionQueue.map((order) => ({
           ...order,
         })),
+        stockpile: [...nation.stockpile],
+        manpower: nation.manpower,
+        productionLines: nation.productionLines.map((line) => ({ ...line })),
+        divisions: nation.divisions.map((division) => ({
+          ...division,
+          equipment: [...division.equipment],
+        })),
+        nextLineId: nation.nextLineId,
+        nextDivisionId: nation.nextDivisionId,
       })),
     };
   }
@@ -372,6 +463,17 @@ export class World {
       live.constructionQueue = stored.constructionQueue.map((order) => ({
         ...order,
       }));
+      live.stockpile = [...stored.stockpile];
+      live.manpower = stored.manpower;
+      live.productionLines = stored.productionLines.map((line) => ({
+        ...line,
+      }));
+      live.divisions = stored.divisions.map((division) => ({
+        ...division,
+        equipment: [...division.equipment],
+      }));
+      live.nextLineId = stored.nextLineId;
+      live.nextDivisionId = stored.nextDivisionId;
     }
     this.state.tick = snapshot.tick;
     this.pending.clear();
@@ -420,9 +522,27 @@ export class World {
       for (const resource of RESOURCES) mixFloat(nation.resources[resource]);
       mix(nation.constructionQueue.length);
       for (const order of nation.constructionQueue) {
+        mix(order.id);
         mix(order.provinceId);
         mix(buildingIndex(order.building));
         mixFloat(order.progress);
+      }
+      mixFloat(nation.manpower);
+      for (const held of nation.stockpile) mixFloat(held);
+      mix(nation.nextLineId);
+      mix(nation.productionLines.length);
+      for (const line of nation.productionLines) {
+        mix(line.id);
+        mix(equipmentIndex(line.equipment));
+        mix(line.factories);
+        mixFloat(line.efficiency);
+      }
+      mix(nation.nextDivisionId);
+      mix(nation.divisions.length);
+      for (const division of nation.divisions) {
+        mix(division.id);
+        mix(division.province);
+        for (const held of division.equipment) mixFloat(held);
       }
     }
     return hash >>> 0;
@@ -489,7 +609,91 @@ export class World {
         }
         return null;
       }
+
+      case "create_production_line": {
+        const lines = this.state.nations[nation].productionLines;
+        if (lines.length >= MAX_PRODUCTION_LINES) {
+          return `you already have ${MAX_PRODUCTION_LINES} production lines`;
+        }
+        return null;
+      }
+
+      case "remove_production_line":
+        return this.lineOf(nation, body.lineId) === undefined
+          ? `you have no production line ${body.lineId}`
+          : null;
+
+      case "switch_production_line": {
+        const line = this.lineOf(nation, body.lineId);
+        if (line === undefined) {
+          return `you have no production line ${body.lineId}`;
+        }
+        if (line.equipment === body.equipment) {
+          // Refused rather than ignored. A switch to what it already makes
+          // would be a no-op here and a reset in a future version of the
+          // reducer, and the player cannot tell those apart from an ack.
+          return `that line already makes ${body.equipment}`;
+        }
+        // Deliberately not refused for changing yard: a nation may retool its
+        // dockyards' line into an army line if it has both. What it may not do
+        // is keep the factories, which `assign_factories` then enforces.
+        return null;
+      }
+
+      case "assign_factories": {
+        const line = this.lineOf(nation, body.lineId);
+        if (line === undefined) {
+          return `you have no production line ${body.lineId}`;
+        }
+        const yard = EQUIPMENT[line.equipment].yard;
+        const held = availableFactories(this.state, nation, yard);
+        const elsewhere = assignedFactories(this.state, nation, yard, line.id);
+        if (body.factories + elsewhere > held) {
+          return (
+            `you hold ${held} ${yard === "dockyard" ? "dockyards" : "military factories"}, ` +
+            `${elsewhere} of them already on other lines`
+          );
+        }
+        return null;
+      }
+
+      case "raise_division": {
+        const province = body.provinceId;
+        if (!this.hasProvince(province)) {
+          return `no province ${province} on this map`;
+        }
+        if (this.state.provinceController[province] !== nation) {
+          return "you do not hold that province";
+        }
+        if (this.state.provinceOwner[province] !== nation) {
+          return "that province is occupied territory, not yours to recruit in";
+        }
+        const state = this.state.nations[nation];
+        if (state.divisions.length >= MAX_DIVISIONS) {
+          return `you already have ${MAX_DIVISIONS} divisions`;
+        }
+        if (state.manpower < DIVISION_MANPOWER) {
+          return (
+            `you have ${Math.floor(state.manpower)} manpower; a division ` +
+            `costs ${DIVISION_MANPOWER}`
+          );
+        }
+        return null;
+      }
+
+      case "disband_division":
+        return this.state.nations[nation].divisions.some(
+          (division) => division.id === body.divisionId,
+        )
+          ? null
+          : `you have no division ${body.divisionId}`;
     }
+  }
+
+  private lineOf(nation: number, lineId: number): ProductionLine | undefined {
+    return this.state.nations[nation].productionLines.find(
+      (line) => line.id === lineId,
+    );
   }
 
   /**
@@ -682,7 +886,10 @@ export class World {
       this.emit(system.run(this.state, this.state.tick), changes);
     }
 
-    this.drift(changes);
+    // The border drift used to live here. It is `systems/combat.ts` now: it
+    // runs in the slot §6 gives combat, and since phase 4 it costs both sides
+    // equipment. Occupation still settles afterwards, because ownership
+    // catching up is a consequence of the tick rather than a part of it.
     this.settleOccupation(changes);
     return changes;
   }
@@ -733,35 +940,69 @@ export class World {
         return [
           { kind: "construction_cancelled", nation, orderId: body.orderId },
         ];
-    }
-  }
 
-  /** One province changes hands at a border. The world's heartbeat. */
-  private drift(changes: WorldChanges): void {
-    const count = this.state.provinceOwner.length;
-    if (count === 0) return;
+      case "create_production_line":
+        return [
+          {
+            kind: "production_line_created",
+            nation,
+            equipment: body.equipment,
+          },
+        ];
 
-    // The drift never touches a province a command just moved. A heartbeat
-    // that can undo a player's order in the same tick it lands would be
-    // indistinguishable, from the player's side, from the order being lost.
-    const claimed = new Set(changes.control.map(([province]) => province));
-    const start = (this.state.tick * 7919) % count;
-    for (let i = 0; i < count; i++) {
-      const province = (start + i) % count;
-      if (claimed.has(province)) continue;
-      const mine = this.state.provinceController[province];
-      const taker = this.neighbours[province].find(
-        (n) =>
-          this.state.provinceController[n] !== mine &&
-          this.state.provinceController[n] !== 0,
-      );
-      if (taker !== undefined) {
-        this.takeControl(
-          province,
-          this.state.provinceController[taker],
-          changes,
+      case "remove_production_line":
+        return [
+          { kind: "production_line_removed", nation, lineId: body.lineId },
+        ];
+
+      case "switch_production_line":
+        return [
+          {
+            kind: "production_line_switched",
+            nation,
+            lineId: body.lineId,
+            equipment: body.equipment,
+          },
+        ];
+
+      case "assign_factories":
+        return [
+          {
+            kind: "production_factories_assigned",
+            nation,
+            lineId: body.lineId,
+            factories: body.factories,
+          },
+        ];
+
+      case "raise_division":
+        return [
+          { kind: "division_raised", nation, province: body.provinceId },
+          { kind: "manpower_changed", nation, delta: -DIVISION_MANPOWER },
+        ];
+
+      case "disband_division": {
+        // The equipment goes back to the stockpile; the men do not come back.
+        // Disbanding is a way to consolidate a broken army, not a refund.
+        const division = this.state.nations[nation].divisions.find(
+          (candidate) => candidate.id === body.divisionId,
         );
-        break;
+        const returned: WorldEvent[] =
+          division === undefined
+            ? []
+            : [
+                {
+                  kind: "stockpile_changed",
+                  nation,
+                  delta: division.equipment
+                    .map((held, index) => [index, held] as [number, number])
+                    .filter(([, held]) => held > 0),
+                },
+              ];
+        return [
+          ...returned,
+          { kind: "division_disbanded", nation, divisionId: body.divisionId },
+        ];
       }
     }
   }

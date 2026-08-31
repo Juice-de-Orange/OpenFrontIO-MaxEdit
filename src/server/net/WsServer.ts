@@ -367,6 +367,7 @@ export class WorldSocketServer {
         building: order.building,
         progress: order.progress,
       })),
+      ...this.world.militaryView(nation, economy.sufficiency),
     };
   }
 

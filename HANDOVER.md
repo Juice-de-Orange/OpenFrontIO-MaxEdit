@@ -14,7 +14,10 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 3 of 11 — factories and construction. Complete.** The world has an
+**Phase 3 of 11 — factories and construction. Complete. Phase 4 is part
+built and not gated** — see "Where phase 4 stands" below before touching it.
+
+The world has an
 economy. Provinces extract from their deposits, civilian factories make
 construction points, military factories and dockyards draw resources to run,
 synthetic refineries convert steel at a bad rate, and a construction queue
@@ -263,7 +266,7 @@ Phase 0's commits are in the history of this file before this rewrite.
 
 ### The whole plan, and how far along it is
 
-Four of twelve gates passed. The gate is the unit of progress here, not the
+Four of twelve gates passed, and phase 4 is built but has no gate yet. The gate is the unit of progress here, not the
 code: a phase is done when its gate has been demonstrated, not when it
 compiles.
 
@@ -273,7 +276,7 @@ compiles.
 | 1 · World persistence          | Kill the container mid-run; it resumes at the correct tick with no lost commands    | ✅ passed                                                          |
 | 2 · Province graph             | A province changes hands, ownership propagates from tiles, the client renders it    | ✅ passed server-side; the rendering half is the morning checklist |
 | 3 · Factories and construction | Queue a factory, watch it build over ticks, see output rise; shortage degrades it   | ✅ passed                                                          |
-| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ⬜ next                                                            |
+| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | 🟨 built, not gated                                                |
 | 5 · Research                   | A completed tech measurably changes a production or combat number                   | ⬜                                                                 |
 | 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ⬜                                                                 |
 | 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ⬜                                                                 |
@@ -286,6 +289,67 @@ Phases 4 to 10 are the rest of the game. Phases 0 to 2 were the ground it
 stands on — a renderer with no simulation behind it, a world that survives
 being killed, and a map with provinces that mean something — and phase 3 is the
 first one a player can watch happen.
+
+## Where phase 4 stands
+
+**Built, tested, and deliberately not gated.** Everything below runs, is in the
+snapshot and in the state hash, and has unit tests. What it does not have is
+`scripts/phase4-gate.mjs`, and until it does, phase 4 is not passed — a phase
+is done when its gate has been demonstrated, not when it compiles.
+
+What is there:
+
+- **Production lines** (§6.2). A line has an equipment type, a number of
+  factories and an efficiency. Output is `factories × base rate × efficiency ×
+the nation's resource sufficiency`. Four commands: create, remove, switch,
+  and assign factories.
+- **The efficiency ramp.** From a 10% floor to a 100% cap, `EFFICIENCY_GAIN`
+  per tick a line actually produced — about 38 in-game days end to end. An
+  idle line decays slowly rather than resetting, so a line briefly stripped to
+  move factories elsewhere is not ruined.
+- **The reset.** Switching a line's equipment type throws the ramp away.
+  Adding or removing factories does not. This is the mechanic the whole game's
+  pace rests on, and it is the reason §6.10 forbids the regent from ever
+  touching an existing line — that rule is written down in
+  `systems/production.ts`, next to the thing it protects.
+- **The stockpile** (§6.3). Lines deposit equipment; divisions draw a fraction
+  of their shortfall from it each tick, sharing what there is rather than
+  emptying it for whoever asked first.
+- **Divisions and manpower.** A division costs `DIVISION_MANPOWER`, is raised
+  empty, and gets stronger as it draws. Strength is the _worst_ ratio across
+  its template, the same reasoning as the economy's sufficiency. Manpower is a
+  population-scaled cap from land the nation owns _and_ holds
+  ([decision 0008](docs/decisions/0008-manpower-is-a-population-cap.md)).
+- **The border clash.** The drift moved out of `World` and into
+  `systems/combat.ts`, where §6 puts combat. It now destroys equipment in the
+  divisions on both sides of the border it moves — a fight empties divisions,
+  divisions refill from the stockpile, and the factories that refill it are the
+  ones the player has been choosing between. Invariant 6, smallest honest
+  version.
+
+What is **not** there, and what phase 4 needs before it can be called passed:
+
+1. **`scripts/phase4-gate.mjs`**, with counter-proofs. The gate has two halves,
+   and §8 words them plainly: a sustained fight visibly drains a stockpile and
+   weakens units, and switching a production line visibly costs output for a
+   long time. Both are observable from outside the process, so unlike phase 2
+   this gate can cover its whole sentence. Model it on
+   `scripts/phase3-gate.mjs`: play the world into the situation rather than
+   waiting for one, budget the setup phase, log each step.
+2. **The HUD.** `client/world/ui/Hud.ts` still shows only the economy, the
+   construction queue and the province panel. The wire already carries
+   everything a production screen needs — `productionLines` with their
+   efficiency and output, the `stockpile`, `divisions` with their strength,
+   and assigned-against-held factory counts — and nothing reads them yet.
+   Per invariant 9, efficiency is a percentage and output is per in-game day.
+3. **`raise_division` has no UI**, so divisions can only be made over the wire.
+4. **Equipment has no per-type resource cost.** A line's materials are still
+   the flat per-factory draw phase 3 shipped. Making steel matter more for
+   armour than for rifles is the obvious next tuning step, and it must not
+   break the phase-3 gate, which measures that flat draw.
+
+Nothing in the list above is load-bearing for what already passes: all three
+existing gates were re-run against this state and pass.
 
 ## What you have to look at yourself
 
@@ -330,42 +394,25 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**Phase 4 is production and equipment.** CLAUDE.md §8: a sustained fight
-visibly drains a stockpile and weakens units, and switching a production line
-visibly costs the player output for a long time.
+**Finish phase 4 and gate it.** The list is in "Where phase 4 stands" above,
+and the order that matters is: the gate first, then the HUD. A gate written
+after a screen tends to test the screen.
 
-Phase 3 left the seam it plugs into deliberately. `measureNation` already
-computes an **industry** figure — assigned factories times a base rate, scaled
-by resource sufficiency — and the HUD already shows it. Phase 4 turns that
-number into equipment:
+The gate's two halves, from §8:
 
-1. **Production lines** (§6.2). A military factory is assigned to exactly one
-   line producing one equipment type. Output is `assigned factories × base rate
-× efficiency`, and `industryPerTick` is that expression with efficiency
-   held at one.
-2. **The efficiency ramp**, from a 10% floor to a 100% cap, climbing slowly
-   every tick a line runs uninterrupted. **Switching a line's equipment type
-   resets it to the floor**; adding or removing factories does not. This is
-   the mechanic the whole game's pace rests on, and it is cheap to build.
-3. **The stockpile** (§6.3). Lines deposit equipment; units draw from it;
-   losses destroy it permanently. Units are not built directly, ever.
-4. **The regent warning is already load-bearing**: §6.10 forbids the regent
-   from ever changing an existing line's type, because that would reset the
-   efficiency a player spent days building. Write that rule down in phase 4,
-   next to the reset, rather than in phase 10 next to the regent.
+1. **A sustained fight visibly drains a stockpile and weakens units.** The
+   border clash already destroys equipment every tick it moves a province.
+   Raise divisions on both sides of a border, let it run, and watch the
+   stockpile fall and `strength` with it. The counter-proof writes itself:
+   disable the losses and the drain stops.
+2. **Switching a production line visibly costs output for a long time.** Build
+   a line to a high efficiency, record its output, switch it, and measure how
+   many ticks it takes to get back. At `EFFICIENCY_GAIN` that is around nine
+   hundred — which needs `WORLD_TICK_MS`, like phase 3's gate did.
 
-Things phase 3 did that phase 4 should reuse rather than rebuild:
-
-- **The system framework.** Fill the `production` slot in
-  `src/server/systems/index.ts`; it already runs in the right place.
-- **`measureNation`.** Pure, cheap, called from three places, and the pattern
-  for anything else that has to be both a per-tick decision and a wire field.
-- **The state hash grows with the state.** Equipment stockpiles and line
-  assignments go into `WorldSnapshot` _and_ into `stateHash`. A field left out
-  of the hash is a field the restore test cannot see.
-- **The gate script shape.** `scripts/phase3-gate.mjs` plays the nation into
-  the situation it needs to measure rather than waiting for one; phase 4's
-  should do the same, and it will need `WORLD_TICK_MS` too.
+After that, phase 5 is research, and it is the cheapest system in the whole
+plan (§6.4): N slots, a flat tech list with prerequisites, flat modifiers. Keep
+it that way — no focus tree, no doctrine tree.
 
 Still worth doing, and still deferred:
 
@@ -480,6 +527,33 @@ tests, not equality.
 
 **`systemctl reload nginx` lies** (relevant from phase 11). Covered in
 [`docs/deploy/README.md`](docs/deploy/README.md).
+
+### From phase 4
+
+**Moving a rule into a system takes its context with it.** The border drift
+carried one guarantee since phase 1: it never touches a province a command
+moved in the same tick, because a heartbeat that can undo an order is
+indistinguishable from the order being lost. Moved out of `World` and into
+`systems/combat.ts`, it lost that — a system cannot see the tick's commands.
+`provinceHeldSince === tick` restores it exactly, needs no new state, and the
+existing test caught the regression on the first run.
+
+**Patching a file by string match fails silently once prettier has been through
+it.** Three separate edits to the same test file matched nothing tonight, and
+the third time it cost half an hour spent debugging a fix that had never been
+applied. Every patch now asserts that its pattern matched; a file needing more
+than two gets rewritten instead.
+
+**A reset observed in the same tick is not a reset to the floor.** Commands
+apply before the systems run, so a production line switched on tick N is reset
+_and then climbs one step_ before anything can look at it. The test asserts "at
+most floor plus one gain", which is the honest statement of the rule.
+
+**Manpower can sit above its own ceiling for a tick.** The economy reads the
+cap, then the combat system takes a province later in the same tick and lowers
+it. The pool is cut on the next tick. A test that asserts the invariant every
+tick fails on a true statement; assert it against the highest ceiling the run
+has had.
 
 ### From phase 3
 
@@ -759,7 +833,7 @@ gate shows a world that survives.
 
 ### Test baseline
 
-**462 passed, 8 skipped, in one run — no tolerated failures.** `npm run test` is
+**472 passed, 8 skipped, in one run — no tolerated failures.** `npm run test` is
 a single `vitest run`. The eight skipped are the Postgres integration tests,
 which run under `npm run test:db` against `docker compose up -d db`; a unit
 suite that needs a container is a unit suite people stop running. **They are
@@ -774,7 +848,7 @@ rule is now **every failure is yours**, not every third one. If you are
 looking for two red tests because you read an older version of this file,
 stop looking.
 
-The count moved from 437 at the end of phase 2, from 412 at the end of phase
+The count moved from 462 at the end of phase 3, from 437 at the end of phase 2, from 412 at the end of phase
 1, and from 4012 before that
 because ~300 test files test code that no longer exists and are in
 `tests/_legacy/`, excluded from the run. They were moved

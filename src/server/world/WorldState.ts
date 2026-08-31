@@ -25,13 +25,27 @@
 
 import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
-import { RESOURCE_CAP } from "src/shared/config/rates";
+import {
+  EFFICIENCY_CAP,
+  EFFICIENCY_FLOOR,
+  EQUIPMENT_CAP,
+  MANPOWER_PER_TILE,
+  RESOURCE_CAP,
+} from "src/shared/config/rates";
 import {
   BUILDING_TYPES,
   buildingIndex,
   BUILDINGS,
   type BuildingType,
 } from "src/shared/economy/Buildings";
+import {
+  DIVISION_TEMPLATE,
+  EQUIPMENT,
+  EQUIPMENT_TYPES,
+  equipmentIndex,
+  type EquipmentType,
+  type Yard,
+} from "src/shared/economy/Equipment";
 import type { ProvinceMap } from "src/shared/map/ProvinceMap";
 
 /** One item in a nation's construction queue. */
@@ -53,9 +67,46 @@ export interface ConstructionOrder {
   progress: number;
 }
 
+/**
+ * One production line: a set of factories all making the same thing.
+ *
+ * §6.2. Output is `factories × base rate × efficiency`, and the efficiency is
+ * the whole mechanic — it climbs slowly while the line runs and is knocked
+ * back to the floor the moment the equipment type changes.
+ */
+export interface ProductionLine {
+  id: number;
+  equipment: EquipmentType;
+  /** How many of the nation's factories are on it. Never more than it has. */
+  factories: number;
+  /** EFFICIENCY_FLOOR..EFFICIENCY_CAP. */
+  efficiency: number;
+}
+
+/**
+ * A division: men in a province, holding some fraction of what it should.
+ *
+ * No template, by design (§10 excludes division designers). Every division
+ * wants the same `DIVISION_TEMPLATE`, and the only thing that varies is how
+ * much of it there actually is — which is what makes a drained stockpile
+ * something a player feels rather than reads.
+ */
+export interface Division {
+  id: number;
+  province: number;
+  /** Held equipment, indexed by `equipmentIndex`. */
+  equipment: number[];
+}
+
 export interface NationState {
   resources: Record<Resource, number>;
   constructionQueue: ConstructionOrder[];
+  /** Equipment held, indexed by `equipmentIndex`. Units draw from this. */
+  stockpile: number[];
+  /** Men available to raise divisions with. Regrows toward a cap from land. */
+  manpower: number;
+  productionLines: ProductionLine[];
+  divisions: Division[];
   /**
    * The id the next order will get. Monotonic, never reused.
    *
@@ -64,6 +115,9 @@ export interface NationState {
    * apart.
    */
   nextOrderId: number;
+  /** The same, for production lines and divisions. */
+  nextLineId: number;
+  nextDivisionId: number;
 }
 
 export interface WorldState {
@@ -132,6 +186,76 @@ export function effectiveInfrastructure(
   return Math.min(cap, state.map.provinces[province].infrastructure + built);
 }
 
+/**
+ * How much of what it should have, as a fraction.
+ *
+ * The *worst* ratio across the template, not the average. §6.3 scales a
+ * unit's strength linearly with its equipment, and a division with all its
+ * rifles and no artillery is not four fifths of a division — it is a division
+ * that cannot do one of the two things it exists to do. Same reasoning as the
+ * economy's sufficiency, and the same number vocabulary for a player to read.
+ */
+export function divisionStrength(division: Division): number {
+  let worst = 1;
+  for (const [type, wanted] of Object.entries(DIVISION_TEMPLATE)) {
+    if (wanted === undefined || wanted <= 0) continue;
+    const held = division.equipment[equipmentIndex(type as EquipmentType)] ?? 0;
+    worst = Math.min(worst, held / wanted);
+  }
+  return Math.max(0, Math.min(1, worst));
+}
+
+/**
+ * The manpower this nation can eventually hold.
+ *
+ * From land it both owns and holds. Occupied territory conscripts for nobody:
+ * not for the occupier, who has no claim on the people there, and not for the
+ * owner, who is not in the room. See docs/decisions/0008.
+ */
+export function manpowerCap(state: WorldState, nation: number): number {
+  let cap = 0;
+  for (let province = 0; province < state.provinceOwner.length; province++) {
+    if (state.provinceOwner[province] !== nation) continue;
+    if (state.provinceController[province] !== nation) continue;
+    cap += state.map.provinces[province].tileCount * MANPOWER_PER_TILE;
+  }
+  return cap;
+}
+
+/** Factories of this kind in provinces the nation holds. */
+export function availableFactories(
+  state: WorldState,
+  nation: number,
+  yard: Yard,
+): number {
+  let total = 0;
+  for (
+    let province = 0;
+    province < state.provinceController.length;
+    province++
+  ) {
+    if (state.provinceController[province] !== nation) continue;
+    total += countBuilding(state, province, yard);
+  }
+  return total;
+}
+
+/** Factories of this kind already committed to a production line. */
+export function assignedFactories(
+  state: WorldState,
+  nation: number,
+  yard: Yard,
+  ignoreLineId = -1,
+): number {
+  let total = 0;
+  for (const line of state.nations[nation].productionLines) {
+    if (line.id === ignoreLineId) continue;
+    if (EQUIPMENT[line.equipment].yard !== yard) continue;
+    total += line.factories;
+  }
+  return total;
+}
+
 /** A fresh world: every province with its starting owner, capitals equipped. */
 export function createWorldState(
   map: ProvinceMap,
@@ -158,7 +282,13 @@ export function createWorldState(
     state.nations.push({
       resources: { ...starting.resources },
       constructionQueue: [],
+      stockpile: new Array<number>(EQUIPMENT_TYPES.length).fill(0),
+      manpower: 0,
+      productionLines: [],
+      divisions: [],
       nextOrderId: 1,
+      nextLineId: 1,
+      nextDivisionId: 1,
     });
   }
 
@@ -213,6 +343,47 @@ export type WorldEvent =
       index: number;
       province: number;
       building: BuildingType;
+    }
+  | {
+      kind: "production_line_created";
+      nation: number;
+      /** Without its id: the reducer assigns one, so a replay assigns the same. */
+      equipment: EquipmentType;
+    }
+  | { kind: "production_line_removed"; nation: number; lineId: number }
+  | {
+      kind: "production_line_switched";
+      nation: number;
+      lineId: number;
+      equipment: EquipmentType;
+    }
+  | {
+      kind: "production_factories_assigned";
+      nation: number;
+      lineId: number;
+      factories: number;
+    }
+  | {
+      kind: "production_efficiency_changed";
+      nation: number;
+      lineId: number;
+      efficiency: number;
+    }
+  | {
+      kind: "stockpile_changed";
+      nation: number;
+      /** [equipmentIndex, signed amount]. Clamped to [0, EQUIPMENT_CAP]. */
+      delta: [number, number][];
+    }
+  | { kind: "manpower_changed"; nation: number; delta: number }
+  | { kind: "division_raised"; nation: number; province: number }
+  | { kind: "division_disbanded"; nation: number; divisionId: number }
+  | {
+      kind: "division_equipment_changed";
+      nation: number;
+      divisionId: number;
+      /** [equipmentIndex, signed amount]. Reinforcement and losses alike. */
+      delta: [number, number][];
     };
 
 /**
@@ -270,6 +441,116 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
     case "construction_progressed": {
       const order = state.nations[event.nation].constructionQueue[event.index];
       if (order !== undefined) order.progress += event.points;
+      return;
+    }
+
+    case "production_line_created": {
+      const nation = state.nations[event.nation];
+      nation.productionLines.push({
+        id: nation.nextLineId++,
+        equipment: event.equipment,
+        factories: 0,
+        // Every line starts at the floor. There is no way to buy your way
+        // past it — that is the point of §6.2.
+        efficiency: EFFICIENCY_FLOOR,
+      });
+      return;
+    }
+
+    case "production_line_removed": {
+      const lines = state.nations[event.nation].productionLines;
+      const at = lines.findIndex((line) => line.id === event.lineId);
+      if (at >= 0) lines.splice(at, 1);
+      return;
+    }
+
+    case "production_line_switched": {
+      const line = state.nations[event.nation].productionLines.find(
+        (candidate) => candidate.id === event.lineId,
+      );
+      if (line === undefined) return;
+      if (line.equipment === event.equipment) return;
+      line.equipment = event.equipment;
+      // **The reset.** Switching what a line makes throws away everything it
+      // learned making the last thing (§6.2), and it is the reason the regent
+      // may never touch an existing line (§6.10).
+      line.efficiency = EFFICIENCY_FLOOR;
+      return;
+    }
+
+    case "production_factories_assigned": {
+      const line = state.nations[event.nation].productionLines.find(
+        (candidate) => candidate.id === event.lineId,
+      );
+      // Deliberately does *not* touch efficiency. Adding or removing
+      // factories is how a player reallocates industry; only a change of
+      // equipment type costs them the ramp.
+      if (line !== undefined) line.factories = Math.max(0, event.factories);
+      return;
+    }
+
+    case "production_efficiency_changed": {
+      const line = state.nations[event.nation].productionLines.find(
+        (candidate) => candidate.id === event.lineId,
+      );
+      if (line === undefined) return;
+      line.efficiency = Math.max(
+        EFFICIENCY_FLOOR,
+        Math.min(EFFICIENCY_CAP, event.efficiency),
+      );
+      return;
+    }
+
+    case "stockpile_changed": {
+      const stockpile = state.nations[event.nation].stockpile;
+      for (const [index, amount] of event.delta) {
+        stockpile[index] = Math.max(
+          0,
+          Math.min(EQUIPMENT_CAP, stockpile[index] + amount),
+        );
+      }
+      return;
+    }
+
+    case "manpower_changed": {
+      const nation = state.nations[event.nation];
+      nation.manpower = Math.max(0, nation.manpower + event.delta);
+      return;
+    }
+
+    case "division_raised": {
+      const nation = state.nations[event.nation];
+      nation.divisions.push({
+        id: nation.nextDivisionId++,
+        province: event.province,
+        // Raised empty. It draws from the stockpile over the following ticks,
+        // so a nation that raises more divisions than it can equip simply has
+        // weaker ones — degrade, never block (invariant 2).
+        equipment: new Array<number>(EQUIPMENT_TYPES.length).fill(0),
+      });
+      return;
+    }
+
+    case "division_disbanded": {
+      const divisions = state.nations[event.nation].divisions;
+      const at = divisions.findIndex(
+        (division) => division.id === event.divisionId,
+      );
+      if (at >= 0) divisions.splice(at, 1);
+      return;
+    }
+
+    case "division_equipment_changed": {
+      const division = state.nations[event.nation].divisions.find(
+        (candidate) => candidate.id === event.divisionId,
+      );
+      if (division === undefined) return;
+      for (const [index, amount] of event.delta) {
+        division.equipment[index] = Math.max(
+          0,
+          division.equipment[index] + amount,
+        );
+      }
       return;
     }
 

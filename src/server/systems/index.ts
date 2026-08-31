@@ -23,8 +23,10 @@
  */
 
 import type { WorldEvent, WorldState } from "../world/WorldState";
+import { combatSystem } from "./combat";
 import { constructionSystem } from "./construction";
 import { economySystem } from "./economy";
+import { productionSystem } from "./production";
 
 /**
  * A system: reads the world, returns what should happen to it.
@@ -47,13 +49,13 @@ function planned(name: string): System {
 export const SYSTEMS: readonly System[] = [
   economySystem,
   constructionSystem,
-  planned("production"),
+  productionSystem,
   planned("research"),
   planned("trade"),
   planned("supply"),
   planned("air"),
   planned("naval"),
-  planned("combat"),
+  combatSystem,
   planned("regent"),
   planned("victory"),
 ];

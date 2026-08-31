@@ -19,13 +19,14 @@
 
 import { z } from "zod";
 import { BUILDING_TYPES } from "../economy/Buildings";
+import { EQUIPMENT_TYPES } from "../economy/Equipment";
 
 /**
  * Bumped whenever a message shape changes in a way an older peer would
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -107,10 +108,73 @@ export const CancelConstructionSchema = z.object({
   orderId: z.number().int().positive(),
 });
 
+/**
+ * Open a production line, or close one.
+ *
+ * A line is created empty and at the efficiency floor; factories are assigned
+ * separately. Splitting the two is deliberate — assigning factories must never
+ * touch the ramp (§6.2), and a single "create with N factories" command would
+ * make the two look like one decision.
+ */
+export const CreateProductionLineSchema = z.object({
+  kind: z.literal("create_production_line"),
+  equipment: z.enum(EQUIPMENT_TYPES),
+});
+
+export const RemoveProductionLineSchema = z.object({
+  kind: z.literal("remove_production_line"),
+  lineId: z.number().int().positive(),
+});
+
+/**
+ * Change what a line makes.
+ *
+ * **This resets its efficiency to the floor** (§6.2), which is the single most
+ * expensive thing a player can do to themselves by accident. It is its own
+ * command rather than a field on an assignment for exactly that reason: the
+ * client can warn about this one and only this one.
+ */
+export const SwitchProductionLineSchema = z.object({
+  kind: z.literal("switch_production_line"),
+  lineId: z.number().int().positive(),
+  equipment: z.enum(EQUIPMENT_TYPES),
+});
+
+/**
+ * Set how many factories are on a line. Absolute, not a delta.
+ *
+ * Absolute because a delta applied twice — a double click, a retry after a
+ * dropped ack — means something different from a delta applied once, and the
+ * player cannot see which happened.
+ */
+export const AssignFactoriesSchema = z.object({
+  kind: z.literal("assign_factories"),
+  lineId: z.number().int().positive(),
+  factories: z.number().int().nonnegative(),
+});
+
+/** Raise a division in a province, at the cost of manpower. */
+export const RaiseDivisionSchema = z.object({
+  kind: z.literal("raise_division"),
+  provinceId: z.number().int().nonnegative(),
+});
+
+/** Disband one. The manpower is not returned; the equipment is. */
+export const DisbandDivisionSchema = z.object({
+  kind: z.literal("disband_division"),
+  divisionId: z.number().int().positive(),
+});
+
 export const CommandBodySchema = z.discriminatedUnion("kind", [
   ClaimProvinceSchema,
   QueueConstructionSchema,
   CancelConstructionSchema,
+  CreateProductionLineSchema,
+  RemoveProductionLineSchema,
+  SwitchProductionLineSchema,
+  AssignFactoriesSchema,
+  RaiseDivisionSchema,
+  DisbandDivisionSchema,
 ]);
 export type CommandBody = z.infer<typeof CommandBodySchema>;
 
@@ -216,6 +280,25 @@ export const ConstructionOrderSchema = z.object({
 });
 export type ConstructionOrderView = z.infer<typeof ConstructionOrderSchema>;
 
+export const ProductionLineSchema = z.object({
+  id: z.number().int().positive(),
+  equipment: z.enum(EQUIPMENT_TYPES),
+  factories: z.number().int().nonnegative(),
+  /** EFFICIENCY_FLOOR..EFFICIENCY_CAP. The number a switch throws away. */
+  efficiency: z.number(),
+  /** Equipment per tick at this efficiency and the nation's sufficiency. */
+  outputPerTick: z.number(),
+});
+export type ProductionLineView = z.infer<typeof ProductionLineSchema>;
+
+export const DivisionSchema = z.object({
+  id: z.number().int().positive(),
+  provinceId: z.number().int().nonnegative(),
+  /** 0..1 — held equipment against what a division should hold (§6.3). */
+  strength: z.number(),
+});
+export type DivisionView = z.infer<typeof DivisionSchema>;
+
 export const NationEconomySchema = z.object({
   nation: z.number().int().positive(),
   resources: ResourceAmountsSchema,
@@ -227,6 +310,17 @@ export const NationEconomySchema = z.object({
   /** Already scaled by `sufficiency`; this is what the factories actually made. */
   industryPerTick: z.number(),
   queue: z.array(ConstructionOrderSchema),
+  /** Equipment held, indexed the same way `EQUIPMENT_TYPES` is. */
+  stockpile: z.array(z.number()),
+  manpower: z.number(),
+  manpowerCap: z.number(),
+  productionLines: z.array(ProductionLineSchema),
+  divisions: z.array(DivisionSchema),
+  /** Factories assigned to a line, against those the nation holds. */
+  militaryFactoriesAssigned: z.number().int().nonnegative(),
+  militaryFactoriesTotal: z.number().int().nonnegative(),
+  dockyardsAssigned: z.number().int().nonnegative(),
+  dockyardsTotal: z.number().int().nonnegative(),
 });
 export type NationEconomyView = z.infer<typeof NationEconomySchema>;
 

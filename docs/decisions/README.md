@@ -69,3 +69,4 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0005](0005-resume-at-the-last-durable-record.md)          | A world resumes at its last durable record, not at the tick it died on    | Accepted |
 | [0006](0006-the-partition-is-checked-in-map-data.md)       | The province partition is checked-in map data, not a startup computation  | Accepted |
 | [0007](0007-events-apply-between-systems.md)               | A system's events are applied before the next system runs                 | Accepted |
+| [0008](0008-manpower-is-a-population-cap.md)               | Manpower is a population-scaled cap, not a conscription law               | Accepted |

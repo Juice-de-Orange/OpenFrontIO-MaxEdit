@@ -4,7 +4,7 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-31, end of phase 3. A world server ticks, persists
+**Last verified:** 2026-08-31, phase 3 complete, phase 4 part-built. A world server ticks, persists
 to Postgres, accepts commands and survives being killed; the renderer draws
 what it sends. `src/core` and upstream's match server are deleted and the rest
 of the inherited client is quarantined. Current status is in
@@ -33,16 +33,18 @@ it is taken; the owner follows only after 336 ticks — fourteen in-game days �
 of unbroken control (docs/decisions/0002). The map is coloured by controller,
 because that is where the line is.
 
-Since phase 3 there is an economy underneath that: provinces extract from their
-deposits, factories consume and produce, and a construction queue turns
-construction points into buildings over hundreds of ticks. What is still not
-there is everything military and everything diplomatic — no units, no supply,
-no agreements.
+Underneath that is an economy: provinces extract from their deposits, factories
+consume and produce, a construction queue turns construction points into
+buildings over hundreds of ticks, and production lines turn industry into
+equipment that divisions draw on. What is still not there is everything
+diplomatic and most of what is military — no supply, no zones, no agreements,
+and no real combat resolution.
 
 The border drift remains: one province changes hands per tick, at a border,
 deterministically. A heartbeat, kept because a persistent world has to look
 alive with nobody online, and because it is what makes the replay test hard
-enough to be worth running. Combat replaces it in phase 9.
+enough to be worth running. Since phase 4 it costs both sides equipment, and
+§6.9's resolution replaces its insides in phase 9.
 
 ## Systems, and the order they run in
 
@@ -66,15 +68,29 @@ encodes real dependencies if a later system can see what an earlier one did.
 makes a tick a pure function of `(state, tick)`, which is what the whole
 persistence design rests on.
 
-### What phase 3 fills in
+### What is filled in
 
 - **economy** — provinces extract from their deposits, scaled by
   infrastructure, extraction upgrades and whether the province is occupied.
   Military factories and dockyards draw resources; synthetic refineries convert
-  steel at a deliberately unfavourable rate.
+  steel at a deliberately unfavourable rate. Manpower regrows toward a ceiling
+  set by land the nation both owns and holds (docs/decisions/0008).
 - **construction** — civilian factories make construction points, points accrue
   into the front item of the nation's queue, and a building appears when the
   accrued progress passes its cost.
+- **production** — factories assigned to a line turn industry into equipment.
+  A line's efficiency climbs while it runs and is **thrown back to the floor
+  whenever its equipment type changes**; adding or removing factories never
+  touches it. Divisions then draw from the stockpile toward full strength.
+- **combat** — the border drift, which since phase 1 has moved one province a
+  tick to keep an empty world alive, now costs the divisions on both sides
+  equipment. That is the smallest honest version of invariant 6: a fight
+  empties divisions, divisions refill from the stockpile, and the factories
+  that refill it are the ones the player has been choosing between all along.
+
+§6.9's real resolution — combat width, terrain, air superiority, a seeded roll
+— is phase 9. Division strength is computed and published from phase 4 on;
+phase 9 is what consumes it.
 
 One **sufficiency** figure per nation, the worst of the per-resource ratios,
 scales every consumer down together. That is invariant 2 — _everything
@@ -96,7 +112,7 @@ disagree.
 | `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                                                              |
 | `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                                                     |
 | `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                                                                   |
-| `src/server/`               | new      | The world server: `world/` (World, TickLoop, WorldRunner), `db/` (store interface, memory and Postgres store), `net/` (socket and health). Upstream's match server of the same name was deleted; nothing of it survives.                                                  |
+| `src/server/`               | new      | The world server: `world/` (World, WorldState and its reducer, TickLoop, WorldRunner), `systems/` (economy, construction, production, combat, and the seven still empty), `db/` (store interface, memory and Postgres store), `net/` (socket and health).                 |
 | `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `economy/` (the building catalogue), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`. |
 | `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                                                     |
 | `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                                                                    |
@@ -313,7 +329,7 @@ and afterwards the log would describe a run neither of them had.
 
 ## The protocol
 
-JSON behind `shared/protocol/Wire.ts`, version 3, with `protocolVersion` in the
+JSON behind `shared/protocol/Wire.ts`, version 6, with `protocolVersion` in the
 handshake. The inherited `zbin` is positional and has no version field; its
 own docs warn that mismatched builds decode each other _silently wrong_, which
 for a world running six weeks while we deploy into it is the most expensive

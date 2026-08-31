@@ -71,6 +71,23 @@ describe("the wire protocol", () => {
               progress: 12.5,
             },
           ],
+          stockpile: [120, 4, 0, 0, 0, 0, 0, 0, 0, 0],
+          manpower: 4200,
+          manpowerCap: 9000,
+          productionLines: [
+            {
+              id: 1,
+              equipment: "infantry_equipment",
+              factories: 2,
+              efficiency: 0.1,
+              outputPerTick: 0.08,
+            },
+          ],
+          divisions: [{ id: 1, provinceId: 3, strength: 0.5 }],
+          militaryFactoriesAssigned: 2,
+          militaryFactoriesTotal: 3,
+          dockyardsAssigned: 0,
+          dockyardsTotal: 0,
         },
       },
       {
@@ -141,7 +158,7 @@ describe("the wire protocol", () => {
     // construction order gained an id and cancellation stopped naming a
     // position: a v4 client would send `index` and be disconnected as
     // malformed, which is the right answer but only if the version says so
-    // first.
-    expect(PROTOCOL_VERSION).toBe(5);
+    // first. 5 -> 6 for production lines, the stockpile and divisions.
+    expect(PROTOCOL_VERSION).toBe(6);
   });
 });
