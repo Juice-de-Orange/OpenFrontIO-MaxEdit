@@ -75,3 +75,4 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0011](0011-an-agreement-is-accumulated-commands.md)       | An agreement is accumulated commands, never a server-side side effect     | Accepted |
 | [0012](0012-a-dead-partner-is-measured-in-real-days.md)    | A dead partner is seven real days silent, not fourteen in-game ones       | Accepted |
 | [0013](0013-identity-is-a-phase-not-a-deferral.md)         | Identity is a phase of its own, ahead of deployment                       | Accepted |
+| [0014](0014-the-border-drift-gives-way-to-a-front.md)      | The border drift gives way to a front; an unattended world is quiet       | Accepted |

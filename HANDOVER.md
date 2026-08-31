@@ -14,7 +14,15 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 8 of 12 — air zones.** Phases 0 to 7 have their gates demonstrated
+**Phase 8 of 12 — air zones, and §6.9 underneath it.** The ground combat
+phase 8's gate needs to shift now exists: `claim_province` is a standing attack
+order, resolved every tick against equipment, supply, terrain and combat width
+with a roll seeded from `(worldSeed, tick, province)`. The border drift is gone
+and an unattended world is quiet until phase 10 — decision 0014 has the whole
+argument. **Phase 4's gate is red because of it**, and that is the first thing
+to fix; the plan is in the same decision record and repeated below.
+
+Phases 0 to 7 have their gates demonstrated
 against the code as it stands, counter-proofs and all. Two of them went green
 on 2026-08-31: phase 6, whose gate needed three things this file had not
 predicted ("What the phase-6 gate was really asking" below), and phase 7,
@@ -63,7 +71,7 @@ compiles.
 | 1 · World persistence          | Kill the container mid-run; it resumes at the correct tick with no lost commands    | ✅ passed                                                          |
 | 2 · Province graph             | A province changes hands, ownership propagates from tiles, the client renders it    | ✅ passed server-side; the rendering half is the morning checklist |
 | 3 · Factories and construction | Queue a factory, watch it build over ticks, see output rise; shortage degrades it   | ✅ passed                                                          |
-| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ✅ passed                                                          |
+| 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | 🟥 **red**: its fight was the border drift, which is gone          |
 | 5 · Research                   | A completed tech measurably changes a production or combat number                   | ✅ passed                                                          |
 | 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ✅ passed                                                          |
 | 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ✅ passed                                                          |
@@ -599,7 +607,22 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**Phase 8: air zones.** §6.7, and the thing to get right is not the air: §6.8
+**Rewrite the phase-4 gate first.** It is the only red one on the board and it
+is red for a good reason: its first half, "a sustained fight visibly drains a
+stockpile", used the border drift _as_ the fight — it raised divisions along a
+border and waited for the sweep to land on them. There is no sweep now.
+
+What it needs instead is a war it starts itself, which the phase-7 gate already
+shows how to do: connect as two nations, garrison a province with one of them,
+and order the other to attack it. The front then grinds every tick, both sides
+lose equipment, the divisions reinforce out of the stockpile, and the stockpile
+falls — which is a better demonstration of the sentence than waiting for a
+heartbeat ever was. Roughly an hour, most of it in the parts of the gate that
+attributed a division's losses to a province that had moved: with a standing
+order, the attacker's engaged divisions pay every tick wherever they stand, and
+that attribution can go.
+
+**Then phase 8: air zones.** §6.7, and the thing to get right is not the air: §6.8
 is explicit that phase 9's naval zones are **the same code** with a different
 mission set. Build the zone abstraction, the assignment UI and the per-tick
 resolution loop as though phase 9 already existed, because it does. If you
@@ -824,7 +847,7 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**544 passed, 8 skipped, in one run — no tolerated failures.** The eight
+**553 passed, 8 skipped, in one run — no tolerated failures.** The eight
 skipped are the Postgres integration tests, which run under `npm run test:db`
 against `docker compose up -d db`. **They are a suite that rots when nobody
 runs it**, so `npm run test:db` belongs in every phase's closing checks; it

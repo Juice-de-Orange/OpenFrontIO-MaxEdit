@@ -168,6 +168,19 @@ export interface Agreement {
   noticeBy: number | null;
 }
 
+/**
+ * A standing order to take a province, and the tick it was given.
+ *
+ * §6.9 is front-based: an attack is not an event, it is a *posture*. The order
+ * stands until the province is taken, until the player withdraws it, or until
+ * the province becomes theirs some other way — and every tick in between is a
+ * tick of fighting that costs both sides equipment.
+ */
+export interface AttackOrder {
+  province: number;
+  since: number;
+}
+
 export interface NationState {
   resources: Record<Resource, number>;
   constructionQueue: ConstructionOrder[];
@@ -216,11 +229,25 @@ export interface NationState {
    * which is what keeps an isolated nation playable (§6.5).
    */
   market: Record<Resource, number>;
+  /** Provinces this nation is attacking, in the order the attacks were given. */
+  attacks: AttackOrder[];
 }
 
 export interface WorldState {
   tick: number;
   readonly map: ProvinceMap;
+
+  /**
+   * The world's own seed, for everything §9 wants derived from
+   * `(worldSeed, tick, contextId)`.
+   *
+   * Not the map's hashes, which were the obvious alternative and are already in
+   * the state: two seasons on Europe would then roll identically, tick for
+   * tick, and a season is six weeks long enough for somebody to notice. Set
+   * once when the world is created, never changed, in the snapshot and in the
+   * hash like everything else.
+   */
+  worldSeed: number;
 
   /**
    * Every proposal and every standing agreement in the world.
@@ -471,6 +498,8 @@ export function createWorldState(
   starting: {
     capitalBuildings: Readonly<Record<string, number>>;
     resources: Record<Resource, number>;
+    /** The world's seed. Defaulted only so a test fixture need not care. */
+    worldSeed?: number;
   },
 ): WorldState {
   const owner = map.provinces.map((province) => province.nation);
@@ -484,6 +513,7 @@ export function createWorldState(
     buildings: new Uint8Array(owner.length * BUILDING_TYPES.length),
     agreements: [],
     nextAgreementId: 1,
+    worldSeed: starting.worldSeed ?? 0,
     nations: [],
   };
 
@@ -516,6 +546,7 @@ export function createWorldState(
         Resource,
         number
       >,
+      attacks: [],
     });
   }
 
@@ -640,7 +671,10 @@ export type WorldEvent =
       resource: Resource;
       /** Positive buys, negative sells, zero clears the order. */
       perTick: number;
-    };
+    }
+  | { kind: "attack_ordered"; nation: number; province: number }
+  /** Withdrawn, or spent: the province is theirs and the order has nothing left. */
+  | { kind: "attack_ended"; nation: number; province: number };
 
 /**
  * Apply one event. The only writer of this object.
@@ -914,6 +948,25 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
     case "market_order_set":
       state.nations[event.nation].market[event.resource] = event.perTick;
       return;
+
+    case "attack_ordered": {
+      const attacks = state.nations[event.nation].attacks;
+      // Ordering the same attack twice does not restart it. `since` is what a
+      // later phase will read to know how long a front has been grinding, and
+      // a player clicking twice must not be able to reset that.
+      if (attacks.some((attack) => attack.province === event.province)) return;
+      attacks.push({ province: event.province, since: state.tick });
+      return;
+    }
+
+    case "attack_ended": {
+      const attacks = state.nations[event.nation].attacks;
+      const at = attacks.findIndex(
+        (attack) => attack.province === event.province,
+      );
+      if (at >= 0) attacks.splice(at, 1);
+      return;
+    }
 
     case "construction_finished": {
       const nation = state.nations[event.nation];

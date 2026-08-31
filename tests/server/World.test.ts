@@ -101,9 +101,30 @@ describe("holding and owning", () => {
    * adjacent on tick 300. The invariant holds regardless of who took what.
    */
   test("no province is ever owned before it has been held long enough", () => {
-    const { world } = fixture();
+    const { world, map } = fixture();
     const lastControlChange = new Map<number, number>();
     let transfers = 0;
+
+    // **Somebody has to attack.** Nothing moves in an unattended world since
+    // the border drift was replaced by §6.9's resolution (decision 0014), so
+    // this test orders the taking it used to get for free: every nation
+    // attacks the first foreign province it borders, and the fronts run for
+    // two occupation periods.
+    for (let nation = 1; nation <= world.nations.length; nation++) {
+      const target = map.provinces.find(
+        (province) =>
+          world.controllerOf(province.id) !== nation &&
+          world.controllerOf(province.id) !== 0 &&
+          province.neighbours.some((n) => world.controllerOf(n) === nation),
+      );
+      if (target === undefined) continue;
+      const command = {
+        nation,
+        body: { kind: "claim_province" as const, provinceId: target.id },
+      };
+      if (world.rejectionFor(command) !== null) continue;
+      world.queueCommand(command);
+    }
 
     for (let i = 0; i < OCCUPATION_TICKS * 2; i++) {
       const changes = world.step();
@@ -255,26 +276,38 @@ describe("World commands", () => {
     ]);
   });
 
-  test("the border drift never undoes a command from the same tick", () => {
+  test("an attack on ground nobody is holding takes it on the same tick", () => {
     const { world, map } = fixture();
-    // Whichever province the drift would take this tick, a command on it wins.
-    const probe = World.create(world.descriptor, world.nations, map);
-    const driftChanges = probe.step();
-    expect(driftChanges.control.length).toBeGreaterThan(0);
-    const [drifted] = driftChanges.control[0];
-
-    const owner = world.ownerOf(drifted);
-    const claimant = map.provinces[drifted].neighbours
-      .map((n) => world.ownerOf(n))
-      .find((n) => n !== owner && n !== 0);
+    // The heartbeat this test used to be about is gone: nothing moves unless
+    // somebody orders it (decision 0014). What replaces it is the property the
+    // early phases actually depend on — an order against a province with no
+    // division in it is not a battle, and the ground changes hands on the tick
+    // the order applies rather than some ticks later.
+    const target = map.provinces.find(
+      (province) =>
+        world.controllerOf(province.id) !== 0 &&
+        province.neighbours.some(
+          (n) =>
+            world.controllerOf(n) !== 0 &&
+            world.controllerOf(n) !== world.controllerOf(province.id),
+        ),
+    );
+    expect(target).toBeDefined();
+    const province = (target as { id: number }).id;
+    const defender = world.controllerOf(province);
+    const claimant = (target as { neighbours: number[] }).neighbours
+      .map((n) => world.controllerOf(n))
+      .find((n) => n !== defender && n !== 0);
     expect(claimant).toBeDefined();
 
     world.queueCommand({
       nation: claimant as number,
-      body: { kind: "claim_province", provinceId: drifted },
+      body: { kind: "claim_province", provinceId: province },
     });
     world.step();
-    expect(world.controllerOf(drifted)).toBe(claimant);
+    expect(world.controllerOf(province)).toBe(claimant);
+    // And the order is spent: it took what it was for.
+    expect(world.view().nations[claimant as number].attacks).toHaveLength(0);
   });
 
   test("a long run keeps every invariant", () => {

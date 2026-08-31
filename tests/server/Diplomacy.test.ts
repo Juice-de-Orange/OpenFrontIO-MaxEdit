@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, test } from "vitest";
-import { combatSystem } from "../../src/server/systems/combat";
 import { World, type WorldCommand } from "../../src/server/world/World";
-import { atPeace, type WorldState } from "../../src/server/world/WorldState";
+import {
+  applyEvent,
+  atPeace,
+  type WorldState,
+} from "../../src/server/world/WorldState";
 import {
   AGREEMENT_NOTICE_TICKS,
   TRUST_COST,
@@ -152,8 +155,26 @@ describe("agreements", () => {
     expect(world.rejectionFor(claim) ?? "").not.toMatch(/cancel it first/);
   });
 
-  test("the world does not attack an ally on the player's behalf", () => {
-    const { attacker, defender } = neighbours(world);
+  test("signing peace calls off an attack that is already grinding", () => {
+    const { attacker, defender, province } = neighbours(world);
+
+    // The order comes first, so the pact arrives on a war in progress. §6.9
+    // refuses a *new* attack on a partner; this is the other half — an order
+    // given before the promise must not go on taking provinces after it, or
+    // the promise is worth nothing in the one place it matters.
+    // A division holds the province *first*, so the attack grinds rather than
+    // walking into empty ground on the tick it is given.
+    applyEvent(world.view() as WorldState, {
+      kind: "division_raised",
+      nation: defender,
+      province,
+    });
+    send(world, {
+      nation: attacker,
+      body: { kind: "claim_province", provinceId: province },
+    });
+    expect(world.view().nations[attacker].attacks).toHaveLength(1);
+
     send(world, {
       nation: attacker,
       body: {
@@ -167,29 +188,10 @@ describe("agreements", () => {
       body: { kind: "accept_agreement", agreementId: agreementId(world) },
     });
 
-    // The border drift is the only combat there is, and it used to take a
-    // province off a pact partner every time its sweep landed on their border
-    // — while refusing the player the same order. A promise the world breaks
-    // on your behalf is not worth the 75 trust it costs to break yourself.
-    // The system is asked directly, over two thousand ticks of its sweep, and
-    // its events are *not* applied — so the world stands still, the pact stays
-    // alive, and what is measured is the rule rather than the churn. (Stepping
-    // the world instead lasted ten ticks before the drift took somebody's
-    // capital and the dead-partner rule wrote the pact off, which is a
-    // different finding and is in the handover.)
-    const state = world.view() as WorldState;
-    let betrayals = 0;
-    let clashes = 0;
-    for (let tick = 1; tick <= 2000; tick++) {
-      for (const event of combatSystem.run(state, tick)) {
-        if (event.kind !== "control_changed") continue;
-        clashes++;
-        const pair = [state.provinceController[event.province], event.nation];
-        if (pair.includes(attacker) && pair.includes(defender)) betrayals++;
-      }
-    }
-    expect(clashes).toBeGreaterThan(100);
-    expect(betrayals, `in ${clashes} clashes the sweep chose`).toBe(0);
+    expect(atPeace(world.view(), attacker, defender)).toBe(true);
+    world.step();
+    expect(world.view().nations[attacker].attacks).toHaveLength(0);
+    expect(world.controllerOf(province)).toBe(defender);
   });
 
   test("cancelling costs exactly what the spec says, and only once", () => {

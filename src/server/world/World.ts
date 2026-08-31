@@ -175,6 +175,8 @@ export interface WorldSnapshot {
   terrainHash: number;
   partitionHash: number;
   provinceCount: number;
+  /** Optional: a snapshot written before phase 8 has none. */
+  worldSeed?: number;
   owners: number[];
   controllers: number[];
   /** The tick each province's current controller took it. */
@@ -212,6 +214,7 @@ export interface WorldSnapshot {
     trust?: number;
     lastSeenTick?: number;
     market?: Record<Resource, number>;
+    attacks?: { province: number; since: number }[];
   }[];
 }
 
@@ -229,6 +232,7 @@ export class World {
     readonly descriptor: MapDescriptor,
     readonly nations: NationStatic[],
     readonly map: ProvinceMap,
+    worldSeed = 0,
   ) {
     // Ownership starts from the partition: a province belongs to the nation
     // whose territory it was cut out of, so no province starts split across a
@@ -236,11 +240,16 @@ export class World {
     this.state = createWorldState(map, nations.length, {
       capitalBuildings: STARTING_CAPITAL_BUILDINGS,
       resources: STARTING_RESOURCES,
+      worldSeed,
     });
     this.neighbours = map.provinces.map((province) => province.neighbours);
   }
 
-  static async load(mapId: string, resourcesDir: string): Promise<World> {
+  static async load(
+    mapId: string,
+    resourcesDir: string,
+    worldSeed = 0,
+  ): Promise<World> {
     const mapsDir = path.join(resourcesDir, "maps");
     const dir = path.join(mapsDir, mapId);
 
@@ -310,7 +319,7 @@ export class World {
       partitionHash: provinceMap.partitionHash,
     };
 
-    return World.create(descriptor, nations, provinceMap);
+    return World.create(descriptor, nations, provinceMap, worldSeed);
   }
 
   /**
@@ -321,8 +330,25 @@ export class World {
     descriptor: MapDescriptor,
     nations: NationStatic[],
     map: ProvinceMap,
+    worldSeed = 0,
   ): World {
-    return new World(descriptor, nations, map);
+    return new World(descriptor, nations, map, worldSeed);
+  }
+
+  /**
+   * A world's own seed, from its name.
+   *
+   * Deterministic, so a world that is torn down and rebuilt from its log rolls
+   * the same way, and different per world, so two seasons on the same map do
+   * not. FNV-1a over the id, the same function the terrain hash uses.
+   */
+  static seedFor(worldId: string): number {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < worldId.length; i++) {
+      hash ^= worldId.charCodeAt(i) & 0xff;
+      hash = Math.imul(hash, 0x01000193);
+    }
+    return hash >>> 0;
   }
 
   currentTick(): number {
@@ -492,6 +518,7 @@ export class World {
       terrainHash: this.descriptor.terrainHash,
       partitionHash: this.descriptor.partitionHash,
       provinceCount: this.state.provinceOwner.length,
+      worldSeed: this.state.worldSeed,
       owners: [...this.state.provinceOwner],
       controllers: [...this.state.provinceController],
       heldSince: [...this.state.provinceHeldSince],
@@ -522,6 +549,7 @@ export class World {
         trust: nation.trust,
         lastSeenTick: nation.lastSeenTick,
         market: { ...nation.market },
+        attacks: nation.attacks.map((attack) => ({ ...attack })),
       })),
     };
   }
@@ -646,7 +674,12 @@ export class World {
       for (const resource of RESOURCES) {
         live.market[resource] = stored.market?.[resource] ?? 0;
       }
+      live.attacks = (stored.attacks ?? []).map((attack) => ({ ...attack }));
     }
+    // A world is its seed as much as its provinces: restoring the arrays and
+    // leaving the seed behind would give a resumed world a different future
+    // from the one it was having.
+    this.state.worldSeed = snapshot.worldSeed ?? this.state.worldSeed;
     this.state.agreements = (snapshot.agreements ?? []).map((agreement) => ({
       ...agreement,
       parties: [...agreement.parties] as [number, number],
@@ -740,7 +773,13 @@ export class World {
       mixFloat(nation.trust);
       mix(nation.lastSeenTick);
       for (const resource of RESOURCES) mixFloat(nation.market[resource]);
+      mix(nation.attacks.length);
+      for (const attack of nation.attacks) {
+        mix(attack.province);
+        mix(attack.since);
+      }
     }
+    mix(this.state.worldSeed);
     mix(this.state.nextAgreementId);
     mix(this.state.agreements.length);
     for (const agreement of this.state.agreements) {
@@ -1117,6 +1156,15 @@ export class World {
         return null;
       }
 
+      case "cancel_attack": {
+        const attacking = this.state.nations[nation].attacks.some(
+          (attack) => attack.province === body.provinceId,
+        );
+        if (!attacking)
+          return `you are not attacking province ${body.provinceId}`;
+        return null;
+      }
+
       case "set_market_order":
         if (Math.abs(body.perTick) > MAX_MARKET_PER_TICK) {
           return (
@@ -1454,7 +1502,16 @@ export class World {
     const { nation, body } = command;
     switch (body.kind) {
       case "claim_province":
-        return [{ kind: "control_changed", province: body.provinceId, nation }];
+        // **An order, not an outcome.** Since §6.9 became real this puts the
+        // nation's attack on the province and leaves it there; the combat
+        // system resolves it every tick until the province falls, the player
+        // withdraws it, or it becomes theirs some other way. An undefended
+        // province still falls on the first tick, which is what keeps this the
+        // instrument the early gates use it as.
+        return [{ kind: "attack_ordered", nation, province: body.provinceId }];
+
+      case "cancel_attack":
+        return [{ kind: "attack_ended", nation, province: body.provinceId }];
       case "queue_construction":
         return [
           {

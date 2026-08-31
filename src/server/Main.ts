@@ -92,7 +92,9 @@ async function createStore(): Promise<WorldStore> {
 }
 
 async function main(): Promise<void> {
-  const world = await World.load(MAP_ID, RESOURCES);
+  // The world's seed comes from its name, so two seasons on the same map do
+  // not roll the same battles (§9, and decision 0014).
+  const world = await World.load(MAP_ID, RESOURCES, World.seedFor(WORLD_ID));
   console.info(
     `[world] ${WORLD_ID} on map ${MAP_ID}: ` +
       `${world.descriptor.width}x${world.descriptor.height}, ` +

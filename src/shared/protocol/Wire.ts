@@ -88,6 +88,18 @@ export const ClaimProvinceSchema = z.object({
  * resulting building. The server has the same `BUILDINGS` table and computes
  * all of it (CLAUDE.md §7).
  */
+/**
+ * Call off an attack that is still grinding.
+ *
+ * The other half of `claim_province` now that an attack is a standing order
+ * (§6.9): a front that cannot be called off is a front a player is stuck with,
+ * and the equipment goes on being spent for as long as it stands.
+ */
+export const CancelAttackSchema = z.object({
+  kind: z.literal("cancel_attack"),
+  provinceId: z.number().int().nonnegative(),
+});
+
 export const QueueConstructionSchema = z.object({
   kind: z.literal("queue_construction"),
   provinceId: z.number().int().nonnegative(),
@@ -289,6 +301,7 @@ export const NationPresentSchema = z.object({
 
 export const CommandBodySchema = z.discriminatedUnion("kind", [
   ClaimProvinceSchema,
+  CancelAttackSchema,
   QueueConstructionSchema,
   CancelConstructionSchema,
   CreateProductionLineSchema,
