@@ -166,6 +166,70 @@ describe("restore", () => {
     );
   });
 
+  test("an agreement made after the last snapshot comes back from the log", async () => {
+    const store = new MemoryStore();
+    const live = newWorld();
+    const runner = new WorldRunner({
+      world: live,
+      store,
+      worldId: WORLD_ID,
+      snapshotEvery: SNAPSHOT_EVERY,
+    });
+    await runner.restore();
+
+    // Past the snapshot at 60, so what follows exists only in the command log.
+    while (live.currentTick() < 70) await runner.tickOnce();
+
+    const offered = await runner.submit(1, {
+      kind: "propose_agreement",
+      to: 2,
+      type: "trade",
+      terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
+    });
+    expect(offered.accepted).toBe(true);
+    await runner.tickOnce();
+    const id = live.view().agreements[0].id;
+    const accepted = await runner.submit(2, {
+      kind: "accept_agreement",
+      agreementId: id,
+    });
+    expect(accepted.accepted).toBe(true);
+    await runner.tickOnce();
+
+    expect(live.view().agreements[0].accepted).toBe(true);
+    // Measured at the tick the last command landed on, because that is where
+    // a restore comes back to: the durable record ends at the last logged
+    // command and the ticks after it left no trace. The test above says the
+    // same thing about a claim.
+    const hash = live.stateHash();
+    const tick = live.currentTick();
+    await runner.tickOnce();
+    await runner.tickOnce();
+
+    // The process dies here, with no snapshot since tick 60.
+    expect((await store.latestSnapshot(WORLD_ID))?.tick).toBe(60);
+
+    const restored = newWorld();
+    const restoredRunner = new WorldRunner({
+      world: restored,
+      store,
+      worldId: WORLD_ID,
+      snapshotEvery: SNAPSHOT_EVERY,
+    });
+    await restoredRunner.restore();
+
+    // §4 asks for diplomatic state to be in the snapshot *and* derivable from
+    // the command log alone. This is the second half: the snapshot predates
+    // the agreement entirely, so everything about it — the id, the terms, and
+    // the fact that the other side said yes — was rebuilt from four commands.
+    expect(restored.currentTick()).toBe(tick);
+    const agreement = restored.view().agreements[0];
+    expect(agreement?.id).toBe(id);
+    expect(agreement?.accepted).toBe(true);
+    expect(agreement?.terms?.resourcePerTick).toBe(0.5);
+    expect(restored.stateHash()).toBe(hash);
+  });
+
   test("the restored world keeps ticking in step with the one it replaced", async () => {
     const store = new MemoryStore();
 

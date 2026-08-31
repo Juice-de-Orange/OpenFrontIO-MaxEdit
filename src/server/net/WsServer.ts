@@ -24,6 +24,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import { PRESENCE_REFRESH_TICKS } from "src/shared/config/diplomacy";
 import { SNAPSHOT_INTERVAL_TICKS, TICK_MS } from "src/shared/config/time";
 import {
   CloseCode,
@@ -92,6 +93,17 @@ interface Session {
    * replay would then differ from the run.
    */
   work: Promise<void>;
+  /**
+   * The tick this session last told the world it was here.
+   *
+   * §6.5's dead-partner rule dissolves the agreements of a nation nobody has
+   * played for a fortnight, and §4 requires that to be reconstructible from
+   * the command log. A connection is not in the log, so a connected session
+   * writes a `nation_present` command when it arrives and every so often
+   * while it stays — otherwise a player who sits and watches their world for
+   * an afternoon would be declared dead in the middle of it.
+   */
+  seenAt: number;
 }
 
 export class WorldSocketServer {
@@ -174,6 +186,7 @@ export class WorldSocketServer {
       ready: false,
       nation: null,
       work: Promise.resolve(),
+      seenAt: 0,
     };
     this.sessions.add(session);
 
@@ -234,6 +247,7 @@ export class WorldSocketServer {
         clearTimeout(helloTimer);
         session.ready = true;
         session.nation = message.nation;
+        if (message.nation !== null) this.announcePresence(session);
         this.send(socket, {
           t: "welcome",
           protocolVersion: PROTOCOL_VERSION,
@@ -309,7 +323,30 @@ export class WorldSocketServer {
       owners: this.world.ownerSnapshot(),
       controllers: this.world.controllerSnapshot(),
       buildings: this.world.buildingSnapshot(),
+      trust: this.world.trustSnapshot(),
+      agreements: this.world.agreementsFor(session.nation),
       economy: this.economyView(session.nation),
+    });
+  }
+
+  /**
+   * Tell the world somebody is playing this nation.
+   *
+   * Through `submit` like any other command, so it is written to the log and
+   * a replay reaches the same conclusion about who was here. Chained on the
+   * session's own work queue for the same reason player commands are: the log
+   * has to record the order they actually arrived in.
+   *
+   * A failure is swallowed. Presence is a courtesy to the dead-partner rule,
+   * and closing a player's connection because the world could not record that
+   * they were looking at it would be a worse outcome than the rule firing late.
+   */
+  private announcePresence(session: Session): void {
+    const nation = session.nation;
+    if (nation === null) return;
+    session.seenAt = this.world.currentTick();
+    session.work = session.work.then(async () => {
+      await this.submit(nation, { kind: "nation_present" }).catch(() => {});
     });
   }
 
@@ -329,15 +366,29 @@ export class WorldSocketServer {
       owner: changes.owner,
       buildings: changes.buildings,
     };
-    const spectatorPayload = encodeServer({ ...shared, economy: null });
+    const trust = this.world.trustSnapshot();
+    const spectatorPayload = encodeServer({
+      ...shared,
+      trust,
+      agreements: this.world.agreementsFor(null),
+      economy: null,
+    });
     for (const s of this.sessions) {
       if (!s.ready) continue;
       if (s.nation === null) {
         s.socket.send(spectatorPayload);
         continue;
       }
+      // Still here. Cheap, rare, and the only thing standing between a player
+      // who is watching rather than clicking and the dead-partner rule.
+      if (tick - s.seenAt >= PRESENCE_REFRESH_TICKS) this.announcePresence(s);
       s.socket.send(
-        encodeServer({ ...shared, economy: this.economyView(s.nation) }),
+        encodeServer({
+          ...shared,
+          trust,
+          agreements: this.world.agreementsFor(s.nation),
+          economy: this.economyView(s.nation),
+        }),
       );
     }
   }
@@ -367,6 +418,7 @@ export class WorldSocketServer {
         building: order.building,
         progress: order.progress,
       })),
+      ...this.world.tradeView(nation),
       ...this.world.militaryView(nation, economy.sufficiency),
     };
   }

@@ -60,15 +60,17 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Phase 6 of 11 done.** A world server ticks every five seconds, persists to
+**Phase 7 of 11 done.** A world server ticks every five seconds, persists to
 Postgres, accepts commands and comes back where it was after being killed. On
 top of that runs an economy: provinces extract from their deposits, civilian
 factories make construction points, military factories and dockyards draw the
 materials of whatever their line is making, equipment accumulates in a national
 stockpile, divisions draw it out, research moves the rates all of that reads,
-and supply decides how much of it reaches a division at the end of a long
-front. A shortage anywhere scales every consumer down together; nothing ever
-stops. The inherited renderer draws it, and the world's own heartbeat is still
+supply decides how much of it reaches a division at the end of a long front,
+and nations make standing agreements with each other — indefinite ones, paid
+for in construction points, that cost trust to break and survive a restart
+because nobody has to renew them. A shortage anywhere scales every consumer
+down together; nothing ever stops. The inherited renderer draws it, and the world's own heartbeat is still
 one province changing hands per tick.
 
 The build order and the gate each phase has to pass are in
@@ -83,7 +85,8 @@ what is next, and the traps already paid for — see
 - [x] Production and equipment — lines, the efficiency ramp, a stockpile that drains
 - [x] Research — slots, prerequisites, modifiers the systems read
 - [x] Supply — reach over the province graph, coverage, attrition at the far end
-- [ ] Diplomacy and trade · Air · Naval · Regent · Deployment
+- [x] Diplomacy and trade — indefinite agreements, trust, per-tick flows, a world market
+- [ ] Air · Naval · Regent · Deployment
 
 ## 🤝 Contributing
 

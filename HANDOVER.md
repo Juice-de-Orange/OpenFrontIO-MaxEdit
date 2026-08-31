@@ -14,10 +14,12 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 7 of 11 — diplomacy and trade.** Phases 0 to 6 have their gates
-demonstrated against the code as it stands, counter-proofs and all. Phase 6's
-gate went green on 2026-08-31; what it took is under "What the phase-6 gate was
-really asking" below, because the answer was not the one this file predicted.
+**Phase 8 of 11 — air zones.** Phases 0 to 7 have their gates demonstrated
+against the code as it stands, counter-proofs and all. Two of them went green
+on 2026-08-31: phase 6, whose gate needed three things this file had not
+predicted ("What the phase-6 gate was really asking" below), and phase 7,
+which is the whole of §6.5 — agreements, trust, the world market, and the first
+code in this project that makes invariant 3 mean anything.
 
 The world has an economy, an industry, an army and a supply line. Provinces
 extract from their deposits; civilian factories make construction points;
@@ -51,7 +53,7 @@ line.
 
 ## The whole plan, and how far along it is
 
-Seven of twelve gates passed. **The gate is the unit of progress here, not the
+Eight of twelve gates passed. **The gate is the unit of progress here, not the
 code:** a phase is done when its gate has been demonstrated, not when it
 compiles.
 
@@ -64,7 +66,7 @@ compiles.
 | 4 · Production and equipment   | A sustained fight drains a stockpile; switching a line costs output for a long time | ✅ passed                                                          |
 | 5 · Research                   | A completed tech measurably changes a production or combat number                   | ✅ passed                                                          |
 | 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ✅ passed                                                          |
-| 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ⬜                                                                 |
+| 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ✅ passed                                                          |
 | 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ⬜                                                                 |
 | 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ⬜                                                                 |
 | 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜                                                                 |
@@ -93,6 +95,58 @@ a timeout.
 **A fresh world starts with zero manpower**, which regrows at 0.02% of the cap
 a tick, so nothing can raise a division for the first couple of thousand ticks.
 Give a new world two minutes at 50 ms before running phase 4 or 6.
+
+### Phase 7 — diplomacy and trade
+
+```
+phase-7 gate
+  world world-0 at tick 10086, 50 ms a tick
+  ok    a spectator is sent trust, which is public, and no economy, which is not
+  nation 8 offers nation 9 a standing trade
+  ok    both sides see the exact rates before accepting
+  ok    a third party sees that the two are talking, and not what about
+  ok    the offer was accepted (accepted)
+  ok    the buyer receives steel at the agreed rate (0.500/tick)
+  ok    and pays for it in construction points, which is the only currency there is (0.250/tick)
+  ok    the seller is short exactly what it sent (-0.500/tick)
+  killing the world...
+  the world came back at tick 10094, 50 ms a tick
+  ok    the agreement is still standing after the restart, with nobody having renewed anything (id 11)
+  ok    and on the same terms it was accepted on
+  ok    and still moving at the agreed rate, with no action from either player
+  ok    the other side is told while the goods are still moving, not after they stop (told: true, still moving: true)
+  ok    and is told who gave notice (nation 9)
+  ok    breaking it cost exactly 5 trust (100 to 95)
+  ok    and everybody can see it: trust is public
+  ok    while the restart itself cost nobody anything
+  ok    a day later the flow has stopped and the agreement is gone
+  ok    the world stayed healthy throughout (0 ms behind at tick 10119)
+PASS
+```
+
+The restart is a real `docker compose kill -s SIGKILL` and a real restore from
+the snapshot and the command log, and **neither player sends anything between
+the agreement being made and it being looked at again.** There is no renewal
+command in the protocol to send.
+
+**And it was checked against itself being broken:**
+
+```
+$ node scripts/phase7-gate.mjs --break=survives
+  --break=survives: cancelling before the restart
+  killing the world...
+  FAIL  the agreement is still standing after the restart, with nobody having renewed anything (id 8)
+
+$ node scripts/phase7-gate.mjs --break=notified
+  --break=notified: waiting for the flow to stop before looking
+  FAIL  the other side is told while the goods are still moving, not after they stop (told: true, still moving: false)
+```
+
+The first one took three attempts and each failure taught something, which is
+under "Traps already paid for" below: the clock override does not survive a
+`compose up`, and a restore replays the command log up to its **last command**
+and no further, so a dissolution with no command after it is rolled back by a
+kill and simply happens again on the way up.
 
 ### Phase 6 — supply
 
@@ -495,9 +549,9 @@ Then open `http://localhost:9000/?nation=17` (or any nation number) and check:
 1. **The map draws territory** — coloured regions, not a blank canvas.
 2. **Province borders are visible** as dark seams inside each nation, and
    `b` turns them off and on again.
-3. **Five panels**: economy top-left, construction queue beside it, production
-   bottom-left, research bottom-right, and a province panel on the right when
-   you click a province.
+3. **Six panels**: economy top-left, construction queue beside it, production
+   bottom-left, diplomacy beside that, research bottom-right, and a province
+   panel on the right when you click a province.
 4. **Clicking a province you hold** shows its terrain, slots, deposits, a
    build menu and a **Raise a division** button with its manpower price on it;
    clicking one you do not shows a claim button instead.
@@ -514,6 +568,19 @@ Then open `http://localhost:9000/?nation=17` (or any nation number) and check:
    a border should read less.
 10. **The numbers are all per day**, never per tick, and the stockpiles move.
 11. **The map keeps moving on its own** — one province changes hands per tick.
+12. **Offer somebody an agreement.** Pick a neighbour in the diplomacy panel,
+    choose a type, and send it. A trade wants a resource and two rates, both
+    entered per day. Open a second browser as that nation (`?nation=<them>`)
+    and the offer should be sitting there with the exact rates on it.
+13. **Accept it**, and watch the economy panel: the buyer's construction slows
+    by what it agreed to pay, and the resource line moves the other way. That
+    is the whole price mechanism, and it should be visible without opening
+    anything.
+14. **The cancel button names its own price** — "Give notice — costs 5 trust".
+    Press it and the other side should say so immediately, while the goods
+    keep moving for one more in-game day.
+15. **The world market** should fill a standing order for anyone, with no
+    counterparty and at obviously bad rates.
 
 **Everything the browser needs was checked from outside it**, so a blank page
 means the rendering and nothing else. If 1 or 2 fail, open the console: a map
@@ -526,28 +593,36 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**Phase 7: diplomacy and trade.** It is the biggest single system left and the
-one the design leans on hardest — §6.5 is where invariant 3 lives, and
-invariant 3 (_every commitment is indefinite, with a cost to break_) has no
-representation anywhere in the code yet.
+**Phase 8: air zones.** §6.7, and the thing to get right is not the air: §6.8
+is explicit that phase 9's naval zones are **the same code** with a different
+mission set. Build the zone abstraction, the assignment UI and the per-tick
+resolution loop as though phase 9 already existed, because it does. If you
+find yourself writing a second one later, the mistake was made here.
 
-Read §6.5 before starting. The parts that are easy to get wrong:
+The three effects a superiority ratio has all land on systems that already
+exist — ground combat strength, enemy supply throughput, enemy factory output
+— so phase 8 is mostly about the zone, and only a little about aircraft.
 
-- **Every agreement is indefinite.** No durations, no expiry, no renewal. The
-  only duration in the whole system is the notice period on cancellation, and
-  it is a notice period, not an expiry.
-- **Agreements must be derivable from the command log alone** (§4), so they are
-  accumulated commands and never server-side side effects. Get that wrong and
-  the restore stops being able to reconstruct the world.
-- **Trade is paid in construction points**, which is what makes importing
-  resources compete with building factories. No second currency.
-- **A world market** is always available at bad rates, so a solo player is
-  never stuck.
-- Land routes only. The convoy half is phase 9.
+**What phase 7 actually built**, for anyone reading §6.5 against the code:
 
-After that, phase 8 is air zones, and §6.8 is explicit that phase 9's naval
-zones are **the same code** with a different mission set. Build the zone
-abstraction in phase 8 as though phase 9 already existed, because it does.
+- Four agreement types, all bilateral, all indefinite. `propose` → `accept` or
+  `decline`; `cancel` gives notice and costs trust. There is no renewal command
+  because there is nothing to renew.
+- A standing trade moves a resource one way and **construction points** the
+  other, per tick, scaled down together when either side falls short. Points
+  are a flow with nowhere to keep them, so the payment happens where it is
+  felt: `construction.ts` asks `constructionAvailable` instead of measuring its
+  own output.
+- A world market at deliberately bad rates, always available, no counterparty,
+  no obligation — which is what keeps an isolated or island nation playable,
+  and the only economic lever the regent will be allowed in phase 10.
+- Trust, public to everyone, spent by cancelling and never earned back.
+- The dead-partner rule, reading `lastSeenTick`, which every accepted command
+  sets — including the `nation_present` one the socket layer writes on
+  connect. Decision 0011 is about that one command and why it exists.
+- Land routes only: a trade needs a land path over the province graph, checked
+  when proposed and again when accepted. The sea route is phase 9, because a
+  sea route has to consume convoys and a free one would be the wrong answer.
 
 Still worth doing, and still deferred:
 
@@ -571,7 +646,42 @@ Still worth doing, and still deferred:
 
 ## Open questions
 
-**Two new ones, and the first is the more serious.**
+### Three balance questions phase 7 leaves on the table
+
+None of these blocked the gate. All three are one line in
+`shared/config/diplomacy.ts` and all three want a decision from Max rather than
+from whoever is next in the code.
+
+**Trust never comes back.** §6.5 says what cancelling costs and says nothing
+about recovery, so nothing recovers it: a nation that breaks a non-aggression
+pact spends 75 of its 100 and is diplomatically poor for the rest of the
+season. That may be exactly right — "serial betrayers become diplomatically
+isolated" is the stated aim — or it may make the first betrayal the last
+interesting decision a nation makes. A slow regrowth would be a mechanic §6.5
+does not ask for, which is why there is not one.
+
+**The costs themselves.** `trade: 5`, `military_access: 10`, `alliance: 35`,
+`non_aggression: 75`. The ordering is §6.5's own and the surprising half of it
+is deliberate — breaking a non-aggression pact costs more than breaking an
+alliance, because there is only one reason to do it. The magnitudes are a
+guess.
+
+**Fourteen in-game days is twenty-eight real minutes.** `DEAD_PARTNER_TICKS`
+is 336 ticks, straight out of §6.5, and at five seconds a tick that is under
+half an hour of wall clock. A player who closes the tab over lunch comes back
+to dissolved agreements. The rule is right and the unit may not be: the same
+sentence in §6.5 plainly means "has stopped playing", which in this world's
+time scale is days rather than minutes. Worth deciding before a real season
+runs.
+
+**And one sharp edge, for the same list.** The other half of the dead-partner
+rule is "has lost its capital", and it is read as _holds no capital right
+now_. A capital that changes hands for a single tick therefore dissolves every
+agreement that nation has, with third parties included. On a 529-province map
+under the border drift that is rare; when phase 9 lets a landing take a capital
+it will not be. The alternative is a grace period, and a grace period is a
+duration, which is what invariant 3 exists to keep out — so this one needs
+thought rather than a constant.
 
 ### Changing the state hash makes a running world unstartable
 
@@ -656,7 +766,7 @@ npm run start:client     # http://localhost:9000/?nation=17
 And the gates, which need the faster clock and a world with some history:
 
 ```bash
-docker compose down -v # phase 5 changed the state hash; see above
+docker compose down -v # phase 7 changed the state hash; see above
 WORLD_TICK_MS=50 docker compose up -d --build
 sleep 150 # manpower starts at zero and regrows
 
@@ -672,6 +782,9 @@ node scripts/phase5-gate.mjs --break=modifier # and this
 node scripts/phase6-gate.mjs
 node scripts/phase6-gate.mjs --break=supplied # and these two
 node scripts/phase6-gate.mjs --break=attrition
+node scripts/phase7-gate.mjs                  # restarts the world; brings the clock back with it
+node scripts/phase7-gate.mjs --break=survives # and these two
+node scripts/phase7-gate.mjs --break=notified
 node scripts/phase1-gate.mjs # last: it kills the container
 ```
 
@@ -683,14 +796,15 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**506 passed, 8 skipped, in one run — no tolerated failures.** The eight
+**533 passed, 8 skipped, in one run — no tolerated failures.** The eight
 skipped are the Postgres integration tests, which run under `npm run test:db`
 against `docker compose up -d db`. **They are a suite that rots when nobody
 runs it**, so `npm run test:db` belongs in every phase's closing checks; it
-passed 8/8 at the end of phase 6.
+passed 8/8 at the end of phase 7.
 
-The count moved from 472 at the end of phase 4's build, from 462 at the end of
-phase 3, from 437 at the end of phase 2 and from 412 at the end of phase 1.
+The count moved from 506 at the end of phase 6's build, from 472 at the end of phase
+4's build, from 462 at the end of phase 3, from 437 at the end of phase 2 and
+from 412 at the end of phase 1.
 Roughly 300 test files test code that no longer exists and live in
 `tests/_legacy/`, excluded from the run.
 
@@ -712,6 +826,62 @@ not model, the worker chunk comes back and the bundle jumps.
 ## Traps already paid for
 
 Things that cost time to find. Do not rediscover them.
+
+### From phase 7
+
+**`WORLD_TICK_MS` does not survive a `docker compose up` from inside a gate.**
+The compose file reads it from the environment, so a gate that restarts the
+world with `compose("up", "-d", "world")` brings it back at five seconds a
+tick — and then waits on an in-game day that has quietly become two real
+minutes. Every check before the restart passed and the run then timed out
+somewhere that had nothing to do with the failure. Both gates that restart the
+world now pass the clock through explicitly, and the phase-7 gate re-reads
+`tickMs` from `/health` afterwards and refuses rather than hanging.
+
+**A restore replays the command log up to its last command, and no further.**
+`WorldRunner.restore` steps from the snapshot tick to the tick of the last
+command in the log — so anything a _system_ did after that is rolled back by a
+kill, and then happens again, deterministically, on the way back up. That is
+CLAUDE.md §4's "maximum data loss on a hard crash is five minutes of
+simulation" working as designed, and it is not a bug. It does mean a gate
+cannot kill the world to prove that a system-produced change stuck: the
+phase-7 counter-proof now waits for a snapshot to carry the dissolution first.
+
+**The phase-1 gate could not see a replay at fifty milliseconds a tick.** It
+connected its checking client after `/health` said the world was back, which
+is half a second and ten ticks too late, and then reported that nothing had
+been replayed. It knocks on the socket from the moment the container is told
+to start now, and catches twenty-one replayed ticks where it used to catch
+three. Two more things came out of the same run: the pre-kill window has to
+stay **shorter than the snapshot interval**, or a snapshot lands after the
+last command and becomes the durable record; and the resume check now says
+"whichever of the two is later", which is what decision 0005 always said.
+
+**A player's first command is no longer seq 0 in its tick.** The socket layer
+writes a `nation_present` command when a session connects (decision 0011), so
+it takes the first slot. The phase-1 gate asserted on `tick:0:nation:province`
+and went red the day phase 7 landed — the command was in the log, one column
+across. It matches on tick, nation and province now, which is what it was ever
+trying to say.
+
+**A production line could not be stood down once its factories were gone.**
+Found by the phase-4 gate on a world where the drift had taken three of six
+factory provinces: `assign_factories` compared the whole nation's holdings
+against everything already assigned, so a nation holding three factories with
+four assigned was refused _every_ order on that line — including
+`factories: 0`, the order to give them back. The player is walled in by
+arithmetic on the one screen where they were reacting to losing a province.
+Only an increase has to fit now, and `tests/server/Production.test.ts` holds
+the case. This predates phase 7 by two phases and was only reachable on a
+world old enough to have lost something.
+
+**An offer to a nation nobody has ever played is a dead letter.** §6.5's
+dead-partner rule dissolves an agreement whose partner has been silent for a
+fortnight, and a nation nobody has connected as has been silent since tick
+zero — so the first version of this accepted the proposal, applied it, and
+swept it up in the same tick. From the player's side that is indistinguishable
+from the order being lost, which is exactly what §7 is written against. It is
+refused at validation now, with a reason that says why.
 
 ### From phases 4 to 6
 

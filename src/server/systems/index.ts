@@ -29,6 +29,7 @@ import { economySystem } from "./economy";
 import { productionSystem } from "./production";
 import { researchSystem } from "./research";
 import { supplySystem } from "./supply";
+import { tradeSystem } from "./trade";
 
 /**
  * A system: reads the world, returns what should happen to it.
@@ -53,7 +54,7 @@ export const SYSTEMS: readonly System[] = [
   constructionSystem,
   productionSystem,
   researchSystem,
-  planned("trade"),
+  tradeSystem,
   supplySystem,
   planned("air"),
   planned("naval"),

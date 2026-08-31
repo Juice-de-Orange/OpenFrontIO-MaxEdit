@@ -28,6 +28,11 @@
 
 import fs from "fs/promises";
 import path from "path";
+import {
+  AGREEMENT_TYPES,
+  TRUST_COST,
+  TRUST_START,
+} from "src/shared/config/diplomacy";
 import type { Resource } from "src/shared/config/provinces";
 import { OCCUPATION_TICKS, RESOURCES } from "src/shared/config/provinces";
 import {
@@ -55,6 +60,7 @@ import {
 } from "src/shared/map/ProvinceMap";
 import { terrainHashFnv1a } from "src/shared/map/TerrainHash";
 import type {
+  AgreementView,
   CommandBody,
   DivisionView,
   MapDescriptor,
@@ -65,9 +71,11 @@ import type {
 import { SYSTEMS } from "../systems";
 import { measureNation, type NationEconomy } from "../systems/economy";
 import { supplyCoverage, supplyOf, supplyReach } from "../systems/supply";
+import { isDeadPartner, nationTrade } from "../systems/trade";
 import {
   applyEvent,
   assignedFactories,
+  atPeace,
   availableFactories,
   countBuilding,
   createWorldState,
@@ -76,6 +84,7 @@ import {
   factoryOutput,
   manpowerCap,
   usedSlots,
+  type Agreement,
   type ConstructionOrder,
   type Division,
   type ProductionLine,
@@ -90,6 +99,15 @@ const MAX_QUEUE_LENGTH = 24;
 /** And the same reasoning for the other two lists a command can grow. */
 const MAX_PRODUCTION_LINES = 12;
 const MAX_DIVISIONS = 200;
+
+/**
+ * And for agreements, proposals included.
+ *
+ * Proposals are what makes a limit necessary at all: an agreement needs two
+ * nations to want it, but an offer needs only one, and a client in a loop
+ * could otherwise fill the world with them.
+ */
+const MAX_AGREEMENTS = 24;
 
 interface ManifestNation {
   name: string;
@@ -159,6 +177,18 @@ export interface WorldSnapshot {
   heldSince: number[];
   /** Flat, `province * BUILDING_TYPES.length + type`. */
   buildings: number[];
+  /**
+   * Every agreement and proposal. Optional: a snapshot from before phase 7
+   * has none, and a season in progress is not something to throw away over a
+   * field that did not exist when it was written.
+   *
+   * §4 asks for diplomatic state to be in the snapshot *and* fully derivable
+   * from the command log. Both hold: this is the snapshot half, and every
+   * change to it comes from an accepted command or from a rule that reads
+   * only state the log already determines.
+   */
+  agreements?: Agreement[];
+  nextAgreementId?: number;
   /** Per nation, index 0 unused so a nation id indexes it directly. */
   nations: {
     resources: Record<Resource, number>;
@@ -172,6 +202,10 @@ export interface WorldSnapshot {
     /** Optional: a snapshot taken before phase 5 has neither. */
     researchSlots?: ResearchSlot[];
     unlockedTechs?: TechId[];
+    /** Optional for the same reason, from before phase 7. */
+    trust?: number;
+    lastSeenTick?: number;
+    market?: Record<Resource, number>;
   }[];
 }
 
@@ -304,6 +338,63 @@ export class World {
   }
 
   /**
+   * Every nation's trust, indexed by nation id. Index 0 is unused.
+   *
+   * Public to everyone (§7). A trust value nobody can see would not change
+   * anybody's behaviour, and changing behaviour is the whole mechanism.
+   */
+  trustSnapshot(): number[] {
+    return this.state.nations.map((nation) => nation.trust);
+  }
+
+  /**
+   * The agreements one session may see, with the terms it may see.
+   *
+   * §7 draws the line and it is drawn here rather than in the client: *that*
+   * two nations have an agreement is public, and *what it moves* belongs to
+   * the two of them. A spectator sees the shape of the diplomatic map and
+   * none of its contents.
+   */
+  agreementsFor(nation: number | null): AgreementView[] {
+    return this.state.agreements.map((agreement) => ({
+      id: agreement.id,
+      type: agreement.type,
+      parties: [agreement.parties[0], agreement.parties[1]],
+      terms:
+        nation !== null && agreement.parties.includes(nation)
+          ? agreement.terms
+          : null,
+      accepted: agreement.accepted,
+      noticeAt: agreement.noticeAt,
+      noticeBy: agreement.noticeBy,
+    }));
+  }
+
+  /**
+   * What this nation's standing agreements are moving this tick.
+   *
+   * The same function the trade system and the construction system read, so
+   * the figure on the economy screen is the figure that was actually applied
+   * rather than a second calculation that can drift from it.
+   */
+  tradeView(nation: number): {
+    tradePointsIn: number;
+    tradePointsOut: number;
+    tradeResourcePerTick: Record<Resource, number>;
+  } {
+    const flow = nationTrade(this.state, nation);
+    const net = {} as Record<Resource, number>;
+    for (const resource of RESOURCES) {
+      net[resource] = flow.resourceIn[resource] - flow.resourceOut[resource];
+    }
+    return {
+      tradePointsIn: flow.pointsIn,
+      tradePointsOut: flow.pointsOut,
+      tradeResourcePerTick: net,
+    };
+  }
+
+  /**
    * The military half of a nation's private view: stockpile, lines, divisions.
    *
    * Computed rather than stored, like everything else the wire carries about
@@ -399,6 +490,12 @@ export class World {
       controllers: [...this.state.provinceController],
       heldSince: [...this.state.provinceHeldSince],
       buildings: [...this.state.buildings],
+      agreements: this.state.agreements.map((agreement) => ({
+        ...agreement,
+        parties: [...agreement.parties] as [number, number],
+        terms: agreement.terms === null ? null : { ...agreement.terms },
+      })),
+      nextAgreementId: this.state.nextAgreementId,
       nations: this.state.nations.map((nation) => ({
         resources: { ...nation.resources },
         constructionQueue: nation.constructionQueue.map((order) => ({
@@ -415,6 +512,9 @@ export class World {
         nextDivisionId: nation.nextDivisionId,
         researchSlots: nation.researchSlots.map((slot) => ({ ...slot })),
         unlockedTechs: [...nation.unlockedTechs],
+        trust: nation.trust,
+        lastSeenTick: nation.lastSeenTick,
+        market: { ...nation.market },
       })),
     };
   }
@@ -516,7 +616,25 @@ export class World {
         }),
       );
       live.unlockedTechs = [...(stored.unlockedTechs ?? [])];
+      live.trust = stored.trust ?? TRUST_START;
+      // A world that predates phase 7 comes back with everyone counted as
+      // having just been seen, rather than as having been silent since tick
+      // zero. Nobody has an agreement in such a world, so the rule has
+      // nothing to act on either way — but starting a season by declaring
+      // fifty-two nations dead is not a thing to leave lying around.
+      live.lastSeenTick = stored.lastSeenTick ?? snapshot.tick;
+      for (const resource of RESOURCES) {
+        live.market[resource] = stored.market?.[resource] ?? 0;
+      }
     }
+    this.state.agreements = (snapshot.agreements ?? []).map((agreement) => ({
+      ...agreement,
+      parties: [...agreement.parties] as [number, number],
+      terms: agreement.terms === null ? null : { ...agreement.terms },
+    }));
+    this.state.nextAgreementId =
+      snapshot.nextAgreementId ??
+      this.state.agreements.reduce((next, a) => Math.max(next, a.id + 1), 1);
     this.state.tick = snapshot.tick;
     this.pending.clear();
   }
@@ -595,6 +713,30 @@ export class World {
         mix(division.province);
         for (const held of division.equipment) mixFloat(held);
       }
+      // Diplomacy is in the hash for the same reason everything else is. A
+      // world that came back having forgotten who it had promised what would
+      // be a world that had diverged in the one place §4 singles out.
+      mixFloat(nation.trust);
+      mix(nation.lastSeenTick);
+      for (const resource of RESOURCES) mixFloat(nation.market[resource]);
+    }
+    mix(this.state.nextAgreementId);
+    mix(this.state.agreements.length);
+    for (const agreement of this.state.agreements) {
+      mix(agreement.id);
+      mix(AGREEMENT_TYPES.indexOf(agreement.type));
+      mix(agreement.parties[0]);
+      mix(agreement.parties[1]);
+      mix(agreement.accepted ? 1 : 0);
+      mix(agreement.noticeAt ?? -1);
+      mix(agreement.noticeBy ?? -1);
+      mix(
+        agreement.terms === null
+          ? -1
+          : RESOURCES.indexOf(agreement.terms.resource),
+      );
+      mixFloat(agreement.terms?.resourcePerTick ?? 0);
+      mixFloat(agreement.terms?.pointsPerTick ?? 0);
     }
     return hash >>> 0;
   }
@@ -647,6 +789,20 @@ export class World {
           (n) => this.state.provinceController[n] === nation,
         );
         if (!adjacent) return "province does not border your territory";
+
+        // **§6.9: an attack on a nation you have promised not to attack is
+        // refused here, not resolved and regretted.** Breaking the promise is
+        // a separate, deliberate command with its own price, and it takes an
+        // in-game day to take effect — so an attack is always announced a day
+        // before it lands. That is what invariant 3 buys: the commitment is
+        // indefinite, and the exit is expensive and visible.
+        const defender = this.state.provinceController[province];
+        if (defender > 0 && atPeace(this.state, nation, defender)) {
+          return (
+            `you hold an agreement with nation ${defender}; cancel it first ` +
+            `and it will lapse after the notice period`
+          );
+        }
         return null;
       }
 
@@ -699,7 +855,16 @@ export class World {
         const yard = EQUIPMENT[line.equipment].yard;
         const held = availableFactories(this.state, nation, yard);
         const elsewhere = assignedFactories(this.state, nation, yard, line.id);
-        if (body.factories + elsewhere > held) {
+        // **Standing a line down is always allowed.** A nation that loses the
+        // provinces its factories were in holds fewer than it has assigned,
+        // and a check that only compares totals then refuses *every* order on
+        // that line — including the order to give the factories back. The
+        // player is walled in by arithmetic, on the one screen where they were
+        // trying to react to losing a province. Only an increase has to fit.
+        if (
+          body.factories > line.factories &&
+          body.factories + elsewhere > held
+        ) {
           return (
             `you hold ${held} ${yard === "dockyard" ? "dockyards" : "military factories"}, ` +
             `${elsewhere} of them already on other lines`
@@ -766,6 +931,124 @@ export class World {
         return null;
       }
 
+      case "propose_agreement": {
+        const other = body.to;
+        if (other === nation) return "a nation cannot agree with itself";
+        if (other < 1 || other > this.nations.length) {
+          return `no nation ${other} in this world`;
+        }
+        if (this.agreementsOf(nation).length >= MAX_AGREEMENTS) {
+          return `you already have ${MAX_AGREEMENTS} agreements and offers`;
+        }
+        // **Refused here rather than dissolved a tick later.** §6.5's
+        // dead-partner rule takes an agreement whose partner has gone away,
+        // and a nation nobody has ever played has been away since tick zero —
+        // so an offer to one would be accepted, applied, and swept up by the
+        // trade system on the same tick, which from the player's side is
+        // indistinguishable from the order being lost (§7).
+        if (isDeadPartner(this.state, other)) {
+          return `nobody has played nation ${other} for a fortnight, or it has lost its capital; an agreement with it would dissolve the tick it was made`;
+        }
+
+        const terms = body.terms ?? null;
+        if (body.type === "trade") {
+          if (terms === null) return "a trade agreement needs terms";
+          // **Land routes only, in phase 7.** §6.5 says a route that crosses
+          // water consumes convoy equipment, and there are no convoys until
+          // phase 9 — so a sea route would be free, which is the one thing it
+          // must never be. An island nation trades with the world market
+          // until then, which is exactly what the market is for.
+          if (!this.landRoute(nation, other)) {
+            return `no land route to nation ${other}; the sea route needs convoys, which is phase 9`;
+          }
+        } else if (terms !== null) {
+          return `a ${body.type} agreement carries no terms`;
+        }
+
+        // Existing agreements *and* offers already in flight this tick. The
+        // second half is the same trap `queue_construction` paid for: two
+        // proposals sent in the same five seconds are both validated against
+        // a world where neither exists yet.
+        const standing = this.state.agreements.some(
+          (agreement) =>
+            agreement.type === body.type &&
+            agreement.parties.includes(nation) &&
+            agreement.parties.includes(other),
+        );
+        if (standing) {
+          return `you already have a ${body.type} agreement or offer with nation ${other}`;
+        }
+        const alsoPending = this.pendingProposals(nation).some(
+          (proposal) => proposal.type === body.type && proposal.to === other,
+        );
+        if (alsoPending) {
+          return `you have already offered nation ${other} a ${body.type} this tick`;
+        }
+        return null;
+      }
+
+      case "accept_agreement": {
+        const agreement = this.agreementById(body.agreementId);
+        if (agreement === undefined) {
+          return `no agreement ${body.agreementId} in this world`;
+        }
+        if (agreement.accepted) return "that agreement already stands";
+        // Only the side that was offered it. A proposer accepting their own
+        // offer would be a nation agreeing with itself through two commands
+        // instead of one.
+        if (agreement.parties[1] !== nation) {
+          return "that offer was not made to you";
+        }
+        if (
+          agreement.type === "trade" &&
+          !this.landRoute(agreement.parties[0], agreement.parties[1])
+        ) {
+          return "the land route between you has been cut";
+        }
+        return null;
+      }
+
+      case "decline_agreement": {
+        const agreement = this.agreementById(body.agreementId);
+        if (agreement === undefined) {
+          return `no agreement ${body.agreementId} in this world`;
+        }
+        if (agreement.accepted) {
+          return "that agreement stands; cancelling it is a different thing";
+        }
+        if (!agreement.parties.includes(nation)) {
+          return "that offer is not yours to answer";
+        }
+        return null;
+      }
+
+      case "cancel_agreement": {
+        const agreement = this.agreementById(body.agreementId);
+        if (agreement === undefined) {
+          return `no agreement ${body.agreementId} in this world`;
+        }
+        if (!agreement.accepted) {
+          return "that is an offer, not an agreement; decline it instead";
+        }
+        if (!agreement.parties.includes(nation)) {
+          return "that agreement is not yours to cancel";
+        }
+        // Notice is given once. Letting it be given twice would let a nation
+        // pay the trust once and restart the clock for ever, which would turn
+        // the notice period into an expiry that never arrives.
+        if (agreement.noticeAt !== null) {
+          return "you have already given notice on that agreement";
+        }
+        return null;
+      }
+
+      case "set_market_order":
+      case "nation_present":
+        // Nothing to check that the schema has not already checked. The
+        // market needs no counterparty and creates no obligation (invariant
+        // 7), and a nation saying it is here is always true when it says it.
+        return null;
+
       case "cancel_research": {
         const slot = this.state.nations[nation].researchSlots[body.slot];
         if (slot === undefined || slot.tech === null) {
@@ -804,6 +1087,74 @@ export class World {
       }
     }
     return orders;
+  }
+
+  private agreementById(id: number): Agreement | undefined {
+    return this.state.agreements.find((agreement) => agreement.id === id);
+  }
+
+  private agreementsOf(nation: number): Agreement[] {
+    return this.state.agreements.filter((agreement) =>
+      agreement.parties.includes(nation),
+    );
+  }
+
+  /**
+   * Offers this nation has had accepted but not yet applied.
+   *
+   * The same reasoning as `pendingOrders`: between an ack and the tick that
+   * applies it, a command exists nowhere the validator can see it.
+   */
+  private pendingProposals(nation: number): { to: number; type: string }[] {
+    const proposals: { to: number; type: string }[] = [];
+    for (const commands of this.pending.values()) {
+      for (const command of commands) {
+        if (command.nation !== nation) continue;
+        if (command.body.kind !== "propose_agreement") continue;
+        proposals.push({ to: command.body.to, type: command.body.type });
+      }
+    }
+    return proposals;
+  }
+
+  /**
+   * Whether a trade could be carried between these two nations over land.
+   *
+   * A breadth-first search over the province graph, which holds land only —
+   * phase 2 partitions the sea into zones and keeps them out of it — so this
+   * is exactly the question "are they on the same landmass". It crosses third
+   * parties' territory without asking: §6.5 gives transit rights to allies for
+   * *units*, and says nothing about goods, so a trade route is not something
+   * anyone can veto by standing in the way.
+   *
+   * Checked when an agreement is proposed and again when it is accepted, and
+   * never after that. A route cut by a war does not cancel a standing
+   * agreement — phase 9, where the route can be raided, is where a broken
+   * route starts to cost something.
+   */
+  private landRoute(a: number, b: number): boolean {
+    const seen = new Uint8Array(this.state.provinceController.length);
+    const queue: number[] = [];
+    for (
+      let province = 0;
+      province < this.state.provinceController.length;
+      province++
+    ) {
+      if (this.state.provinceController[province] !== a) continue;
+      seen[province] = 1;
+      queue.push(province);
+    }
+    if (queue.length === 0) return false;
+    for (let head = 0; head < queue.length; head++) {
+      const province = queue[head];
+      if (this.state.provinceController[province] === b) return true;
+      for (const next of this.neighbours[province]) {
+        if (seen[next] === 1) continue;
+        seen[next] = 1;
+        queue.push(next);
+      }
+    }
+    return false;
   }
 
   private hasProvince(province: number): boolean {
@@ -964,7 +1315,18 @@ export class World {
         // A claim whose foothold was lost in the meantime does nothing; it is
         // not an error, and it is the same nothing on every replay.
         if (this.rejectionFor(command) !== null) continue;
-        this.emit(this.eventsForCommand(command), changes);
+        // Every accepted command is a sign of life, and the only one there is:
+        // §6.5's dead-partner rule needs to know when a nation was last
+        // played, and §4 requires that it be reconstructible from the command
+        // log alone. So it is derived from the log rather than from the
+        // socket, and every command refreshes it.
+        this.emit(
+          [
+            { kind: "nation_seen", nation: command.nation },
+            ...this.eventsForCommand(command),
+          ],
+          changes,
+        );
       }
     }
 
@@ -1079,6 +1441,56 @@ export class World {
 
       case "cancel_research":
         return [{ kind: "research_cancelled", nation, slot: body.slot }];
+
+      case "propose_agreement":
+        return [
+          {
+            kind: "agreement_proposed",
+            nation,
+            other: body.to,
+            type: body.type,
+            terms: body.terms ?? null,
+          },
+        ];
+
+      case "accept_agreement":
+        return [{ kind: "agreement_accepted", agreementId: body.agreementId }];
+
+      case "decline_agreement":
+        return [{ kind: "agreement_withdrawn", agreementId: body.agreementId }];
+
+      case "cancel_agreement": {
+        // **The cost is paid now, not when the flow stops.** The decision is
+        // made here and everyone can see it here; charging it a day later
+        // would let a nation give notice, take what it wanted in the meantime,
+        // and be no worse off until the world had moved on.
+        const agreement = this.agreementById(body.agreementId);
+        const cost = agreement === undefined ? 0 : TRUST_COST[agreement.type];
+        return [
+          {
+            kind: "agreement_notice_given",
+            agreementId: body.agreementId,
+            nation,
+          },
+          { kind: "trust_changed", nation, delta: -cost },
+        ];
+      }
+
+      case "set_market_order":
+        return [
+          {
+            kind: "market_order_set",
+            nation,
+            resource: body.resource,
+            perTick: body.perTick,
+          },
+        ];
+
+      case "nation_present":
+        // The event every command carries anyway. This command exists so that
+        // a session which is connected and idle still says so, and so that
+        // presence is a thing the command log records (§4).
+        return [];
 
       case "disband_division": {
         // The equipment goes back to the stockpile; the men do not come back.

@@ -23,6 +23,14 @@
  * restore test protect a number that never mattered.
  */
 
+import type { AgreementType } from "src/shared/config/diplomacy";
+import {
+  AGREEMENT_NOTICE_TICKS,
+  PEACE_AGREEMENTS,
+  TRUST_MAX,
+  TRUST_MIN,
+  TRUST_START,
+} from "src/shared/config/diplomacy";
 import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
 import {
@@ -120,6 +128,46 @@ export interface ResearchSlot {
   progress: number;
 }
 
+/** What a standing trade agreement moves every tick, in both directions. */
+export interface TradeTerms {
+  /** The resource the first party sends. */
+  resource: Resource;
+  resourcePerTick: number;
+  /** Construction points the second party sends back (§6.5: no second currency). */
+  pointsPerTick: number;
+}
+
+/**
+ * A bilateral agreement, and everything about it.
+ *
+ * **Indefinite** (invariant 3). There is no end tick in here and nothing that
+ * counts down to one. `noticeAt` is the tick somebody gave notice, and the
+ * agreement dissolves `AGREEMENT_NOTICE_TICKS` after that — which is a
+ * consequence of a decision somebody made, not of time passing.
+ *
+ * On the world rather than on a nation, because it belongs to neither of them.
+ * A copy per side would be two records that can disagree, and the one that
+ * disagreed would be the one a restore brought back.
+ */
+export interface Agreement {
+  id: number;
+  type: AgreementType;
+  /**
+   * Both nations, proposer first.
+   *
+   * For a trade agreement the order *is* half the terms: the first party
+   * sends the resource, the second sends the construction points back.
+   */
+  parties: [number, number];
+  terms: TradeTerms | null;
+  /** False while this is still a proposal nobody has answered. */
+  accepted: boolean;
+  /** The tick notice was given, or null while the agreement stands. */
+  noticeAt: number | null;
+  /** Who gave that notice. Kept for the record; the cost is already paid. */
+  noticeBy: number | null;
+}
+
 export interface NationState {
   resources: Record<Resource, number>;
   constructionQueue: ConstructionOrder[];
@@ -143,11 +191,51 @@ export interface NationState {
   researchSlots: ResearchSlot[];
   /** Finished techs, in the order they finished. Order is not significant. */
   unlockedTechs: TechId[];
+  /**
+   * How much anyone should believe this nation's word, 0..100. Public (§7).
+   *
+   * Spent by cancelling agreements and never earned back, so a serial
+   * betrayer ends up diplomatically isolated without any rule forbidding
+   * betrayal (§6.5).
+   */
+  trust: number;
+  /**
+   * The last tick anything was heard from this nation's player.
+   *
+   * Set by every accepted command, including the `nation_present` one a
+   * session sends when it connects — so "somebody is playing this nation" is
+   * a fact the command log records and a replay can reconstruct (§4). The
+   * dead-partner rule reads it and nothing else does.
+   */
+  lastSeenTick: number;
+  /**
+   * Standing orders with the world market, per resource, per tick.
+   *
+   * Positive buys and costs construction points; negative sells and earns
+   * them, at a much worse rate. Always available and needing no diplomacy,
+   * which is what keeps an isolated nation playable (§6.5).
+   */
+  market: Record<Resource, number>;
 }
 
 export interface WorldState {
   tick: number;
   readonly map: ProvinceMap;
+
+  /**
+   * Every proposal and every standing agreement in the world.
+   *
+   * One list, not one per nation, for the reason on `Agreement` itself.
+   */
+  agreements: Agreement[];
+  /**
+   * The id the next agreement will get. Monotonic, never reused.
+   *
+   * On the world for the same reason the list is, and in the hash for the
+   * same reason `nextOrderId` is: a restore that handed out an id twice would
+   * give two nations two agreements a cancellation cannot tell apart.
+   */
+  nextAgreementId: number;
   /** Number of nations; ids run 1..nationCount, with 0 meaning unowned. */
   readonly nationCount: number;
 
@@ -274,10 +362,7 @@ export function availableFactories(
  * tree. Every system that reads a rate reads it through one of the three
  * helpers below, so a tech takes effect everywhere or nowhere.
  */
-export function nationModifiers(
-  state: WorldState,
-  nation: number,
-): Modifiers {
+export function nationModifiers(state: WorldState, nation: number): Modifiers {
   return modifiersOf(state.nations[nation].unlockedTechs);
 }
 
@@ -319,6 +404,66 @@ export function assignedFactories(
   return total;
 }
 
+/** Every agreement this nation is a party to, proposals included. */
+export function agreementsOf(state: WorldState, nation: number): Agreement[] {
+  return state.agreements.filter(
+    (agreement) =>
+      agreement.parties[0] === nation || agreement.parties[1] === nation,
+  );
+}
+
+/** The other side of an agreement, seen from one of them. */
+export function otherParty(agreement: Agreement, nation: number): number {
+  return agreement.parties[0] === nation
+    ? agreement.parties[1]
+    : agreement.parties[0];
+}
+
+/**
+ * Whether an agreement is still moving anything this tick.
+ *
+ * Accepted, and either nobody has given notice or the notice has not run out
+ * yet. A cancelled agreement keeps working for exactly one in-game day and
+ * then stops — the flow does not taper, because a rate that quietly halves is
+ * harder to plan around than one that stops on a day both sides know.
+ */
+export function agreementIsLive(agreement: Agreement, tick: number): boolean {
+  if (!agreement.accepted) return false;
+  if (agreement.noticeAt === null) return true;
+  return tick < agreement.noticeAt + AGREEMENT_NOTICE_TICKS;
+}
+
+/** A live agreement of this type between these two, if there is one. */
+export function agreementBetween(
+  state: WorldState,
+  a: number,
+  b: number,
+  type: AgreementType,
+): Agreement | undefined {
+  return state.agreements.find(
+    (agreement) =>
+      agreement.type === type &&
+      agreementIsLive(agreement, state.tick) &&
+      ((agreement.parties[0] === a && agreement.parties[1] === b) ||
+        (agreement.parties[0] === b && agreement.parties[1] === a)),
+  );
+}
+
+/**
+ * Whether one nation has promised not to attack the other.
+ *
+ * §6.9: an attack order against a nation you hold a non-aggression pact or an
+ * alliance with is refused at command validation. Breaking the promise first
+ * is a separate, deliberate act with its own cost, and it takes a day to take
+ * effect — so aggression is announced before it arrives, which is the whole
+ * of what invariant 3 buys.
+ */
+export function atPeace(state: WorldState, a: number, b: number): boolean {
+  return PEACE_AGREEMENTS.some(
+    (type) => agreementBetween(state, a, b, type) !== undefined,
+  );
+}
+
 /** A fresh world: every province with its starting owner, capitals equipped. */
 export function createWorldState(
   map: ProvinceMap,
@@ -337,6 +482,8 @@ export function createWorldState(
     provinceController: [...owner],
     provinceHeldSince: new Array<number>(owner.length).fill(0),
     buildings: new Uint8Array(owner.length * BUILDING_TYPES.length),
+    agreements: [],
+    nextAgreementId: 1,
     nations: [],
   };
 
@@ -360,6 +507,15 @@ export function createWorldState(
         progress: 0,
       })),
       unlockedTechs: [],
+      trust: TRUST_START,
+      // Nobody has been heard from on tick 0, and nobody has an agreement
+      // either, so the dead-partner rule has nothing to act on until both
+      // have spoken.
+      lastSeenTick: 0,
+      market: Object.fromEntries(RESOURCES.map((r) => [r, 0])) as Record<
+        Resource,
+        number
+      >,
     });
   }
 
@@ -459,6 +615,31 @@ export type WorldEvent =
       divisionId: number;
       /** [equipmentIndex, signed amount]. Reinforcement and losses alike. */
       delta: [number, number][];
+    }
+  | {
+      kind: "agreement_proposed";
+      /** The proposer, and the first party of the agreement. */
+      nation: number;
+      other: number;
+      type: AgreementType;
+      /** Without an id: the reducer assigns one, so a replay assigns the same. */
+      terms: TradeTerms | null;
+    }
+  | { kind: "agreement_accepted"; agreementId: number }
+  /** Declined by the other side, or withdrawn by the proposer. Costs nothing. */
+  | { kind: "agreement_withdrawn"; agreementId: number }
+  | { kind: "agreement_notice_given"; agreementId: number; nation: number }
+  /** The notice ran out, or the dead-partner rule took it. */
+  | { kind: "agreement_dissolved"; agreementId: number }
+  | { kind: "trust_changed"; nation: number; delta: number }
+  /** Something was heard from this nation's player. */
+  | { kind: "nation_seen"; nation: number }
+  | {
+      kind: "market_order_set";
+      nation: number;
+      resource: Resource;
+      /** Positive buys, negative sells, zero clears the order. */
+      perTick: number;
     };
 
 /**
@@ -670,6 +851,69 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
       }
       return;
     }
+
+    case "agreement_proposed": {
+      // The id is assigned here, not by the caller, so a replay of the same
+      // command log hands out the same ids in the same order.
+      state.agreements.push({
+        id: state.nextAgreementId++,
+        type: event.type,
+        parties: [event.nation, event.other],
+        terms: event.terms === null ? null : { ...event.terms },
+        accepted: false,
+        noticeAt: null,
+        noticeBy: null,
+      });
+      return;
+    }
+
+    case "agreement_accepted": {
+      const agreement = state.agreements.find(
+        (candidate) => candidate.id === event.agreementId,
+      );
+      if (agreement !== undefined) agreement.accepted = true;
+      return;
+    }
+
+    case "agreement_withdrawn":
+    case "agreement_dissolved": {
+      const at = state.agreements.findIndex(
+        (candidate) => candidate.id === event.agreementId,
+      );
+      if (at >= 0) state.agreements.splice(at, 1);
+      return;
+    }
+
+    case "agreement_notice_given": {
+      const agreement = state.agreements.find(
+        (candidate) => candidate.id === event.agreementId,
+      );
+      if (agreement === undefined) return;
+      // Notice is given once. A second cancellation of the same agreement
+      // must not restart the clock — that would be a way to keep an
+      // obligation alive by repeatedly announcing its end.
+      if (agreement.noticeAt !== null) return;
+      agreement.noticeAt = state.tick;
+      agreement.noticeBy = event.nation;
+      return;
+    }
+
+    case "trust_changed": {
+      const nation = state.nations[event.nation];
+      nation.trust = Math.max(
+        TRUST_MIN,
+        Math.min(TRUST_MAX, nation.trust + event.delta),
+      );
+      return;
+    }
+
+    case "nation_seen":
+      state.nations[event.nation].lastSeenTick = state.tick;
+      return;
+
+    case "market_order_set":
+      state.nations[event.nation].market[event.resource] = event.perTick;
+      return;
 
     case "construction_finished": {
       const nation = state.nations[event.nation];

@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { World } from "../../src/server/world/World";
-import { divisionStrength } from "../../src/server/world/WorldState";
+import {
+  applyEvent,
+  divisionStrength,
+  type WorldState,
+} from "../../src/server/world/WorldState";
 import {
   DIVISION_MANPOWER,
   EFFICIENCY_DECAY,
@@ -152,6 +156,44 @@ describe("production lines", () => {
       world.rejectionFor({
         nation,
         body: { kind: "assign_factories", lineId: lineOf().id, factories: 99 },
+      }),
+    ).toMatch(/military factories/);
+  });
+
+  test("a line can always be stood down, even after the factories are lost", () => {
+    const id = openLine();
+    expect(lineOf().factories).toBe(1);
+
+    // The province with the factory in it changes hands. The nation now has a
+    // line holding more factories than it owns, which is a real state the
+    // border drift produces several times an hour.
+    const state = world.view() as WorldState;
+    const home = state.map.provinces.find(
+      (province) =>
+        province.capital && state.provinceController[province.id] === nation,
+    );
+    expect(home).toBeDefined();
+    applyEvent(state, {
+      kind: "control_changed",
+      province: home?.id ?? 0,
+      nation: nation === 1 ? 2 : 1,
+    });
+
+    // Giving them back has to be possible. Refusing it walls the player in on
+    // the one screen where they were trying to react to losing the province —
+    // and the refusal was measured, by the phase-4 gate, on a world where the
+    // front had taken three of six factories.
+    expect(
+      world.rejectionFor({
+        nation,
+        body: { kind: "assign_factories", lineId: id, factories: 0 },
+      }),
+    ).toBeNull();
+    // Asking for more, though, still has to fit.
+    expect(
+      world.rejectionFor({
+        nation,
+        body: { kind: "assign_factories", lineId: id, factories: 2 },
       }),
     ).toMatch(/military factories/);
   });

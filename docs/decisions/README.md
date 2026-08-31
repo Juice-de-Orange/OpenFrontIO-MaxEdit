@@ -72,3 +72,4 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0008](0008-manpower-is-a-population-cap.md)               | Manpower is a population-scaled cap, not a conscription law               | Accepted |
 | [0009](0009-a-factory-is-fed-by-what-it-makes.md)          | A factory is fed by what it makes, and an idle one still eats             | Accepted |
 | [0010](0010-research-modifiers-are-read-not-stored.md)     | Research modifiers are read where the rate is read, never stored          | Accepted |
+| [0011](0011-an-agreement-is-accumulated-commands.md)       | An agreement is accumulated commands, never a server-side side effect     | Accepted |

@@ -54,7 +54,7 @@ const WS_URL = process.env.GATE_WS ?? "ws://localhost:3000/ws";
  * gate failing rather than the world, and the worst way for a gate to fail.
  * `tests/GateProtocolVersion.test.ts` now reads this line and compares it.
  */
-const PROTOCOL_VERSION = 8;
+const PROTOCOL_VERSION = 9;
 /** How long to wait for the snapshot the gate needs. Six minutes of ticks. */
 const SNAPSHOT_TIMEOUT_MS = 8 * 60 * 1000;
 
@@ -133,6 +133,9 @@ class Watcher {
     this.socket.on("message", (raw) =>
       this.onMessage(JSON.parse(raw.toString())),
     );
+    // A refused connection is expected: `whenUp` knocks on a door that is not
+    // open yet. An unhandled 'error' event would take the process down.
+    this.socket.on("error", () => {});
   }
 
   onMessage(message) {
@@ -196,6 +199,32 @@ class Watcher {
     }
   }
 
+  /**
+   * A watcher that keeps knocking until the world opens the socket.
+   *
+   * The replay check needs a client attached the *instant* the world is back,
+   * not half a second later: the restored world resumes at its last durable
+   * record and starts ticking immediately, and every tick it passes before
+   * this connects is a tick that cannot be compared with what was seen live.
+   * Waiting for `/health` first, as this gate used to, cost ten of them at
+   * fifty milliseconds a tick — and the symptom was the gate reporting that
+   * nothing had been replayed.
+   */
+  static async whenUp(timeoutMs = 90_000) {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const watcher = new Watcher();
+      const opened = await Promise.race([
+        watcher.ready.then(() => true),
+        sleep(400).then(() => false),
+      ]);
+      if (opened) return watcher;
+      watcher.socket.terminate();
+      if (Date.now() > deadline) throw new Error("the world never came back");
+      await sleep(50);
+    }
+  }
+
   close() {
     this.socket.close();
   }
@@ -243,9 +272,21 @@ async function claimSomething(watcher, idPrefix) {
   );
 }
 
+/**
+ * `docker compose`, with this world's clock carried through.
+ *
+ * The compose file reads `WORLD_TICK_MS` from the environment, so bringing the
+ * world back up from here without it would silently return it to five seconds
+ * a tick — and every gate that runs after this one would then refuse to start,
+ * or worse, wait on an in-game day that had become a real one.
+ */
+/** What this world is actually ticking at, read from /health on the way in. */
+let TICK_MS = 5000;
+
 async function compose(...args) {
   const { stdout, stderr } = await run("docker", ["compose", ...args], {
     maxBuffer: 8 * 1024 * 1024,
+    env: { ...process.env, WORLD_TICK_MS: String(TICK_MS) },
   });
   return stdout + stderr;
 }
@@ -259,6 +300,8 @@ async function main() {
 
   log("phase-1 gate");
   const before = await waitForHealth();
+  // Whatever this world is running at, it comes back at the same rate.
+  TICK_MS = before.tickMs;
   log(
     `  world ${before.worldId} at tick ${before.tick}, ` +
       `last snapshot ${before.lastSnapshotTick}`,
@@ -308,10 +351,25 @@ async function main() {
   );
   log(`  claimed province ${late.province} for tick ${late.tick}`);
 
-  // Let the world run on a little, so the restart has ticks to replay into
-  // that this client has already seen and hashed.
-  await watcher.reaches(late.tick + 4);
+  // Let the world run on **long enough**, so that the restart has ticks to
+  // replay into that this client has already seen and hashed.
+  //
+  // Measured from the clock rather than fixed at a handful of ticks. The
+  // restored world resumes at the last logged command and starts ticking
+  // immediately, while the watcher that checks the replay cannot connect until
+  // `/health` says the world is up — half a second later, which at 50 ms a
+  // tick is ten ticks it will never see. A four-tick window is comfortable at
+  // five seconds a tick and gone entirely at fifty milliseconds, and the
+  // symptom is this gate reporting that nothing was replayed.
+  const margin = Math.max(4, Math.min(20, Math.ceil(1000 / TICK_MS)));
+  await watcher.reaches(late.tick + margin, 60_000);
   const seen = new Map(watcher.hashes);
+  // **Whichever is later.** Decision 0005: a world resumes at its last durable
+  // record, and a snapshot taken after the last command is one. Asserting the
+  // command tick alone made this gate fail on a world that had simply been
+  // left running long enough to snapshot — which is the design working.
+  const beforeKill = await waitForHealth();
+  const durable = Math.max(beforeKill.lastSnapshotTick, late.tick);
   const ownersAtLate = seen.has(late.tick);
   check(ownersAtLate, `saw the world at tick ${late.tick}`);
   watcher.close();
@@ -321,6 +379,11 @@ async function main() {
   await compose("kill", "-s", "SIGKILL", "world");
   await sleep(1000);
   await compose("up", "-d", "world");
+
+  // The replay watcher starts knocking **now**, while the container is still
+  // coming up, so that it is attached on the world's first tick back rather
+  // than on whichever one `/health` happens to notice.
+  const replaying = Watcher.whenUp();
 
   const after = await waitForHealth();
   const logs = await compose(
@@ -336,8 +399,9 @@ async function main() {
   log(`  the world came back, resuming at tick ${resumedTick}`);
 
   check(
-    resumedTick === late.tick,
-    `resumed at the last durable tick: ${resumedTick} === ${late.tick}`,
+    resumedTick === durable,
+    `resumed at the last durable record: ${resumedTick} === ${durable} ` +
+      `(snapshot ${beforeKill.lastSnapshotTick}, last command ${late.tick})`,
   );
   check(
     after.tick >= late.tick,
@@ -345,8 +409,7 @@ async function main() {
   );
 
   // 4. The strong check: replayed ticks must hash to what was seen live.
-  const replayed = new Watcher();
-  await replayed.ready;
+  const replayed = await replaying;
   await replayed.reaches(Math.max(...seen.keys()), 60_000);
   replayed.close();
 
@@ -389,13 +452,28 @@ async function main() {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+  // **Matched without `seq`.** A command's position within its tick is real
+  // and load-bearing — the replay depends on it — but it is not this gate's
+  // subject, and it is not the player's to predict: since phase 7 the socket
+  // layer writes a `nation_present` command of its own when a session
+  // connects, so a player's first order is no longer seq 0. This gate asks
+  // whether the order is in the log, which is what phase 1 is about.
+  const inLog = (tick, province) =>
+    logged.some((row) => {
+      const [at, , nation, target] = row.split(":");
+      return (
+        Number(at) === tick &&
+        Number(nation) === NATION &&
+        Number(target) === province
+      );
+    });
   check(
-    logged.includes(`${late.tick}:0:${NATION}:${late.province}`),
-    `the late command is in the log: ${late.tick}:0:${NATION}:${late.province}`,
+    inLog(late.tick, late.province),
+    `the late command is in the log: tick ${late.tick}, nation ${NATION}, province ${late.province}`,
   );
   check(
-    logged.includes(`${early.tick}:0:${NATION}:${early.province}`),
-    `the early command is still in the log: ${early.tick}:0:${NATION}:${early.province}`,
+    inLog(early.tick, early.province),
+    `the early command is still in the log: tick ${early.tick}, nation ${NATION}, province ${early.province}`,
   );
 
   check(after.healthy === true, "the restored world reports healthy");

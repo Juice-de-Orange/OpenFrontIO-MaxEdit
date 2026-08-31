@@ -150,6 +150,8 @@ export async function startWorldClient(
     owners: [],
     buildings: [],
     economy: null,
+    trust: [],
+    agreements: [],
     selected: null,
   };
 
@@ -179,6 +181,16 @@ export async function startWorldClient(
       send({ kind: "raise_division", provinceId: province }),
     startResearch: (slot, tech) => send({ kind: "start_research", slot, tech }),
     cancelResearch: (slot) => send({ kind: "cancel_research", slot }),
+    propose: (to, type, terms) =>
+      send({ kind: "propose_agreement", to, type, terms }),
+    acceptAgreement: (agreementId) =>
+      send({ kind: "accept_agreement", agreementId }),
+    declineAgreement: (agreementId) =>
+      send({ kind: "decline_agreement", agreementId }),
+    cancelAgreement: (agreementId) =>
+      send({ kind: "cancel_agreement", agreementId }),
+    setMarketOrder: (resource, perTick) =>
+      send({ kind: "set_market_order", resource, perTick }),
   });
 
   // A click selects. It used to claim, which meant the only thing a player
@@ -200,6 +212,8 @@ export async function startWorldClient(
         model.owners = [...state.owners];
         model.buildings = [...state.buildings];
         model.economy = state.economy;
+        model.trust = [...state.trust];
+        model.agreements = state.agreements;
 
         if (!view || !adapter) {
           // First full state carries the map identity, so the renderer cannot
@@ -231,6 +245,11 @@ export async function startWorldClient(
           model.buildings[province * BUILDING_TYPES.length + building] = count;
         }
         model.economy = delta.economy;
+        model.trust = delta.trust;
+        // Replaced whole rather than merged: the server sends every agreement
+        // this session may see on every tick, and an offer that arrived is the
+        // one thing a diff would be unforgivable for losing.
+        model.agreements = delta.agreements;
 
         if (!view || !adapter) return; // full state still loading
         // Control, not ownership: the map shows where the line is, not who

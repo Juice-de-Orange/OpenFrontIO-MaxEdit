@@ -28,6 +28,9 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
     sufficiency: 1,
     constructionPerTick: 0,
     industryPerTick: 0,
+    tradePointsIn: 0,
+    tradePointsOut: 0,
+    tradeResourcePerTick: { ...zero },
     queue: [],
     stockpile: new Array<number>(10).fill(0),
     manpower: 5000,
@@ -58,6 +61,8 @@ function model(over: Partial<HudModel> = {}): HudModel {
     owners: [],
     buildings: [],
     economy: economy(),
+    trust: [0, 100],
+    agreements: [],
     selected: null,
     ...over,
   };
@@ -75,6 +80,11 @@ function actions(): HudActions {
     raiseDivision: vi.fn(),
     startResearch: vi.fn(),
     cancelResearch: vi.fn(),
+    propose: vi.fn(),
+    acceptAgreement: vi.fn(),
+    declineAgreement: vi.fn(),
+    cancelAgreement: vi.fn(),
+    setMarketOrder: vi.fn(),
   };
 }
 

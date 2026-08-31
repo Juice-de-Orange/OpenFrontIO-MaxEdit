@@ -53,7 +53,7 @@ enough to be worth running. Since phase 4 it costs both sides equipment, and
 
 `src/server/systems/` holds one module per simulation system, with the
 signature `run(world, tick): Event[]`. All eleven of CLAUDE.md §6's systems are
-in the list from the start; nine are empty placeholders. An empty slot in the
+in the list from the start; four are still empty placeholders. An empty slot in the
 right place is worth more than a short list that has to be reordered later,
 because reordering is how a dependency gets inverted without anyone noticing.
 
@@ -90,6 +90,16 @@ persistence design rests on.
   read through `nationModifiers`, `factoryOutput` or `efficiencyCapFor` at the
   moment it is used, so there is one source of truth and a restored world
   cannot come back with a stale copy of its own bonuses (decision 0010).
+- **trade** — standing bilateral agreements, and the world market. A trade
+  moves a resource one way and construction points the other, every tick, and
+  a side that cannot cover its rate scales the whole exchange down rather than
+  breaking it. **Construction points are the only currency**, so an import is
+  felt as factories not built: the construction system asks
+  `constructionAvailable` rather than measuring its own output, and that is the
+  entire price mechanism. The system also writes off agreements whose notice
+  has run out and whose partner has gone away — neither costs anybody trust.
+  Nothing here expires: see decision 0011 for why an agreement is nothing but
+  the commands that made it, `nation_present` included.
 - **supply** — reach times coverage. Reach is a weighted shortest path from
   the nation's capitals and supply hubs over ground it controls, falling with
   distance and rising with the infrastructure on the way; coverage is the
@@ -343,7 +353,7 @@ and afterwards the log would describe a run neither of them had.
 
 ## The protocol
 
-JSON behind `shared/protocol/Wire.ts`, version 6, with `protocolVersion` in the
+JSON behind `shared/protocol/Wire.ts`, version 9, with `protocolVersion` in the
 handshake. The inherited `zbin` is positional and has no version field; its
 own docs warn that mismatched builds decode each other _silently wrong_, which
 for a world running six weeks while we deploy into it is the most expensive
@@ -371,8 +381,22 @@ changes hands rarely.
 **An economy is private.** The map half of a delta is identical for everybody
 and is encoded once; the economy half is built per session and carries only
 that nation's own stockpile, rates and construction queue. A spectator gets
-`null`. Trust and agreement terms in phase 7 get the same treatment, with the
-public/private line where §7 puts it.
+`null`.
+
+**Diplomacy is half public**, and the line is drawn on the server where §7 puts
+it. Every nation's trust rides on every full state and every delta, to
+everybody, because a trust value nobody can see would change nobody's
+behaviour. Agreements ride the same way, but `terms` comes back `null` on any
+agreement the session is not a party to: the world can see that two nations are
+talking and only the two of them can see what about. The list is sent whole
+rather than diffed — there are a few dozen of them, and an offer arriving is
+the one message a diff would be unforgivable for losing.
+
+One command on that list is not a player's: `nation_present`, which the socket
+layer sends on behalf of a session when it connects and every so often while it
+stays. §6.5's dead-partner rule needs to know when a nation was last played and
+§4 requires that to be reconstructible from the log alone, so presence is a
+command like any other (decision 0011).
 
 `/health` shares the socket's port. It reports the tick, the lag, the age of
 the newest snapshot and the state hash, and returns 503 when the world is up

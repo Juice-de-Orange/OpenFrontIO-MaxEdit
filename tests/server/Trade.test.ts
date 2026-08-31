@@ -1,0 +1,278 @@
+import { beforeEach, describe, expect, test } from "vitest";
+import { measureNation } from "../../src/server/systems/economy";
+import {
+  constructionAvailable,
+  nationTrade,
+  tradeSystem,
+} from "../../src/server/systems/trade";
+import { World } from "../../src/server/world/World";
+import { applyEvent, type WorldState } from "../../src/server/world/WorldState";
+import {
+  AGREEMENT_NOTICE_TICKS,
+  DEAD_PARTNER_TICKS,
+  MARKET_BUY_POINTS,
+  MARKET_SELL_POINTS,
+} from "../../src/shared/config/diplomacy";
+import { RESOURCES } from "../../src/shared/config/provinces";
+import { mapFixture } from "../util/worldFixture";
+
+/**
+ * The trade system: what a standing agreement moves, and what it costs.
+ *
+ * §6.5, and the two rules that make it a game rather than a transfer: the
+ * currency is construction points, so an import is factories not built; and a
+ * side that cannot cover its rate scales down instead of breaking anything
+ * (invariant 2).
+ */
+function build(): { world: World; a: number; b: number } {
+  const fixture = mapFixture({
+    width: 320,
+    height: 140,
+    capitals: [
+      { x: 40, y: 40 },
+      { x: 280, y: 40 },
+      { x: 40, y: 100 },
+      { x: 280, y: 100 },
+      { x: 160, y: 70 },
+    ],
+  });
+  const world = World.create(fixture.descriptor, fixture.nations, fixture.map);
+  return { world, a: 1, b: 2 };
+}
+
+/** A standing trade, put straight into the state the way two commands would. */
+function agree(
+  state: WorldState,
+  seller: number,
+  buyer: number,
+  resourcePerTick: number,
+  pointsPerTick: number,
+): number {
+  applyEvent(state, {
+    kind: "agreement_proposed",
+    nation: seller,
+    other: buyer,
+    type: "trade",
+    terms: { resource: "steel", resourcePerTick, pointsPerTick },
+  });
+  const id = state.agreements[state.agreements.length - 1].id;
+  applyEvent(state, { kind: "agreement_accepted", agreementId: id });
+  // Both sides have just spoken, so the dead-partner rule has nothing on them.
+  for (const nation of [seller, buyer]) {
+    applyEvent(state, { kind: "nation_seen", nation });
+  }
+  return id;
+}
+
+describe("standing trade agreements", () => {
+  let world: World;
+  let a: number;
+  let b: number;
+
+  beforeEach(() => {
+    ({ world, a, b } = build());
+  });
+
+  test("a trade moves the resource and is paid for in construction points", () => {
+    const state = world.view() as WorldState;
+    agree(state, a, b, 0.5, 0.25);
+
+    const seller = nationTrade(state, a);
+    const buyer = nationTrade(state, b);
+    expect(seller.resourceOut.steel).toBeCloseTo(0.5);
+    expect(seller.pointsIn).toBeCloseTo(0.25);
+    expect(buyer.resourceIn.steel).toBeCloseTo(0.5);
+    expect(buyer.pointsOut).toBeCloseTo(0.25);
+
+    // The price, where §6.5 puts it: the buyer builds more slowly, and by
+    // exactly what it agreed to pay.
+    const made = measureNation(state, b).construction;
+    expect(constructionAvailable(state, b)).toBeCloseTo(made - 0.25);
+    expect(constructionAvailable(state, a)).toBeCloseTo(
+      measureNation(state, a).construction + 0.25,
+    );
+  });
+
+  test("a side that cannot cover its rate scales the flow, not the agreement", () => {
+    const state = world.view() as WorldState;
+    const id = agree(state, a, b, 2, 0.25);
+    // Half of one tick's rate in the vault, and nothing coming in.
+    state.nations[a].resources.steel = 1;
+    for (const province of state.map.provinces) {
+      if (state.provinceController[province.id] !== a) continue;
+      province.resourceDeposits.steel = 0;
+    }
+
+    const flow = nationTrade(state, a);
+    expect(flow.resourceOut.steel).toBeCloseTo(1);
+    // Scaled together: the buyer pays half because it received half.
+    expect(flow.pointsIn).toBeCloseTo(0.125);
+    expect(nationTrade(state, b).pointsOut).toBeCloseTo(0.125);
+    // And the agreement is untouched. Nothing here breaks (invariant 2).
+    expect(state.agreements.find((x) => x.id === id)?.accepted).toBe(true);
+  });
+
+  test("notice stops the flow a day later, and not before", () => {
+    const state = world.view() as WorldState;
+    const id = agree(state, a, b, 0.5, 0.25);
+    applyEvent(state, {
+      kind: "agreement_notice_given",
+      agreementId: id,
+      nation: b,
+    });
+    const given = state.tick;
+
+    state.tick = given + AGREEMENT_NOTICE_TICKS - 1;
+    expect(nationTrade(state, a).resourceOut.steel).toBeCloseTo(0.5);
+
+    state.tick = given + AGREEMENT_NOTICE_TICKS;
+    expect(nationTrade(state, a).resourceOut.steel).toBe(0);
+    // And the record goes when the system next runs, not before: the flow
+    // stopping and the record vanishing are the same moment.
+    const events = tradeSystem.run(state, state.tick);
+    expect(events).toContainEqual({
+      kind: "agreement_dissolved",
+      agreementId: id,
+    });
+  });
+
+  test("an agreement with a silent nation dissolves at nobody's cost", () => {
+    const state = world.view() as WorldState;
+    const id = agree(state, a, b, 0.5, 0.25);
+    const trustBefore = [state.nations[a].trust, state.nations[b].trust];
+
+    state.tick = DEAD_PARTNER_TICKS + 2;
+    const events = tradeSystem.run(state, state.tick);
+    expect(events).toContainEqual({
+      kind: "agreement_dissolved",
+      agreementId: id,
+    });
+    // No trust event anywhere in that tick. §6.5 is explicit that the
+    // dead-partner rule costs nothing — the partner did not betray anyone,
+    // they stopped existing.
+    expect(events.some((event) => event.kind === "trust_changed")).toBe(false);
+    expect([state.nations[a].trust, state.nations[b].trust]).toEqual(
+      trustBefore,
+    );
+    // And it stops moving anything the same tick it is written off.
+    expect(nationTrade(state, a).resourceOut.steel).toBe(0);
+  });
+
+  test("the world market buys and sells, at a spread that hurts", () => {
+    const state = world.view() as WorldState;
+    // Small enough that a starting nation can pay for it out of one tick's
+    // construction: the market is a fallback, not a fortune.
+    applyEvent(state, {
+      kind: "market_order_set",
+      nation: a,
+      resource: "steel",
+      perTick: 0.1,
+    });
+    expect(nationTrade(state, a).resourceIn.steel).toBeCloseTo(0.1);
+    expect(nationTrade(state, a).pointsOut).toBeCloseTo(
+      0.1 * MARKET_BUY_POINTS.steel,
+    );
+
+    applyEvent(state, {
+      kind: "market_order_set",
+      nation: a,
+      resource: "steel",
+      perTick: -0.1,
+    });
+    expect(nationTrade(state, a).resourceOut.steel).toBeCloseTo(0.1);
+    expect(nationTrade(state, a).pointsIn).toBeCloseTo(
+      0.1 * MARKET_SELL_POINTS.steel,
+    );
+    // The spread is the whole mechanism: selling back what you bought loses.
+    expect(MARKET_SELL_POINTS.steel).toBeLessThan(MARKET_BUY_POINTS.steel);
+  });
+
+  test("a market order nobody can afford is filled in part, never refused", () => {
+    const state = world.view() as WorldState;
+    applyEvent(state, {
+      kind: "market_order_set",
+      nation: a,
+      resource: "steel",
+      perTick: 1,
+    });
+    const made = measureNation(state, a).construction;
+    const flow = nationTrade(state, a);
+    // A tick's construction spent to the last point, and exactly that much
+    // steel arriving. Invariant 2: an order too large is not rejected, it is
+    // filled as far as the money goes.
+    expect(flow.pointsOut).toBeCloseTo(made);
+    expect(flow.resourceIn.steel).toBeCloseTo(made / MARKET_BUY_POINTS.steel);
+    expect(flow.resourceIn.steel).toBeLessThan(1);
+    expect(constructionAvailable(state, a)).toBeCloseTo(0);
+  });
+
+  test("a nation that promised more points than it makes still builds nothing negative", () => {
+    const state = world.view() as WorldState;
+    agree(state, a, b, 0.5, 5);
+    expect(constructionAvailable(state, b)).toBeGreaterThanOrEqual(0);
+    // And it pays only what it has, so the seller is not paid out of thin air.
+    const paid = nationTrade(state, b).pointsOut;
+    expect(paid).toBeLessThanOrEqual(
+      measureNation(state, b).construction + 1e-9,
+    );
+  });
+
+  test("a world full of agreements still costs a fraction of a tick", () => {
+    const state = world.view() as WorldState;
+    // Every nation trading with every other one it can. One agreement per
+    // pair rather than two: a nation that sells and buys the same resource at
+    // the same rate nets to zero, and a tick that moves nothing would be
+    // timing an empty loop.
+    for (let seller = 1; seller <= state.nationCount; seller++) {
+      for (let buyer = seller + 1; buyer <= state.nationCount; buyer++) {
+        agree(state, seller, buyer, 0.1, 0.05);
+      }
+    }
+
+    const started = performance.now();
+    const events = tradeSystem.run(state, state.tick);
+    for (let nation = 1; nation <= state.nationCount; nation++) {
+      constructionAvailable(state, nation);
+    }
+    const took = performance.now() - started;
+    // Recorded rather than merely asserted. The first version of this system
+    // asked "does this nation still hold a capital" once per agreement per
+    // share — a walk over every province, several thousand times a tick — and
+    // nothing but a number like this one would have caught it.
+    expect(
+      took,
+      `${state.agreements.length} agreements took ${took.toFixed(2)} ms`,
+    ).toBeLessThan(50);
+    expect(events.length).toBeGreaterThan(0);
+  });
+
+  test("over many ticks nothing is created and nothing goes negative", () => {
+    const state = world.view() as WorldState;
+    agree(state, a, b, 0.5, 0.25);
+    applyEvent(state, {
+      kind: "market_order_set",
+      nation: a,
+      resource: "oil",
+      perTick: -0.5,
+    });
+
+    for (let tick = 0; tick < 200; tick++) {
+      state.tick++;
+      applyEvent(state, { kind: "nation_seen", nation: a });
+      applyEvent(state, { kind: "nation_seen", nation: b });
+      for (const event of tradeSystem.run(state, state.tick)) {
+        applyEvent(state, event);
+      }
+      for (const nation of [a, b]) {
+        for (const resource of RESOURCES) {
+          expect(
+            state.nations[nation].resources[resource],
+          ).toBeGreaterThanOrEqual(0);
+        }
+      }
+    }
+    // The agreement outlived two hundred ticks without either side renewing
+    // it. That is invariant 3, in the smallest form it can be checked in.
+    expect(state.agreements).toHaveLength(1);
+  });
+});

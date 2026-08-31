@@ -31,13 +31,18 @@ import {
   type WorldEvent,
   type WorldState,
 } from "../world/WorldState";
-import { measureNation } from "./economy";
+import { constructionAvailable, tradeContext } from "./trade";
 
 export const constructionSystem: System = {
   name: "construction",
 
   run(state: WorldState): WorldEvent[] {
     const events: WorldEvent[] = [];
+    // Worked out once for the whole pass rather than per nation: the same
+    // context the trade system builds a few systems later, and for the same
+    // reason — the two have to agree on what is live, and neither can afford
+    // to ask five hundred provinces the question once per agreement.
+    const trade = tradeContext(state);
 
     for (let nation = 1; nation <= state.nationCount; nation++) {
       const queue = state.nations[nation].constructionQueue;
@@ -46,7 +51,12 @@ export const constructionSystem: System = {
       // Recomputed rather than handed down from the economy system, and safe
       // to recompute because construction points do not depend on resources —
       // civilian factories draw none. See measureNation.
-      const points = measureNation(state, nation).construction;
+      //
+      // Less what this nation is paying trade partners and the world market,
+      // plus what its own exports earned (§6.5). Construction points are the
+      // only currency there is, so an import is felt here and nowhere else:
+      // the queue slows down. That is the price, and it is meant to be seen.
+      const points = constructionAvailable(state, nation, trade);
       if (points <= 0) continue;
 
       let started = 0;

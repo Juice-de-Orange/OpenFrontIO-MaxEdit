@@ -1,0 +1,345 @@
+import { beforeEach, describe, expect, test } from "vitest";
+import { World, type WorldCommand } from "../../src/server/world/World";
+import { atPeace } from "../../src/server/world/WorldState";
+import {
+  AGREEMENT_NOTICE_TICKS,
+  TRUST_COST,
+  TRUST_START,
+} from "../../src/shared/config/diplomacy";
+import { mapFixture } from "../util/worldFixture";
+
+/**
+ * The diplomacy commands, and the promises they make binding.
+ *
+ * §6.5 and §6.9. What is checked here is what the spec is explicit about and
+ * what a later phase could quietly break: that nothing expires, that breaking
+ * a promise costs exactly what it says it costs, that an attack on a nation
+ * you have promised not to attack is refused at validation rather than
+ * regretted afterwards, and that all of it survives a restore — §4 puts
+ * diplomatic state in the snapshot *and* asks for it to be derivable from the
+ * command log.
+ */
+function build(): World {
+  const fixture = mapFixture({
+    width: 320,
+    height: 140,
+    capitals: [
+      { x: 40, y: 40 },
+      { x: 280, y: 40 },
+      { x: 40, y: 100 },
+      { x: 280, y: 100 },
+      { x: 160, y: 70 },
+    ],
+  });
+  return World.create(fixture.descriptor, fixture.nations, fixture.map);
+}
+
+/** Send a command the way the socket would: validate, queue, run the tick. */
+function send(world: World, command: WorldCommand): string | null {
+  const rejection = world.rejectionFor(command);
+  if (rejection !== null) return rejection;
+  world.queueCommand(command);
+  world.step();
+  return null;
+}
+
+/** Two nations that actually share a border on this fixture. */
+function neighbours(world: World): {
+  attacker: number;
+  defender: number;
+  province: number;
+} {
+  const state = world.view();
+  for (const province of state.map.provinces) {
+    const defender = state.provinceController[province.id];
+    if (defender <= 0) continue;
+    for (const next of province.neighbours) {
+      const attacker = state.provinceController[next];
+      if (attacker > 0 && attacker !== defender) {
+        return { attacker, defender, province: province.id };
+      }
+    }
+  }
+  throw new Error("the fixture has no shared border to test with");
+}
+
+/** Whether a nation still holds a capital — the other half of §6.5's rule. */
+function holdsCapital(world: World, nation: number): boolean {
+  const state = world.view();
+  return state.map.provinces.some(
+    (province) =>
+      province.capital && state.provinceController[province.id] === nation,
+  );
+}
+
+function agreementId(world: World): number {
+  const state = world.view();
+  expect(state.agreements.length).toBeGreaterThan(0);
+  return state.agreements[state.agreements.length - 1].id;
+}
+
+describe("agreements", () => {
+  let world: World;
+
+  beforeEach(() => {
+    world = build();
+  });
+
+  test("an offer is not an agreement until the other side accepts it", () => {
+    expect(
+      send(world, {
+        nation: 1,
+        body: { kind: "propose_agreement", to: 2, type: "non_aggression" },
+      }),
+    ).toBeNull();
+    const id = agreementId(world);
+    expect(world.view().agreements[0].accepted).toBe(false);
+    // And it binds nobody yet: §6.9's refusal only follows acceptance.
+    expect(atPeace(world.view(), 1, 2)).toBe(false);
+
+    // Not the proposer's to accept, either.
+    expect(
+      world.rejectionFor({
+        nation: 1,
+        body: { kind: "accept_agreement", agreementId: id },
+      }),
+    ).toMatch(/not made to you/);
+
+    expect(
+      send(world, {
+        nation: 2,
+        body: { kind: "accept_agreement", agreementId: id },
+      }),
+    ).toBeNull();
+    expect(atPeace(world.view(), 1, 2)).toBe(true);
+  });
+
+  test("an attack on a nation you promised not to attack is refused", () => {
+    const { attacker, defender, province } = neighbours(world);
+    send(world, {
+      nation: attacker,
+      body: {
+        kind: "propose_agreement",
+        to: defender,
+        type: "non_aggression",
+      },
+    });
+    const id = agreementId(world);
+    send(world, {
+      nation: defender,
+      body: { kind: "accept_agreement", agreementId: id },
+    });
+
+    const claim: WorldCommand = {
+      nation: attacker,
+      body: { kind: "claim_province", provinceId: province },
+    };
+    expect(world.rejectionFor(claim)).toMatch(/cancel it first/);
+
+    // Cancelling opens the door, but not today: the notice runs a full day,
+    // so the attack is announced before it can land.
+    send(world, {
+      nation: attacker,
+      body: { kind: "cancel_agreement", agreementId: id },
+    });
+    expect(world.rejectionFor(claim)).toMatch(/cancel it first/);
+    for (let i = 0; i < AGREEMENT_NOTICE_TICKS; i++) world.step();
+    // The province may have changed hands in the meantime — the world does not
+    // hold still for a test — so what is asserted is the promise and not the
+    // border: whatever refuses this claim now, it is no longer the agreement.
+    expect(world.rejectionFor(claim) ?? "").not.toMatch(/cancel it first/);
+  });
+
+  test("cancelling costs exactly what the spec says, and only once", () => {
+    send(world, {
+      nation: 1,
+      body: { kind: "propose_agreement", to: 2, type: "alliance" },
+    });
+    const id = agreementId(world);
+    send(world, {
+      nation: 2,
+      body: { kind: "accept_agreement", agreementId: id },
+    });
+    expect(world.view().nations[1].trust).toBe(TRUST_START);
+
+    send(world, {
+      nation: 1,
+      body: { kind: "cancel_agreement", agreementId: id },
+    });
+    expect(world.view().nations[1].trust).toBe(
+      TRUST_START - TRUST_COST.alliance,
+    );
+    // The other side pays nothing for being left.
+    expect(world.view().nations[2].trust).toBe(TRUST_START);
+    // And notice cannot be given twice to restart the clock or pay twice.
+    expect(
+      world.rejectionFor({
+        nation: 1,
+        body: { kind: "cancel_agreement", agreementId: id },
+      }),
+    ).toMatch(/already given notice/);
+  });
+
+  test("breaking a non-aggression pact costs more than breaking an alliance", () => {
+    // §6.5's own ordering, and the surprising half of it: there is only one
+    // reason to tear up a non-aggression pact and everybody can see what it is.
+    expect(TRUST_COST.non_aggression).toBeGreaterThan(TRUST_COST.alliance);
+    expect(TRUST_COST.alliance).toBeGreaterThan(TRUST_COST.trade);
+  });
+
+  test("the same agreement cannot be offered twice, in one tick or ever", () => {
+    const offer: WorldCommand = {
+      nation: 1,
+      body: { kind: "propose_agreement", to: 2, type: "military_access" },
+    };
+    expect(world.rejectionFor(offer)).toBeNull();
+    world.queueCommand(offer);
+    // Accepted for the same tick, and not applied yet: the validator has to
+    // see it anyway, or the second is acked and then silently dropped.
+    expect(world.rejectionFor(offer)).toMatch(/already offered/);
+    world.step();
+    expect(world.rejectionFor(offer)).toMatch(/already have/);
+  });
+
+  test("a trade offer without terms is refused, and so are terms without a trade", () => {
+    expect(
+      world.rejectionFor({
+        nation: 1,
+        body: { kind: "propose_agreement", to: 2, type: "trade" },
+      }),
+    ).toMatch(/needs terms/);
+    expect(
+      world.rejectionFor({
+        nation: 1,
+        body: {
+          kind: "propose_agreement",
+          to: 2,
+          type: "alliance",
+          terms: {
+            resource: "steel",
+            resourcePerTick: 1,
+            pointsPerTick: 1,
+          },
+        },
+      }),
+    ).toMatch(/carries no terms/);
+  });
+
+  test("nothing expires: an accepted agreement outlives a long silence in the state", () => {
+    send(world, {
+      nation: 1,
+      body: {
+        kind: "propose_agreement",
+        to: 2,
+        type: "trade",
+        terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
+      },
+    });
+    const id = agreementId(world);
+    send(world, {
+      nation: 2,
+      body: { kind: "accept_agreement", agreementId: id },
+    });
+
+    let bothStoodThroughout = true;
+    for (let i = 0; i < 300; i++) {
+      // Both sides keep saying they are there; §6.5's dead-partner rule is
+      // about absence, not about time passing.
+      world.queueCommand({ nation: 1, body: { kind: "nation_present" } });
+      world.queueCommand({ nation: 2, body: { kind: "nation_present" } });
+      world.step();
+      // Checked every tick, not at the end. The other half of the rule is
+      // "has lost its capital", and on this fixture the border drift can take
+      // one and hand it back a few ticks later — by which time the agreement
+      // is already, and correctly, gone.
+      if (!holdsCapital(world, 1) || !holdsCapital(world, 2)) {
+        bothStoodThroughout = false;
+      }
+    }
+
+    // The claim, stated exactly: for as long as both sides were still there,
+    // so was the agreement — twelve in-game days of it, with no renewal from
+    // either and nothing in the system that could expire.
+    const standing = world.view().agreements.find((a) => a.id === id);
+    if (bothStoodThroughout) {
+      expect(standing?.accepted).toBe(true);
+      expect(standing?.noticeAt).toBeNull();
+    } else {
+      expect(standing).toBeUndefined();
+    }
+  });
+
+  test("agreements, trust and market orders come back from a snapshot", () => {
+    send(world, {
+      nation: 1,
+      body: {
+        kind: "propose_agreement",
+        to: 2,
+        type: "trade",
+        terms: { resource: "oil", resourcePerTick: 0.5, pointsPerTick: 1 },
+      },
+    });
+    const id = agreementId(world);
+    send(world, {
+      nation: 2,
+      body: { kind: "accept_agreement", agreementId: id },
+    });
+    send(world, {
+      nation: 1,
+      body: { kind: "set_market_order", resource: "rubber", perTick: -0.25 },
+    });
+    send(world, {
+      nation: 2,
+      body: { kind: "propose_agreement", to: 3, type: "alliance" },
+    });
+    const second = agreementId(world);
+    send(world, {
+      nation: 3,
+      body: { kind: "accept_agreement", agreementId: second },
+    });
+    send(world, {
+      nation: 2,
+      body: { kind: "cancel_agreement", agreementId: second },
+    });
+
+    const before = world.stateHash();
+    const snapshot = world.snapshot();
+    const restored = build();
+    restored.restoreFrom(snapshot);
+
+    // The hash is the whole assertion: every field of the state goes into it,
+    // so a world that came back having forgotten a promise cannot match.
+    expect(restored.stateHash()).toBe(before);
+    const agreement = restored.view().agreements.find((a) => a.id === id);
+    expect(agreement?.terms?.resource).toBe("oil");
+    expect(restored.view().nations[2].trust).toBe(
+      TRUST_START - TRUST_COST.alliance,
+    );
+    expect(restored.view().nations[1].market.rubber).toBe(-0.25);
+    // And the next agreement gets a fresh id rather than reusing one.
+    expect(restored.view().nextAgreementId).toBe(world.view().nextAgreementId);
+  });
+
+  test("no agreement ever names a nation that is not in this world", () => {
+    expect(
+      world.rejectionFor({
+        nation: 1,
+        body: { kind: "propose_agreement", to: 99, type: "alliance" },
+      }),
+    ).toMatch(/no nation 99/);
+    expect(
+      world.rejectionFor({
+        nation: 1,
+        body: { kind: "propose_agreement", to: 1, type: "alliance" },
+      }),
+    ).toMatch(/with itself/);
+
+    for (let i = 0; i < 50; i++) world.step();
+    for (const agreement of world.view().agreements) {
+      for (const party of agreement.parties) {
+        expect(party).toBeGreaterThan(0);
+        expect(party).toBeLessThanOrEqual(world.nations.length);
+      }
+    }
+  });
+});

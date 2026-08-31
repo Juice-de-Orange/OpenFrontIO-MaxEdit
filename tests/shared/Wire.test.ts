@@ -55,6 +55,31 @@ describe("the wire protocol", () => {
         owners: [1, 0],
         controllers: [1, 2],
         buildings: [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+        trust: [0, 100, 45],
+        agreements: [
+          {
+            id: 1,
+            type: "trade",
+            parties: [1, 2],
+            terms: {
+              resource: "steel",
+              resourcePerTick: 0.5,
+              pointsPerTick: 0.25,
+            },
+            accepted: true,
+            noticeAt: null,
+            noticeBy: null,
+          },
+          {
+            id: 2,
+            type: "non_aggression",
+            parties: [2, 1],
+            terms: null,
+            accepted: false,
+            noticeAt: null,
+            noticeBy: null,
+          },
+        ],
         economy: {
           nation: 1,
           resources: { steel: 200, oil: 100, aluminium: 100, rubber: 50 },
@@ -63,6 +88,14 @@ describe("the wire protocol", () => {
           sufficiency: 1,
           constructionPerTick: 1.5,
           industryPerTick: 0.4,
+          tradePointsIn: 0.5,
+          tradePointsOut: 0.25,
+          tradeResourcePerTick: {
+            steel: 0.1,
+            oil: 0,
+            aluminium: -0.05,
+            rubber: 0,
+          },
           queue: [
             {
               id: 7,
@@ -103,6 +136,8 @@ describe("the wire protocol", () => {
         control: [[0, 1]],
         owner: [],
         buildings: [],
+        trust: [0, 100, 45],
+        agreements: [],
         economy: null,
       },
       {
@@ -111,6 +146,8 @@ describe("the wire protocol", () => {
         control: [],
         owner: [[0, 1]],
         buildings: [[3, 0, 4]],
+        trust: [0, 100, 45],
+        agreements: [],
         economy: null,
       },
     ];
@@ -170,7 +207,10 @@ describe("the wire protocol", () => {
     // disconnected for it, and a v6 server would refuse one it cannot parse.
     // 7 -> 8 when a division gained a supply figure: a v7 client would show a
     // starving army as merely under-equipped, which is the wrong diagnosis and
-    // the wrong fix.
-    expect(PROTOCOL_VERSION).toBe(8);
+    // the wrong fix. 8 -> 9 for diplomacy: trust and agreements ride on every
+    // full state and every delta, and a v8 client would show a player no offer
+    // and no notice of cancellation — the one message in the game that has a
+    // deadline attached to it.
+    expect(PROTOCOL_VERSION).toBe(9);
   });
 });

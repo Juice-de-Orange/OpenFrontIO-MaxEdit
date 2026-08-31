@@ -18,6 +18,13 @@
  */
 
 import { z } from "zod";
+import {
+  AGREEMENT_TYPES,
+  MAX_MARKET_PER_TICK,
+  MAX_TRADE_POINTS_PER_TICK,
+  MAX_TRADE_RESOURCE_PER_TICK,
+} from "../config/diplomacy";
+import { RESOURCES } from "../config/provinces";
 import { TECH_IDS } from "../config/techs";
 import { BUILDING_TYPES } from "../economy/Buildings";
 import { EQUIPMENT_TYPES } from "../economy/Equipment";
@@ -27,7 +34,7 @@ import { EQUIPMENT_TYPES } from "../economy/Equipment";
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -186,6 +193,90 @@ export const CancelResearchSchema = z.object({
   slot: z.number().int().nonnegative(),
 });
 
+/**
+ * The terms of a trade agreement, as one side proposes them.
+ *
+ * Both sides see the exact rates before accepting (§6.5), which is why they
+ * are on the wire in full rather than being summarised. Per tick, because
+ * everything in this world is a rate — the UI multiplies by 24 and says "per
+ * day" (invariant 9), and the wire never does.
+ */
+export const TradeTermsSchema = z.object({
+  /** What the proposer sends. */
+  resource: z.enum(RESOURCES),
+  resourcePerTick: z.number().positive().max(MAX_TRADE_RESOURCE_PER_TICK),
+  /** Construction points the other side sends back. No second currency. */
+  pointsPerTick: z.number().positive().max(MAX_TRADE_POINTS_PER_TICK),
+});
+export type TradeTermsView = z.infer<typeof TradeTermsSchema>;
+
+/**
+ * Offer an agreement to another nation.
+ *
+ * **No duration, and there is nowhere to put one** (invariant 3). An
+ * agreement runs until somebody cancels it and pays for having done so. The
+ * only thing this carries beyond who and what is the terms, and only a trade
+ * agreement has any.
+ */
+export const ProposeAgreementSchema = z.object({
+  kind: z.literal("propose_agreement"),
+  to: z.number().int().positive(),
+  type: z.enum(AGREEMENT_TYPES),
+  terms: TradeTermsSchema.nullable().optional(),
+});
+
+/** Accept an offer made to you. Only the other party may. */
+export const AcceptAgreementSchema = z.object({
+  kind: z.literal("accept_agreement"),
+  agreementId: z.number().int().positive(),
+});
+
+/** Turn one down, or take back one you made. Neither costs anything. */
+export const DeclineAgreementSchema = z.object({
+  kind: z.literal("decline_agreement"),
+  agreementId: z.number().int().positive(),
+});
+
+/**
+ * Give notice on a standing agreement.
+ *
+ * Costs trust the moment it is sent, and the flow stops one in-game day
+ * later. The other side hears about it immediately — that is what the day is
+ * for, and it is the only duration in §6.5.
+ */
+export const CancelAgreementSchema = z.object({
+  kind: z.literal("cancel_agreement"),
+  agreementId: z.number().int().positive(),
+});
+
+/**
+ * Leave a standing order with the world market.
+ *
+ * Positive buys the resource and costs construction points; negative sells it
+ * and earns far fewer. Zero clears the order. No counterparty, no agreement,
+ * no obligation — which is what keeps it inside invariant 7 and makes it
+ * something the regent may use (§6.10).
+ */
+export const SetMarketOrderSchema = z.object({
+  kind: z.literal("set_market_order"),
+  resource: z.enum(RESOURCES),
+  perTick: z.number().min(-MAX_MARKET_PER_TICK).max(MAX_MARKET_PER_TICK),
+});
+
+/**
+ * "Somebody is playing this nation."
+ *
+ * Sent by the server's own socket layer when a session connects and every so
+ * often while it stays, and written to the command log like any other command.
+ * That is deliberate: §6.5's dead-partner rule dissolves the agreements of a
+ * nation nobody has played for a fortnight, and §4 requires that agreements be
+ * reconstructible from the log alone. A connection is not in the log; a
+ * command is.
+ */
+export const NationPresentSchema = z.object({
+  kind: z.literal("nation_present"),
+});
+
 export const CommandBodySchema = z.discriminatedUnion("kind", [
   ClaimProvinceSchema,
   QueueConstructionSchema,
@@ -198,6 +289,12 @@ export const CommandBodySchema = z.discriminatedUnion("kind", [
   DisbandDivisionSchema,
   StartResearchSchema,
   CancelResearchSchema,
+  ProposeAgreementSchema,
+  AcceptAgreementSchema,
+  DeclineAgreementSchema,
+  CancelAgreementSchema,
+  SetMarketOrderSchema,
+  NationPresentSchema,
 ]);
 export type CommandBody = z.infer<typeof CommandBodySchema>;
 
@@ -350,6 +447,19 @@ export const NationEconomySchema = z.object({
   /** 0..1 — the share of this tick's resource demand the nation could cover. */
   sufficiency: z.number(),
   constructionPerTick: z.number(),
+  /**
+   * Construction points arriving from, and leaving for, trade partners and
+   * the market — already scaled by what both sides could actually cover.
+   *
+   * On the economy screen because that is where the price of an import has
+   * to be visible: points spent here are factories not built (§6.5), and a
+   * player whose queue slowed down deserves to see why without opening
+   * another panel.
+   */
+  tradePointsIn: z.number(),
+  tradePointsOut: z.number(),
+  /** Net resources per tick from every standing agreement and market order. */
+  tradeResourcePerTick: ResourceAmountsSchema,
   /** Already scaled by `sufficiency`; this is what the factories actually made. */
   industryPerTick: z.number(),
   queue: z.array(ConstructionOrderSchema),
@@ -390,6 +500,29 @@ const ProvinceChangeSchema = z.array(
   z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
 );
 
+/**
+ * One agreement or proposal, as this session is allowed to see it.
+ *
+ * §7 draws the line here and the server draws it before sending: **trust is
+ * public, terms are not.** Everyone can see that two nations have a trade
+ * agreement — that is what makes the diplomatic map readable — and only the
+ * two of them can see what it moves. `terms` comes back null on somebody
+ * else's agreement, and on every agreement that is not a trade.
+ */
+export const AgreementViewSchema = z.object({
+  id: z.number().int().positive(),
+  type: z.enum(AGREEMENT_TYPES),
+  /** Proposer first. For a trade, the first party sends the resource. */
+  parties: z.tuple([z.number().int().positive(), z.number().int().positive()]),
+  terms: TradeTermsSchema.nullable(),
+  /** False while it is still an offer nobody has answered. */
+  accepted: z.boolean(),
+  /** The tick somebody gave notice, or null. Not an expiry — see §6.5. */
+  noticeAt: z.number().int().nonnegative().nullable(),
+  noticeBy: z.number().int().positive().nullable(),
+});
+export type AgreementView = z.infer<typeof AgreementViewSchema>;
+
 export const FullStateSchema = z.object({
   t: z.literal("full"),
   tick: z.number().int().nonnegative(),
@@ -413,6 +546,16 @@ export const FullStateSchema = z.object({
   controllers: z.array(z.number().int().nonnegative()),
   /** Building counts for every province, flat. */
   buildings: z.array(z.number().int().nonnegative()),
+  /**
+   * Every nation's trust, indexed by nation id. Index 0 is unused.
+   *
+   * Public to everybody (§7), and deliberately so: a nation that has broken
+   * its word is supposed to be visibly harder to deal with, and that only
+   * works if the number is on everyone's screen.
+   */
+  trust: z.array(z.number()),
+  /** Agreements and proposals this session may see. */
+  agreements: z.array(AgreementViewSchema),
   /** This session's own economy, or null when watching. */
   economy: NationEconomySchema.nullable(),
 });
@@ -427,6 +570,17 @@ export const DeltaSchema = z.object({
   owner: ProvinceChangeSchema,
   /** [provinceId, buildingIndex, newCount] — what finished this tick. */
   buildings: BuildingChangeSchema,
+  /** Every nation's trust, as in the full state. */
+  trust: z.array(z.number()),
+  /**
+   * Agreements and proposals this session may see, in full, every tick.
+   *
+   * Not a change list. There are a few dozen of these in a world and a
+   * proposal arriving is the one piece of diplomacy that must never be
+   * missed — a diff of a list this small would be more code to get wrong
+   * than it could ever save.
+   */
+  agreements: z.array(AgreementViewSchema),
   /** This session's own economy, recomputed every tick, or null when watching. */
   economy: NationEconomySchema.nullable(),
 });

@@ -17,6 +17,17 @@
  * deal, because it is what makes "the client derives no state" checkable.
  */
 
+import {
+  AGREEMENT_TYPES,
+  MARKET_BUY_POINTS,
+  MARKET_SELL_POINTS,
+  MAX_MARKET_PER_TICK,
+  MAX_TRADE_POINTS_PER_TICK,
+  MAX_TRADE_RESOURCE_PER_TICK,
+  TRUST_COST,
+  type AgreementType,
+} from "src/shared/config/diplomacy";
+import { RESOURCES, type Resource } from "src/shared/config/provinces";
 import { DIVISION_MANPOWER } from "src/shared/config/rates";
 import {
   isAvailable,
@@ -24,6 +35,7 @@ import {
   TECHS,
   type TechId,
 } from "src/shared/config/techs";
+import { TICKS_PER_DAY } from "src/shared/config/time";
 import {
   BUILDING_TYPES,
   buildingIndex,
@@ -37,7 +49,12 @@ import {
 } from "src/shared/economy/Equipment";
 import type { Province } from "src/shared/map/Province";
 import { TerrainType } from "src/shared/map/Terrain";
-import type { NationEconomyView, NationStatic } from "src/shared/protocol/Wire";
+import type {
+  AgreementView,
+  NationEconomyView,
+  NationStatic,
+  TradeTermsView,
+} from "src/shared/protocol/Wire";
 import { amount, daysRemaining, fraction, perDay, share } from "./Format";
 import { t, type StringKey } from "./strings";
 
@@ -65,6 +82,15 @@ const STYLE = `
 #world-province { top: 1rem; right: 1rem; width: 17rem; }
 #world-production { bottom: 1rem; left: 1rem; width: 20rem; max-height: 60vh; }
 #world-research { bottom: 1rem; right: 1rem; width: 18rem; max-height: 50vh; }
+#world-diplomacy { bottom: 1rem; left: 21.5rem; width: 21rem; max-height: 70vh; }
+#world-hud input[type=number] {
+  width: 100%; margin-top: .25rem; padding: .25rem;
+  background: rgba(255,255,255,.06); color: #eee; font: inherit;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 4px;
+}
+#world-hud .pair { display: flex; gap: .25rem; }
+#world-hud .pair > * { flex: 1 1 0; min-width: 0; }
+#world-hud .warn { color: #f0a; }
 #world-hud .line { margin-bottom: .55rem; padding-bottom: .45rem;
   border-bottom: 1px solid rgba(255,255,255,.08); }
 #world-hud .controls { display: flex; gap: .25rem; margin-top: .25rem; }
@@ -100,6 +126,10 @@ export interface HudModel {
   /** Flat, province * BUILDING_TYPES.length + type. */
   buildings: number[];
   economy: NationEconomyView | null;
+  /** Every nation's trust, indexed by nation id. Public to everyone (§7). */
+  trust: number[];
+  /** Agreements and offers this session may see. Terms only for its own. */
+  agreements: AgreementView[];
   selected: number | null;
 }
 
@@ -120,6 +150,13 @@ export interface HudActions {
   raiseDivision(province: number): void;
   startResearch(slot: number, tech: TechId): void;
   cancelResearch(slot: number): void;
+  /** Terms for a trade, null for everything else. Rates are per tick. */
+  propose(to: number, type: AgreementType, terms: TradeTermsView | null): void;
+  acceptAgreement(agreementId: number): void;
+  declineAgreement(agreementId: number): void;
+  /** The expensive one. The button that calls this says what it costs. */
+  cancelAgreement(agreementId: number): void;
+  setMarketOrder(resource: Resource, perTick: number): void;
 }
 
 const TERRAIN_KEY: Partial<Record<TerrainType, StringKey>> = {
@@ -135,6 +172,21 @@ export class Hud {
   private readonly provincePanel: HTMLElement;
   private readonly productionPanel: HTMLElement;
   private readonly researchPanel: HTMLElement;
+  private readonly diplomacyPanel: HTMLElement;
+  /**
+   * The diplomacy panel is the only one with a form in it, and a form cannot
+   * be rebuilt once a tick.
+   *
+   * Every other panel is a pure function of the model and is thrown away and
+   * redrawn every update, which is what makes "the client derives no state"
+   * checkable. A half-typed trade rate is not derived state, though — it is
+   * the player mid-sentence — and rebuilding the inputs under them would clear
+   * the field and take the focus with it every five seconds. So the lists are
+   * redrawn and the form is built once, kept, and moved into place.
+   */
+  private diplomacyList: HTMLElement | null = null;
+  private diplomacyForm: HTMLElement | null = null;
+  private diplomacyWho: HTMLSelectElement | null = null;
 
   constructor(private readonly actions: HudActions) {
     const style = document.createElement("style");
@@ -148,6 +200,7 @@ export class Hud {
     this.provincePanel = this.panel("world-province");
     this.productionPanel = this.panel("world-production");
     this.researchPanel = this.panel("world-research");
+    this.diplomacyPanel = this.panel("world-diplomacy");
     document.body.appendChild(this.root);
   }
 
@@ -166,6 +219,7 @@ export class Hud {
     this.renderProvince(model);
     this.renderProduction(model);
     this.renderResearch(model);
+    this.renderDiplomacy(model);
   }
 
   // -------------------------------------------------------------------------
@@ -625,6 +679,347 @@ export class Hud {
 
     this.researchPanel.replaceChildren(...children);
   }
+
+  /**
+   * Diplomacy: what has been offered, what stands, and what the market wants.
+   *
+   * Everything here is per in-game day (invariant 9) and the wire is per tick,
+   * so every rate is multiplied on the way out and divided on the way in. The
+   * two prices a player has to see before deciding are both on their buttons:
+   * what a cancellation costs in trust, and what the market charges for a
+   * resource nobody will sell them.
+   */
+  private renderDiplomacy(model: HudModel): void {
+    const nation = model.nation;
+    this.diplomacyPanel.hidden = nation === null || model.economy === null;
+    if (nation === null || model.economy === null) return;
+
+    const mine = model.agreements.filter((a) => a.parties.includes(nation));
+    const offersToMe = mine.filter(
+      (a) => !a.accepted && a.parties[1] === nation,
+    );
+    const offersFromMe = mine.filter(
+      (a) => !a.accepted && a.parties[0] === nation,
+    );
+    const standing = mine.filter((a) => a.accepted);
+
+    const children: Node[] = [
+      heading(t("diplomacy.title")),
+      row(t("diplomacy.trust"), amount(model.trust[nation] ?? 0)),
+      row(
+        t("diplomacy.tradeBalance"),
+        `${perDay(model.economy.tradePointsIn)} / ${perDay(model.economy.tradePointsOut)}`,
+      ),
+    ];
+
+    // Offers waiting on this player first: it is the only thing on this panel
+    // that somebody else is waiting for an answer to.
+    children.push(spacer(), heading(t("diplomacy.offers")));
+    if (offersToMe.length === 0) children.push(muted(t("diplomacy.noOffers")));
+    for (const offer of offersToMe) {
+      const item = document.createElement("div");
+      item.className = "line";
+      item.append(
+        row(
+          t(`agreement.${offer.type}` as StringKey),
+          nationName(model, offer.parties[0]),
+        ),
+      );
+      if (offer.terms !== null) item.append(muted(termsLine(offer.terms)));
+      const controls = document.createElement("div");
+      controls.className = "controls";
+      const accept = document.createElement("button");
+      accept.textContent = t("diplomacy.accept");
+      accept.addEventListener("click", () =>
+        this.actions.acceptAgreement(offer.id),
+      );
+      const decline = document.createElement("button");
+      decline.textContent = t("diplomacy.decline");
+      decline.addEventListener("click", () =>
+        this.actions.declineAgreement(offer.id),
+      );
+      controls.append(accept, decline);
+      item.append(controls);
+      children.push(item);
+    }
+
+    for (const offer of offersFromMe) {
+      const item = document.createElement("div");
+      item.className = "line";
+      item.append(
+        row(
+          t("diplomacy.offered", {
+            type: t(`agreement.${offer.type}` as StringKey),
+          }),
+          nationName(model, offer.parties[1]),
+        ),
+      );
+      if (offer.terms !== null) item.append(muted(termsLine(offer.terms)));
+      const withdraw = document.createElement("button");
+      withdraw.textContent = t("diplomacy.withdraw");
+      withdraw.addEventListener("click", () =>
+        this.actions.declineAgreement(offer.id),
+      );
+      item.append(withdraw);
+      children.push(item);
+    }
+
+    children.push(spacer(), heading(t("diplomacy.standing")));
+    if (standing.length === 0)
+      children.push(muted(t("diplomacy.noneStanding")));
+    for (const agreement of standing) {
+      const other =
+        agreement.parties[0] === nation
+          ? agreement.parties[1]
+          : agreement.parties[0];
+      const item = document.createElement("div");
+      item.className = "line";
+      item.append(
+        row(
+          t(`agreement.${agreement.type}` as StringKey),
+          nationName(model, other),
+        ),
+      );
+      if (agreement.terms !== null) {
+        item.append(
+          muted(
+            agreement.parties[0] === nation
+              ? t("diplomacy.youSend", {
+                  terms: termsLine(agreement.terms),
+                })
+              : t("diplomacy.youReceive", {
+                  terms: termsLine(agreement.terms),
+                }),
+          ),
+        );
+      }
+
+      if (agreement.noticeAt === null) {
+        // **The price is on the button** — the same reasoning as the
+        // production line's switch. An indefinite commitment whose exit cost
+        // is hidden until after the click is not a commitment a player made.
+        const cancel = document.createElement("button");
+        cancel.textContent = t("diplomacy.cancel", {
+          trust: String(TRUST_COST[agreement.type]),
+        });
+        cancel.addEventListener("click", () =>
+          this.actions.cancelAgreement(agreement.id),
+        );
+        item.append(cancel);
+      } else {
+        const notice = document.createElement("div");
+        notice.className = "warn";
+        notice.textContent =
+          agreement.noticeBy === nation
+            ? t("diplomacy.noticeGiven")
+            : t("diplomacy.noticeReceived", {
+                nation: nationName(model, agreement.noticeBy ?? 0),
+              });
+        item.append(notice);
+      }
+      children.push(item);
+    }
+
+    // What the market is actually moving for this nation, if anything.
+    const moving = RESOURCES.filter(
+      (resource) =>
+        Math.abs(model.economy?.tradeResourcePerTick[resource] ?? 0) > 1e-9,
+    );
+    if (moving.length > 0) {
+      children.push(spacer(), heading(t("diplomacy.market")));
+      for (const resource of moving) {
+        children.push(
+          row(
+            t(`economy.${resource}` as StringKey),
+            t("diplomacy.netFlow", {
+              rate: perDay(model.economy.tradeResourcePerTick[resource]),
+            }),
+          ),
+        );
+      }
+    }
+
+    // The lists are redrawn; the form below them is not. See the field
+    // declarations for why.
+    if (this.diplomacyList === null) {
+      this.diplomacyList = document.createElement("div");
+      this.diplomacyPanel.append(this.diplomacyList);
+    }
+    this.diplomacyList.replaceChildren(...children);
+    this.buildDiplomacyForm(model);
+    this.refreshNationOptions(model);
+  }
+
+  /**
+   * Keep the trust figures in the nation picker current.
+   *
+   * In place, on the options that are already there. Rebuilding the select
+   * would be simpler and would throw away whatever the player had chosen, on
+   * every tick — which is the same failure the form itself is built once to
+   * avoid.
+   */
+  private refreshNationOptions(model: HudModel): void {
+    const who = this.diplomacyWho;
+    if (who === null) return;
+    for (const option of Array.from(who.options)) {
+      const id = Number(option.value);
+      const name =
+        model.nations.find((n) => n.smallID === id)?.name ?? `#${id}`;
+      const label = `${name} — ${t("diplomacy.trustShort", {
+        trust: amount(model.trust[id] ?? 0),
+      })}`;
+      if (option.textContent !== label) option.textContent = label;
+    }
+  }
+
+  /**
+   * The half of the diplomacy panel a player types into, built exactly once.
+   *
+   * Lazily, because it needs the nation list, which arrives with the first
+   * full state — and once, because a player entering a rate is mid-sentence
+   * and an update every five seconds would take the field out from under them.
+   */
+  private buildDiplomacyForm(model: HudModel): void {
+    if (this.diplomacyForm !== null) return;
+    if (model.nation === null || model.nations.length === 0) return;
+    const nation = model.nation;
+
+    const form = document.createElement("div");
+    // Proposing. Nation, type, and — for a trade — what each side sends.
+    const who = document.createElement("select");
+    for (const other of model.nations) {
+      if (other.smallID === nation) continue;
+      const option = document.createElement("option");
+      option.value = String(other.smallID);
+      option.textContent = `${other.name} — ${t("diplomacy.trustShort", {
+        trust: amount(model.trust[other.smallID] ?? 0),
+      })}`;
+      who.append(option);
+    }
+    const what = document.createElement("select");
+    for (const type of AGREEMENT_TYPES) {
+      const option = document.createElement("option");
+      option.value = type;
+      option.textContent = t(`agreement.${type}` as StringKey);
+      what.append(option);
+    }
+    const give = document.createElement("select");
+    for (const resource of RESOURCES) {
+      const option = document.createElement("option");
+      option.value = resource;
+      option.textContent = t(`economy.${resource}` as StringKey);
+      give.append(option);
+    }
+    const rate = numberInput(
+      24 * 0.25,
+      MAX_TRADE_RESOURCE_PER_TICK * TICKS_PER_DAY,
+    );
+    const price = numberInput(
+      24 * 0.25,
+      MAX_TRADE_POINTS_PER_TICK * TICKS_PER_DAY,
+    );
+    const terms = document.createElement("div");
+    terms.append(give, pair(rate, price));
+    const offer = document.createElement("button");
+    const syncTerms = (): void => {
+      terms.hidden = what.value !== "trade";
+    };
+    what.addEventListener("change", syncTerms);
+    syncTerms();
+    offer.textContent = t("diplomacy.send");
+    offer.addEventListener("click", () => {
+      const type = what.value as AgreementType;
+      this.actions.propose(
+        Number(who.value),
+        type,
+        type === "trade"
+          ? {
+              resource: give.value as Resource,
+              // Per day on the screen, per tick on the wire. The server
+              // enforces the same ceilings and its answer is the one that
+              // counts (§7).
+              resourcePerTick: Number(rate.value) / TICKS_PER_DAY,
+              pointsPerTick: Number(price.value) / TICKS_PER_DAY,
+            }
+          : null,
+      );
+    });
+    form.append(
+      spacer(),
+      heading(t("diplomacy.propose")),
+      who,
+      what,
+      terms,
+      offer,
+    );
+
+    // The market. Always there, always a bad deal, and never an obligation.
+    // Its rates are constants, so they belong here with the controls; what a
+    // nation is actually moving changes every tick and is drawn with the
+    // lists above.
+    form.append(spacer(), heading(t("diplomacy.market")));
+    for (const resource of RESOURCES) {
+      form.append(
+        row(
+          t(`economy.${resource}` as StringKey),
+          t("diplomacy.marketRates", {
+            buy: String(MARKET_BUY_POINTS[resource]),
+            sell: String(MARKET_SELL_POINTS[resource]),
+          }),
+        ),
+      );
+    }
+    const marketResource = document.createElement("select");
+    for (const resource of RESOURCES) {
+      const option = document.createElement("option");
+      option.value = resource;
+      option.textContent = t(`economy.${resource}` as StringKey);
+      marketResource.append(option);
+    }
+    const marketRate = numberInput(
+      -MAX_MARKET_PER_TICK * TICKS_PER_DAY,
+      MAX_MARKET_PER_TICK * TICKS_PER_DAY,
+    );
+    const marketButton = document.createElement("button");
+    marketButton.textContent = t("diplomacy.setOrder");
+    marketButton.addEventListener("click", () =>
+      this.actions.setMarketOrder(
+        marketResource.value as Resource,
+        Number(marketRate.value) / TICKS_PER_DAY,
+      ),
+    );
+    form.append(marketResource, marketRate, marketButton);
+
+    this.diplomacyWho = who;
+    this.diplomacyForm = form;
+    this.diplomacyPanel.append(form);
+  }
+}
+
+/** One trade's terms in a line, per day like everything else on screen. */
+function termsLine(terms: TradeTermsView): string {
+  return t("diplomacy.terms", {
+    resource: t(`economy.${terms.resource}` as StringKey),
+    rate: perDay(terms.resourcePerTick),
+    points: perDay(terms.pointsPerTick),
+  });
+}
+
+function numberInput(min: number, max: number): HTMLInputElement {
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = String(min);
+  input.max = String(max);
+  input.step = "0.5";
+  input.value = "0";
+  return input;
+}
+
+function pair(a: HTMLElement, b: HTMLElement): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "pair";
+  element.append(a, b);
+  return element;
 }
 
 function nationName(model: HudModel, nation: number): string {
