@@ -180,6 +180,18 @@ export interface WorldChanges {
 }
 
 /**
+ * Which build of `stateHash()` a snapshot was written by.
+ *
+ * Bumped whenever the hash function changes what it covers — which is most
+ * simulation changes, because every field of the state goes in. The restore
+ * compares hashes only *within* a version: a snapshot from another version is
+ * accepted with a loud log line instead of being refused as damaged, because
+ * a changed function cannot tell corruption from its own history. That is
+ * what lets a season survive a deploy (docs/decisions/0016).
+ */
+export const STATE_HASH_VERSION = 1;
+
+/**
  * Everything needed to put the world back, and nothing that can be derived.
  *
  * The province map is not in here. It is static map data checked in beside the
@@ -190,6 +202,12 @@ export interface WorldChanges {
  */
 export interface WorldSnapshot {
   tick: number;
+  /**
+   * Optional: a snapshot from before the version existed reads as 1, because
+   * the hash function did not change between then and version 1 being written
+   * down — so the corruption check still holds across that boundary.
+   */
+  hashVersion?: number;
   mapId: string;
   terrainHash: number;
   partitionHash: number;
@@ -549,6 +567,7 @@ export class World {
   snapshot(): WorldSnapshot {
     return {
       tick: this.state.tick,
+      hashVersion: STATE_HASH_VERSION,
       mapId: this.descriptor.id,
       terrainHash: this.descriptor.terrainHash,
       partitionHash: this.descriptor.partitionHash,

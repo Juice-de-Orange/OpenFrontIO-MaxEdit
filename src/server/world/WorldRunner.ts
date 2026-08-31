@@ -35,6 +35,7 @@ import type { WorldStore } from "../db/Store";
 import type { CommandResult } from "../net/WsServer";
 import { TickLoop } from "./TickLoop";
 import type { World, WorldChanges } from "./World";
+import { STATE_HASH_VERSION } from "./World";
 
 export interface WorldRunnerOptions {
   world: World;
@@ -89,21 +90,30 @@ export class WorldRunner {
     const snapshot = await this.store.latestSnapshot(this.worldId);
     if (snapshot !== null) {
       this.world.restoreFrom(snapshot.state);
-      if (this.world.stateHash() !== snapshot.stateHash) {
-        // **Usually the code, not the data.** `stateHash` mixes every field
-        // the simulation owns, so adding one to the world changes what every
-        // existing snapshot hashes to — and the honest reading of a mismatch
-        // is "this world was written by a different build", not "your
-        // database is corrupt". Saying the second sent someone looking at
-        // Postgres for an afternoon. There is no migration for it: a world
-        // whose state shape changed under it is started fresh.
+      // The corruption check holds only *within* a hash version. Across one,
+      // the function itself has changed, and a mismatch is its history rather
+      // than damage — refusing it here is what used to end a season on every
+      // deploy that touched the state (docs/decisions/0016). A missing field
+      // reads as 1: the function did not change before versioning existed.
+      const written = snapshot.state.hashVersion ?? 1;
+      if (written !== STATE_HASH_VERSION) {
+        console.warn(
+          `[world] state-hash check skipped for this load: the snapshot at ` +
+            `tick ${snapshot.tick} was written by hash version ${written}, ` +
+            `this build computes version ${STATE_HASH_VERSION}. The next ` +
+            `snapshot re-arms the check.`,
+        );
+      } else if (this.world.stateHash() !== snapshot.stateHash) {
+        // **Within a version it is the data.** `stateHash` mixes every field
+        // the simulation owns; when the function that wrote the snapshot is
+        // the function checking it, a mismatch means the stored state really
+        // did come back different, and loading it would run a world that is
+        // quietly wrong everywhere.
         throw new Error(
           `snapshot at tick ${snapshot.tick} hashes to ` +
             `${snapshot.stateHash.toString(16)} but this build computes ` +
-            `${this.world.stateHash().toString(16)}. Either the world state ` +
-            `gained a field since it was written — in which case this world ` +
-            `cannot be resumed by this build and needs to be started fresh ` +
-            `(docker compose down -v) — or the stored state really is damaged.`,
+            `${this.world.stateHash().toString(16)} under the same hash ` +
+            `version ${written}; the stored state is damaged.`,
         );
       }
       this.lastSnapshotTick = snapshot.tick;

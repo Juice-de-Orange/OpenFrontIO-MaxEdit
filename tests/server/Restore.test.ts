@@ -1,6 +1,6 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { MemoryStore } from "../../src/server/db/MemoryStore";
-import { World } from "../../src/server/world/World";
+import { STATE_HASH_VERSION, World } from "../../src/server/world/World";
 import { WorldRunner } from "../../src/server/world/WorldRunner";
 import { mapFixture } from "../util/worldFixture";
 
@@ -374,6 +374,79 @@ describe("restore", () => {
       worldId: WORLD_ID,
     });
     await expect(runner.restore()).rejects.toThrow(/damaged/);
+  });
+
+  test("a snapshot with no hash version is checked as version 1", async () => {
+    // Before versioning existed the field was absent, and the function did
+    // not change between then and version 1 being written down — so the
+    // corruption check must still hold across that boundary, not lapse.
+    const store = new MemoryStore();
+    const world = newWorld();
+    await store.ensureWorld(
+      WORLD_ID,
+      fixture.descriptor.id,
+      fixture.descriptor.terrainHash,
+      fixture.descriptor.partitionHash,
+    );
+    const state = world.snapshot();
+    delete state.hashVersion;
+    state.owners[0] = state.owners[0] === 1 ? 2 : 1;
+    await store.writeSnapshot(WORLD_ID, {
+      tick: state.tick,
+      stateHash: world.stateHash(),
+      state,
+    });
+
+    const runner = new WorldRunner({
+      world: newWorld(),
+      store,
+      worldId: WORLD_ID,
+    });
+    if (STATE_HASH_VERSION === 1) {
+      await expect(runner.restore()).rejects.toThrow(/damaged/);
+    } else {
+      // Once the version has moved past 1, an unversioned snapshot really is
+      // from another hash function and must load under the skip rule instead.
+      await expect(runner.restore()).resolves.toBe(state.tick);
+    }
+  });
+
+  test("a snapshot from another hash version loads, loudly", async () => {
+    // The check cannot tell corruption from its own history once the function
+    // has changed, and refusing here is what used to end a season on every
+    // deploy that touched the state (docs/decisions/0016). Accept, and say so.
+    const store = new MemoryStore();
+    const world = newWorld();
+    await store.ensureWorld(
+      WORLD_ID,
+      fixture.descriptor.id,
+      fixture.descriptor.terrainHash,
+      fixture.descriptor.partitionHash,
+    );
+    const state = world.snapshot();
+    state.hashVersion = STATE_HASH_VERSION + 1;
+    await store.writeSnapshot(WORLD_ID, {
+      tick: state.tick,
+      // Deliberately not what any build computes: across versions the number
+      // is meaningless, and the restore must not compare it at all.
+      stateHash: 0xdeadbeef,
+      state,
+    });
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const runner = new WorldRunner({
+        world: newWorld(),
+        store,
+        worldId: WORLD_ID,
+      });
+      await expect(runner.restore()).resolves.toBe(state.tick);
+      const said = warn.mock.calls.map((call) => String(call[0])).join("\n");
+      expect(said).toMatch(/state-hash check skipped/);
+      expect(said).toContain(`version ${STATE_HASH_VERSION + 1}`);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test("a snapshot from another map is refused rather than loaded", async () => {
