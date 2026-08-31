@@ -710,14 +710,34 @@ everybody._
 
 ## 10. Known open questions
 
-Flag these when they become blocking rather than deciding them early:
+**All six are now decided.** They were left open deliberately and answered
+when they became blocking, which is what this section asked for. Kept here with
+their answers rather than deleted, because the reasoning is what a later phase
+will want.
 
-- Season victory condition specifics, evaluated over alliance blocs
-- Manpower model — conscription laws, or a simple population-scaled cap
-- How new players enter a world already in progress
-- Whether occupied provinces produce at reduced rate or not at all
-- Whether ships are hull-and-module designed or just three fixed types
-- Whether trade agreements can carry equipment as well as resources
+- **Season victory: a threshold, or the clock.** An alliance bloc holding
+  **40% of all provinces for 7 in-game days** wins outright; if nobody does,
+  the season ends after **six weeks** and the highest score wins (provinces,
+  industry, trust). A game can be won early and is guaranteed to end. Blocs
+  rather than nations, per §6.5 — evaluating individuals would make alliances
+  self-defeating and nobody would form one.
+- **Manpower is a population-scaled cap**, not a conscription law
+  (docs/decisions/0008).
+- **New players take a nation no account holds**, inheriting whatever the
+  regent has built. The map has 52 nations; nobody starts from nothing against
+  weeks of head start, and it needs no catch-up constant to tune.
+- **Occupied provinces produce at a reduced rate**
+  (`OCCUPIED_OUTPUT_FACTOR`).
+- **Three fixed ship types** — submarine, escort, capital ship — exactly as
+  §6.8 describes them, as equipment types that already exist. They are rows in
+  the formation table from phase 8, and need no new mechanic. §10 excludes
+  equipment designers, and a hull-and-module system is one.
+- **Trade agreements may carry equipment as well as resources.** It lets
+  allies specialise — one builds armour, another aircraft — which is a real
+  strategic choice and uses the trade system already built. The efficiency ramp
+  (§6.2) is what stops it from replacing industry: buying equipment costs
+  construction points that are not building factories, and a nation that buys
+  everything never climbs a ramp.
 
 **Deliberately excluded, with reasons:**
 
