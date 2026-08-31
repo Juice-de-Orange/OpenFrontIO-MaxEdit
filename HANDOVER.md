@@ -54,25 +54,30 @@ needs a faster clock — see below — and last ran:
 
 ```
 phase-3 gate
-  world world-0 at tick 61, 50 ms a tick
+  world world-0 at tick 80, 50 ms a tick
   playing nation 17
   ok    a nation is sent its own economy; a spectator is not
   queued a civilian factory in province 167 (0 refused on the way)
-  ok    progress was observed moving on 102 separate ticks
+  ok    progress was observed moving on 97 separate ticks
   ok    it only ever went up, and never by more than a tenth of the project
   ok    province 167 has one more civilian factory (0 -> 1)
-  ok    the completion was seen on tick 492, with the tick before it
+  ok    the completion was seen on tick 502, with the tick before it
   ok    construction output rose on the tick it finished: 2.700 -> 3.200 a tick
   ok    and the queue emptied itself when it was done
   building military factories until the mines cannot keep up...
+  factory 1 in province 167 (demand 0.40, mined 1.29)
+  factory 2 in province 168 (demand 0.60, mined 1.11)
+  factory 3 in province 168 (demand 0.80, mined 1.15)
+  factory 4 in province 156 (demand 0.60, mined 0.54)
+  factory 5 in province 158 (demand 1.00, mined 0.48)
   ok    5 more military factories now demand 1.20 steel a tick against 0.36 mined
   waiting for the stockpile to run out...
-  ok    sufficiency fell to 56.4%
-  ok    industry kept running at 0.541 a tick rather than stopping
-  ok    and it ran at exactly the share of demand that was covered — 56.4% of 0.960
+  ok    sufficiency fell to 68.4%
+  ok    industry kept running at 1.149 a tick rather than stopping
+  ok    and it ran at exactly the share of demand that was covered — 68.4% of 1.680
   ok    the factories are still there and still asking for resources
   ok    and construction was untouched — civilian factories draw nothing
-  ok    the world stayed healthy throughout (0 ms behind at tick 4288)
+  ok    the world stayed healthy throughout (0 ms behind at tick 4316)
 PASS
 ```
 
@@ -80,9 +85,15 @@ The last five lines are the gate. Everything above them is the gate putting the
 nation in a position where invariant 2 can be observed: it builds military
 factories until they demand two and a half times what the mines produce, and
 then waits for the stockpile to go. What the economy must not do is stop — and
-it did not; it ran at 56.4% of what it asked for, exactly the share of its
+it did not; it ran at 68.4% of what it asked for, exactly the share of its
 demand that was covered, and construction, which draws no resources, was
 untouched.
+
+The per-factory lines are there because the build-up needs to be readable: the
+extraction it is trying to outgrow **grows with every conquest**, so the target
+moves while the gate chases it. There is one budget over the whole phase, and
+when it runs out the gate measures the world it has rather than waiting for the
+one it wanted.
 
 A queued order whose province has been lost **waits** — that is the
 construction system working as designed, and a queue that cancelled itself

@@ -193,9 +193,21 @@ const BUILD_UP_BUDGET_MS = 180_000;
  * server's, and the gate asks rather than reimplementing them. The refusals on
  * the way are the rejection path being exercised for free.
  */
-async function queueSomewhere(player, building, idPrefix) {
+async function queueSomewhere(player, building, idPrefix, preferred = -1) {
   let refused = 0;
+
+  // Every probe is a command, and every command waits a tick to be acked. A
+  // nation holding forty provinces therefore spent forty ticks per attempt
+  // walking a list that gave the same answer as last time — which is most of
+  // why the build-up took minutes per factory rather than seconds. Try what
+  // worked last, then fall back to the walk.
+  const order = [preferred];
   for (let province = 0; province < player.controllers.length; province++) {
+    if (province !== preferred) order.push(province);
+  }
+
+  for (const province of order) {
+    if (province < 0) continue;
     if (player.controllers[province] !== player.nation) continue;
     if (player.owners[province] !== player.nation) continue;
     const ack = await player.command(
@@ -424,6 +436,7 @@ async function main() {
   // more province to try, one more order to replace. A gate has to be able to
   // give up on getting the world it wanted and measure the one it has.
   const buildUpUntil = Date.now() + BUILD_UP_BUDGET_MS;
+  let lastGoodProvince = -1;
   while (
     !skipBuildUp &&
     built < MAX_MILITARY_FACTORIES &&
@@ -440,7 +453,9 @@ async function main() {
       player,
       "military_factory",
       `mil-${built}`,
+      lastGoodProvince,
     );
+    lastGoodProvince = order.province;
     built++;
     log(
       `  factory ${built} in province ${order.province} ` +
