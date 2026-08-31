@@ -45,10 +45,6 @@ const MAX_TICK_MS = 200;
 
 const MESSAGE_TIMEOUT_MS = 300_000;
 
-/** EQUIPMENT_TYPES.indexOf(...) in src/shared/economy/Equipment.ts. */
-const INFANTRY_EQUIPMENT = 0;
-const ARTILLERY = 1;
-
 /** BUILDING_TYPES.length, and buildingIndex("supply_hub"). */
 const BUILDING_COUNT = 10;
 const SUPPLY_HUB = 7;
@@ -575,17 +571,24 @@ async function main() {
   // across the template, and half a template is nothing. Moving factories
   // between lines is free (§6.2 resets only on a type change), so the gate
   // makes guns, then makes rifles, then stops.
-  const stock = (index) => player.economy.stockpile[index] ?? 0;
-  const needGuns = raised.length * 12 * MIN_STRENGTH * 4;
-  const needRifles = raised.length * 100 * MIN_STRENGTH * 4;
+  // **Wait on strength, never on the stockpile.** The stockpile is a
+  // pass-through while any division is below template: `reinforce` hands out a
+  // fraction of every division's shortfall every tick, and four divisions
+  // wanting artillery drain it faster than two factories can make it. Waiting
+  // for "ten guns in store" therefore waits for ever — measured, with the
+  // warehouse reading 0.3 while the line had been running for 270 ticks and
+  // the nation sat at sufficiency 1.0 with five thousand steel. The equipment
+  // was not missing; it was already in the divisions.
+  const strengthOf = (id) =>
+    player.economy.divisions.find((d) => d.id === id)?.strength ?? 0;
 
   await assignUpTo(player, guns, held, "on-guns");
   await player.waitUntil(
-    () => stock(ARTILLERY) >= needGuns,
-    `${needGuns.toFixed(0)} guns`,
-    SETUP_BUDGET_MS / 2,
+    () => raised.every((id) => strengthOf(id) > 0),
+    "the divisions to draw their guns",
+    SETUP_BUDGET_MS / 3,
   );
-  log(`  ${stock(ARTILLERY).toFixed(1)} guns made; retooling for rifles`);
+  log(`  guns drawn; retooling for rifles`);
 
   await player.command(
     { kind: "assign_factories", lineId: guns, factories: 0 },
@@ -597,12 +600,6 @@ async function main() {
     20_000,
   );
   await assignUpTo(player, rifles, held, "on-rifles");
-  await player.waitUntil(
-    () => stock(INFANTRY_EQUIPMENT) >= needRifles,
-    `${needRifles.toFixed(0)} rifles`,
-    SETUP_BUDGET_MS / 2,
-  );
-  log(`  ${stock(INFANTRY_EQUIPMENT).toFixed(1)} rifles made`);
 
   const equipped = await player.waitUntil(
     (p) =>
