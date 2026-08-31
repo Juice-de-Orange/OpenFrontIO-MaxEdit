@@ -36,6 +36,17 @@ import type { ProvinceMap } from "src/shared/map/ProvinceMap";
 
 /** One item in a nation's construction queue. */
 export interface ConstructionOrder {
+  /**
+   * Stable for the life of the order, and unique within the nation.
+   *
+   * The queue used to be addressed by position, and two cancellations sent in
+   * the same five seconds then cancelled the wrong things: the first shifts
+   * the queue, so the second removes whatever has moved into that slot — or is
+   * refused as out of range, leaving the player with an "accepted" ack and an
+   * order still sitting there. Positions are what a player clicks; they are
+   * not what a command should carry.
+   */
+  id: number;
   provinceId: number;
   building: BuildingType;
   /** Construction points accrued. Persists; nothing here completes at once. */
@@ -45,6 +56,14 @@ export interface ConstructionOrder {
 export interface NationState {
   resources: Record<Resource, number>;
   constructionQueue: ConstructionOrder[];
+  /**
+   * The id the next order will get. Monotonic, never reused.
+   *
+   * In the snapshot and in the state hash, because a restore that handed out
+   * an id twice would give a nation two orders a cancellation cannot tell
+   * apart.
+   */
+  nextOrderId: number;
 }
 
 export interface WorldState {
@@ -139,6 +158,7 @@ export function createWorldState(
     state.nations.push({
       resources: { ...starting.resources },
       constructionQueue: [],
+      nextOrderId: 1,
     });
   }
 
@@ -174,8 +194,13 @@ export type WorldEvent =
       /** Signed, per resource. Applied and then clamped to [0, RESOURCE_CAP]. */
       delta: Partial<Record<Resource, number>>;
     }
-  | { kind: "construction_queued"; nation: number; order: ConstructionOrder }
-  | { kind: "construction_cancelled"; nation: number; index: number }
+  | {
+      kind: "construction_queued";
+      nation: number;
+      /** Without its id: the reducer assigns one, so a replay assigns the same. */
+      order: Omit<ConstructionOrder, "id">;
+    }
+  | { kind: "construction_cancelled"; nation: number; orderId: number }
   | {
       kind: "construction_progressed";
       nation: number;
@@ -224,13 +249,23 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
       return;
     }
 
-    case "construction_queued":
-      state.nations[event.nation].constructionQueue.push(event.order);
+    case "construction_queued": {
+      // The id is assigned here, not by the caller, so a replay of the same
+      // command log hands out the same ids in the same order.
+      const nation = state.nations[event.nation];
+      nation.constructionQueue.push({
+        ...event.order,
+        id: nation.nextOrderId++,
+      });
       return;
+    }
 
-    case "construction_cancelled":
-      state.nations[event.nation].constructionQueue.splice(event.index, 1);
+    case "construction_cancelled": {
+      const queue = state.nations[event.nation].constructionQueue;
+      const at = queue.findIndex((order) => order.id === event.orderId);
+      if (at >= 0) queue.splice(at, 1);
       return;
+    }
 
     case "construction_progressed": {
       const order = state.nations[event.nation].constructionQueue[event.index];

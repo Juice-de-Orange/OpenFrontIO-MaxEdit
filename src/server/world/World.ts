@@ -484,12 +484,36 @@ export class World {
 
       case "cancel_construction": {
         const queue = this.state.nations[nation].constructionQueue;
-        if (body.index < 0 || body.index >= queue.length) {
-          return `nothing at position ${body.index} in your construction queue`;
+        if (!queue.some((order) => order.id === body.orderId)) {
+          return `you have no construction order ${body.orderId}`;
         }
         return null;
       }
     }
+  }
+
+  /**
+   * Build orders this nation has had accepted but not yet applied.
+   *
+   * Only ever non-empty between a command being accepted and its tick running.
+   * Returned in the same shape as a queue entry so the limit checks can treat
+   * the two together.
+   */
+  private pendingOrders(nation: number): ConstructionOrder[] {
+    const orders: ConstructionOrder[] = [];
+    for (const commands of this.pending.values()) {
+      for (const command of commands) {
+        if (command.nation !== nation) continue;
+        if (command.body.kind !== "queue_construction") continue;
+        orders.push({
+          id: 0,
+          provinceId: command.body.provinceId,
+          building: command.body.building,
+          progress: 0,
+        });
+      }
+    }
+    return orders;
   }
 
   private hasProvince(province: number): boolean {
@@ -524,8 +548,20 @@ export class World {
     const spec = BUILDINGS[building];
     if (spec === undefined) return `there is no such building as ${building}`;
 
+    // Orders already in the queue, **plus** commands accepted this tick that
+    // have not been applied yet. Without the second, three build orders sent
+    // in the same five seconds are all validated against an empty queue, all
+    // acked "accepted for tick N", and the surplus is then silently skipped
+    // when the tick runs. That is the failure CLAUDE.md §7 is written against:
+    // the player sees nothing happen and cannot tell a refused order from a
+    // lost packet.
+    //
+    // At apply time this counts nothing, and correctly so — `step` removes the
+    // tick's commands from `pending` before running them, so everything
+    // earlier in the tick is already in the queue.
     const queue = this.state.nations[nation].constructionQueue;
-    if (queue.length >= MAX_QUEUE_LENGTH) {
+    const alsoPending = this.pendingOrders(nation);
+    if (queue.length + alsoPending.length >= MAX_QUEUE_LENGTH) {
       return `your construction queue is full (${MAX_QUEUE_LENGTH})`;
     }
 
@@ -544,7 +580,9 @@ export class World {
       return "that can only be built in a coastal province";
     }
 
-    const queuedHere = queue.filter((order) => order.provinceId === province);
+    const queuedHere = [...queue, ...alsoPending].filter(
+      (order) => order.provinceId === province,
+    );
 
     if (spec.takesSlot) {
       const pending = queuedHere.filter(
@@ -692,7 +730,9 @@ export class World {
           },
         ];
       case "cancel_construction":
-        return [{ kind: "construction_cancelled", nation, index: body.index }];
+        return [
+          { kind: "construction_cancelled", nation, orderId: body.orderId },
+        ];
     }
   }
 

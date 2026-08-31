@@ -167,7 +167,7 @@ export async function startWorldClient(
     claim: (province) => send({ kind: "claim_province", provinceId: province }),
     build: (province, building) =>
       send({ kind: "queue_construction", provinceId: province, building }),
-    cancel: (index) => send({ kind: "cancel_construction", index }),
+    cancel: (orderId) => send({ kind: "cancel_construction", orderId }),
   });
 
   // A click selects. It used to claim, which meant the only thing a player

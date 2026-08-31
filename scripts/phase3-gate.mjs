@@ -39,7 +39,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 4;
+const PROTOCOL_VERSION = 5;
 
 /** Above this the gate would take a quarter of an hour; say so instead. */
 const MAX_TICK_MS = 1000;
@@ -182,6 +182,9 @@ const MAX_STALLED = 6;
 
 /** Enough to outgrow any nation's mines; a cap so the gate cannot run forever. */
 const MAX_MILITARY_FACTORIES = 20;
+
+/** And how long the whole build-up may take before the gate settles for what it has. */
+const BUILD_UP_BUDGET_MS = 180_000;
 
 /**
  * Put a building somewhere this nation can actually build it.
@@ -415,7 +418,17 @@ async function main() {
   log("  building military factories until the mines cannot keep up...");
   let built = 0;
   let stalled = 0;
-  while (!skipBuildUp && built < MAX_MILITARY_FACTORIES) {
+  // One deadline over the whole build-up, not just over each item. Every
+  // individual wait is bounded, and the loop still ran for a quarter of an
+  // hour: against a world whose borders move every tick there is always one
+  // more province to try, one more order to replace. A gate has to be able to
+  // give up on getting the world it wanted and measure the one it has.
+  const buildUpUntil = Date.now() + BUILD_UP_BUDGET_MS;
+  while (
+    !skipBuildUp &&
+    built < MAX_MILITARY_FACTORIES &&
+    Date.now() < buildUpUntil
+  ) {
     const economy = player.economy;
     if (
       economy.demandPerTick.steel >
@@ -429,6 +442,11 @@ async function main() {
       `mil-${built}`,
     );
     built++;
+    log(
+      `  factory ${built} in province ${order.province} ` +
+        `(demand ${player.economy.demandPerTick.steel.toFixed(2)}, ` +
+        `mined ${player.economy.extractionPerTick.steel.toFixed(2)})`,
+    );
 
     // An accepted command takes effect on the *next* tick, so the queue is
     // still empty the moment the ack arrives. Waiting only for "empty" here
@@ -454,7 +472,7 @@ async function main() {
       // Almost always because the province changed hands underneath it.
       log(`  province ${order.province} stalled; cancelling and moving on`);
       await player.command(
-        { kind: "cancel_construction", index: 0 },
+        { kind: "cancel_construction", orderId: player.economy.queue[0]?.id },
         `drop-${built}`,
       );
       built--;

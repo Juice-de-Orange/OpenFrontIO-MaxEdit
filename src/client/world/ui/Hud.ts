@@ -83,7 +83,8 @@ export interface HudModel {
 export interface HudActions {
   claim(province: number): void;
   build(province: number, building: BuildingType): void;
-  cancel(index: number): void;
+  /** By order id, not by position — the queue shifts underneath a position. */
+  cancel(orderId: number): void;
 }
 
 const TERRAIN_KEY: Partial<Record<TerrainType, StringKey>> = {
@@ -198,7 +199,7 @@ export class Hud {
 
       const cancel = document.createElement("button");
       cancel.textContent = t("queue.cancel");
-      cancel.addEventListener("click", () => this.actions.cancel(index));
+      cancel.addEventListener("click", () => this.actions.cancel(order.id));
       item.append(cancel);
       children.push(item);
     });

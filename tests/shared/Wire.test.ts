@@ -64,7 +64,12 @@ describe("the wire protocol", () => {
           constructionPerTick: 1.5,
           industryPerTick: 0.4,
           queue: [
-            { provinceId: 3, building: "civilian_factory", progress: 12.5 },
+            {
+              id: 7,
+              provinceId: 3,
+              building: "civilian_factory",
+              progress: 12.5,
+            },
           ],
         },
       },
@@ -132,7 +137,11 @@ describe("the wire protocol", () => {
     // 1 -> 2 when commands, acks and nation identity arrived. 2 -> 3 when a
     // province gained a controller distinct from its owner: a v2 client would
     // find no `changes` in a delta and draw a map that never moves again.
-    // 3 -> 4 for buildings and the private economy view.
-    expect(PROTOCOL_VERSION).toBe(4);
+    // 3 -> 4 for buildings and the private economy view. 4 -> 5 when a
+    // construction order gained an id and cancellation stopped naming a
+    // position: a v4 client would send `index` and be disconnected as
+    // malformed, which is the right answer but only if the version says so
+    // first.
+    expect(PROTOCOL_VERSION).toBe(5);
   });
 });

@@ -25,7 +25,7 @@ import { BUILDING_TYPES } from "../economy/Buildings";
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -91,16 +91,20 @@ export const QueueConstructionSchema = z.object({
 });
 
 /**
- * Take one item back out of the queue.
+ * Take one item back out of the queue, by its id.
  *
- * By position rather than by id. The queue is short, it is entirely the
- * player's, and a position is what they are looking at when they click.
- * Progress on a cancelled item is lost — that is the cost of changing your
+ * **Not by position.** A position is what a player clicks, and it is wrong the
+ * moment anything else moves: two cancellations sent in the same five seconds
+ * cancelled the wrong things, because the first shifts the queue and the
+ * second then removes whatever slid into that slot — or is refused as out of
+ * range, leaving an "accepted" ack and an order still sitting there.
+ *
+ * Progress on a cancelled item is lost. That is the cost of changing your
  * mind, and it is the only thing in this game that is.
  */
 export const CancelConstructionSchema = z.object({
   kind: z.literal("cancel_construction"),
-  index: z.number().int().nonnegative(),
+  orderId: z.number().int().positive(),
 });
 
 export const CommandBodySchema = z.discriminatedUnion("kind", [
@@ -203,6 +207,8 @@ export const ResourceAmountsSchema = z.object({
 export type ResourceAmounts = z.infer<typeof ResourceAmountsSchema>;
 
 export const ConstructionOrderSchema = z.object({
+  /** Stable for the life of the order; what `cancel_construction` names. */
+  id: z.number().int().positive(),
   provinceId: z.number().int().nonnegative(),
   building: z.enum(BUILDING_TYPES),
   /** Construction points accrued so far, against the building's cost. */

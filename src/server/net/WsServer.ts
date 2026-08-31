@@ -362,6 +362,7 @@ export class WorldSocketServer {
       constructionPerTick: economy.construction,
       industryPerTick: economy.industry,
       queue: this.world.constructionQueueOf(nation).map((order) => ({
+        id: order.id,
         provinceId: order.provinceId,
         building: order.building,
         progress: order.progress,

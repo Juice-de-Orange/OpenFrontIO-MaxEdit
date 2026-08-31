@@ -472,6 +472,32 @@ tests, not equality.
 
 ### From phase 3
 
+**A command validated at arrival is validated against a world its own
+siblings have not touched yet.** Three build orders sent in the same five
+seconds were each checked against the queue as it stood _before_ any of them
+were applied, so all three were acked "accepted for tick N" — and the third was
+then silently skipped when the tick ran, because by then the slots were full.
+That is precisely the failure CLAUDE.md §7 exists to prevent: the player sees
+nothing happen and cannot tell a refused order from a lost packet. Validation
+now counts commands already accepted for the coming tick as well as orders in
+the queue.
+
+**A queue position is not a name.** Cancelling by index cancelled the wrong
+thing whenever two cancellations landed in the same tick: the first shifts the
+queue and the second removes whatever slid into that slot — or is refused as
+out of range, leaving an "accepted" ack and the order still sitting there.
+Construction orders now carry an id, assigned by the reducer so a replay hands
+out the same ones, and never reused.
+
+**A test written to catch a bug has to be run against the bug.** The first
+version of the test for the first of those two used `naval_base` as one of its
+three buildings; the inland capital refused it for its own reasons, so only two
+were ever accepted, the counts matched, and it passed with the fix switched
+off. Three separate string edits meant to correct it silently matched nothing,
+because prettier had reformatted the lines they were looking for. The rule that
+comes out of it: after editing a file by pattern, **check that the pattern
+matched** — and prove a new test by disabling the fix, not by reading it.
+
 **`npm run test` does not run the Postgres tests, and they rot.** They are
 `describe.skipIf(!TEST_DATABASE_URL)`, so a green suite says nothing about
 them. Phase 2 split a province's owner from its controller and updated every
@@ -722,7 +748,7 @@ gate shows a world that survives.
 
 ### Test baseline
 
-**459 passed, 8 skipped, in one run — no tolerated failures.** `npm run test` is
+**462 passed, 8 skipped, in one run — no tolerated failures.** `npm run test` is
 a single `vitest run`. The eight skipped are the Postgres integration tests,
 which run under `npm run test:db` against `docker compose up -d db`; a unit
 suite that needs a container is a unit suite people stop running. **They are

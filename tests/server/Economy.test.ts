@@ -239,7 +239,10 @@ describe("the construction system", () => {
 
     const cancel = {
       nation,
-      body: { kind: "cancel_construction" as const, index: 0 },
+      body: {
+        kind: "cancel_construction" as const,
+        orderId: world.constructionQueueOf(nation)[0].id,
+      },
     };
     expect(world.rejectionFor(cancel)).toBeNull();
     world.queueCommand(cancel);
