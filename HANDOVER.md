@@ -720,23 +720,49 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**Phase 8: air zones.** §6.7, and the thing to get right is not the air: §6.8
-is explicit that phase 9's naval zones are **the same code** with a different
-mission set. Build the zone abstraction, the assignment UI and the per-tick
-resolution loop as though phase 9 already existed, because it does. If you
-find yourself writing a second one later, the mistake was made here.
+**Finish the phase-8 gate.** The code is built and green
+([decision 0015](docs/decisions/0015-one-formation-and-one-zone-machine.md));
+what is missing is `scripts/phase8-gate.mjs`. Two of its three checks pass
+against a live world — interdiction cuts a garrison's supply by about a tenth
+and stops at the cap, bombing cuts the construction the zone's factories make.
+The third is §8's own sentence, and its difficulty is not the mechanic but the
+staging: see "What the phase-8 gate kept getting wrong" above for the three
+ways it has already measured its own set-up instead of the sky. The most
+recent version splits the front in two, fights the halves in turn with the
+same army rebuilt to the same strength, and stands production down for each
+window.
 
-The three effects a superiority ratio has all land on systems that already
-exist — ground combat strength, enemy supply throughput, enemy factory output
-— so phase 8 is mostly about the zone, and only a little about aircraft. The
-first of the three has a place waiting for it: `combat.ts` multiplies the
-attacker's strength by a roll and nothing else, and superiority belongs beside
-that roll.
+**Then two things the player asked for, in this order.**
 
-**The partition is not phase 8's problem.** `airZone` is on every province and
-`airZoneCount` is in the artefact, both from phase 2. What is missing is air
-bases, wings, the four missions, and the per-tick resolution — built once, for
-phase 9 to reuse with a different mission set (§6.8).
+_The front, tile by tile._ Taking a province is currently the one **lump sum**
+in the game: `combat.ts` rolls once a tick and the province flips or does not.
+Invariant 1 forbids exactly that — _everything is a rate… a player who watches
+any number should see it move_ — and the visible consequence is that a war
+looks like nothing at all until it is over. The fix is a front progress per
+standing attack, growing per tick out of the strength ratio and falling on a
+setback, with the client painting it as a tile spread from the attacking
+border. Invariant 8 stays intact: the player still orders provinces, and tiles
+stay rendering. It makes combat _simpler_ than what is there now, not more
+complex. **It touches `combat.ts` at its core, so the phase-4 and phase-8
+gates both need revisiting after it** — which is an argument for doing it
+before writing more gate.
+
+_A menu instead of seven open panels._ Six panels plus the province panel
+cover half the map. What is wanted is an icon bar at the top left — production,
+industry, research, diplomacy, air — opening one panel at a time.
+
+**Then phase 9: naval zones and convoys.** `systems/zones.ts` is built to take
+it: add rows to `FORMATIONS` for the ship types, give them the naval missions
+already listed in `shared/economy/Formations.ts`, and write the thin half that
+knows a contest at sea is fought by ships. If you find yourself writing a
+second resolver, the mistake was made in phase 8 and this is where it shows.
+
+Two things phase 9 will want that are not there yet: **water provinces** (phase
+2 partitions the ocean into sea zones and stores them in the spare bit of the
+tile array; a `provinces.bin` format bump, and the format has a version field
+for it) and **the four pathfinding files that did not survive phase 0**
+(`PathFinder.ts`, `.Air`, `.Station`, `spatial/SpatialQuery`), whose real
+consumer is naval movement.
 
 **What phase 7 actually built**, for anyone reading §6.5 against the code:
 

@@ -60,7 +60,7 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Phase 7 of 13 done.** A world server ticks every five seconds, persists to
+**Phase 8 of 13 built.** A world server ticks every five seconds, persists to
 Postgres, accepts commands and comes back where it was after being killed. On
 top of that runs an economy: provinces extract from their deposits, civilian
 factories make construction points, military factories and dockyards draw the
@@ -70,8 +70,15 @@ supply decides how much of it reaches a division at the end of a long front,
 and nations make standing agreements with each other — indefinite ones, paid
 for in construction points, that cost trust to break and survive a restart
 because nobody has to renew them. A shortage anywhere scales every consumer
-down together; nothing ever stops. The inherited renderer draws it, and the world's own heartbeat is still
-one province changing hands per tick.
+down together; nothing ever stops.
+
+On top of that sits a war. An attack is a standing order that grinds every
+tick against equipment, supply, terrain and combat width, and an air force
+flies from bases into zones with missions — fighting for the sky, supporting
+the ground, cutting an enemy's supply or bombing their industry. Every one of
+those effects is bounded and none of them can reach zero. Nothing takes a
+province unless somebody ordered it: a world with nobody online is quiet until
+the regent arrives in phase 10. The inherited renderer draws all of it.
 
 The build order and the gate each phase has to pass are in
 [CLAUDE.md § 8](CLAUDE.md). For the current state of the work — what is done,

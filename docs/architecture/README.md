@@ -43,8 +43,8 @@ buildings over hundreds of ticks, and production lines turn industry into
 equipment that divisions draw on. Research moves the rates those systems read,
 and supply decides how much of it reaches a division at the end of a long
 front. Nations hold standing agreements with each other and trade over them.
-What is still not there is the zoned half of the military — no air zones, no
-sea zones, and no convoys.
+Air zones are in as of phase 8. What is still not there is the sea: no sea
+zones, no fleets and no convoys, which is phase 9.
 
 **The border drift is gone.** From phase 1 to phase 7 a deterministic sweep
 moved one province a tick regardless of who held what, so that a world with
@@ -122,8 +122,25 @@ persistence design rests on.
   been choosing between all along. Signing a non-aggression pact calls a
   standing attack off rather than letting it grind through the promise.
 
-One input is still missing. Air superiority belongs beside that roll and is
-phase 8's to add; there is a single multiplier waiting for it.
+Air superiority is in that roll as of phase 8: the attacker's strength is
+multiplied by what `ground_support` over the province's air zone is worth to
+each side, bounded so that air shifts a fight it never decides alone.
+
+- **air** — the sky over a zone. Formations assigned to a zone with a mission
+  are resolved each tick into a **superiority ratio** per nation, clamped away
+  from both 0 and 1 so the last wing in a losing air war is still worth flying.
+  The system itself does two things — it charges attrition to everything in a
+  contested zone, more to the losing side, and it sends home formations whose
+  base was lost. It applies none of the effects. The three §6.7 lists land on
+  systems that already existed and each reads the ratio where it needs it:
+  ground combat through the multiplier above, supply through `supplyReach`,
+  factory output through the economy's per-province figure. A pure function of
+  the state is cheaper to trust than a number this system would have to store.
+- **naval** — phase 9, and deliberately not a second copy of the above. The
+  resolver lives in `systems/zones.ts` and knows about zones, formations and
+  missions rather than about aircraft; what separates a fighter wing from a
+  submarine flotilla is a row in `shared/economy/Formations.ts`
+  ([decision 0015](../decisions/0015-one-formation-and-one-zone-machine.md)).
 
 One **sufficiency** figure per nation, the worst of the per-resource ratios,
 scales every consumer down together. That is invariant 2 — _everything

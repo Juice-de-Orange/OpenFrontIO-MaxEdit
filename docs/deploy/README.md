@@ -74,6 +74,64 @@ Two consequences worth planning for:
   replays the commands after it, and resumes at that tick. It never re-simulates
   the time it was down.
 
+## The client bundle needs one step the build does not do
+
+`vite build` leaves EJS placeholders in `static/index.html` —
+`assetManifest`, `cdnBase`, `gameEnv`, `cdnBaseRaw`. Upstream filled them per
+request from an Express process, and this fork has no such process: a reverse
+proxy serves a static bundle and does not run a template engine.
+
+Unrendered, the module script tag's `src` is the literal string
+`<%- locals.cdnBaseRaw || "" %>/assets/index-*.js`. The browser fetches
+nothing and the page is blank, with no console error worth the name.
+
+```bash
+npm run build-prod
+node scripts/render-index.mjs static/index.html
+```
+
+The script is idempotent and **refuses to write** if it finds a placeholder it
+does not know about, rather than shipping the failure it exists to prevent.
+
+**Ship only the map the world runs on.** `static/` is well over half a
+gigabyte across ~120 maps; one world uses one of them, and filtered it is
+around 60 MB. Watch the rsync rule order when you do it — the first matching
+rule wins, so an `--exclude` placed before its `--include` swallows it:
+
+```bash
+rsync -az --exclude='_assets/maps/*' static/ HOST:/srv/world/www/
+rsync -az static/_assets/maps/ HOST:/srv/world/www/_assets/maps/ < map > / < map > /
+```
+
+## Bind the containers to loopback
+
+The compose file in this repository publishes Postgres on `0.0.0.0:5432` and
+the world on `0.0.0.0:3000`, because tests and `psql` reach them from the host
+in development. **On a machine with a public address that is a database on the
+internet.** Override both in a `docker-compose.override.yml` on the host, and
+note that Compose _merges_ port lists by default — replacing them needs
+`!override`:
+
+```yaml
+services:
+  db:
+    ports: !override
+      - "127.0.0.1:55434:5432"
+    restart: unless-stopped
+  world:
+    ports: !override
+      - "127.0.0.1:3100:3000"
+    restart: unless-stopped
+```
+
+Then **verify the result rather than the intent** — `docker compose config`
+prints the ports that will actually be published. And do not read the firewall
+as the list of what is exposed: Docker writes its own iptables rules and a
+published port is reachable whether or not ufw ever allowed it.
+
+The shipped file has no restart policy on purpose, because the phase-1 gate is
+to kill the world by hand. A host wants the opposite.
+
 ## The reverse proxy, in detail
 
 A world connection is a WebSocket that stays open for hours and is mostly
