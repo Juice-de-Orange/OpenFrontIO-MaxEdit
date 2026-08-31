@@ -21,11 +21,8 @@
 
 import {
   DIVISION_REINFORCE_RATE,
-  DOCKYARD_OUTPUT,
-  EFFICIENCY_CAP,
   EFFICIENCY_DECAY,
   EFFICIENCY_GAIN,
-  MILITARY_FACTORY_OUTPUT,
 } from "src/shared/config/rates";
 import {
   DIVISION_TEMPLATE,
@@ -34,7 +31,13 @@ import {
   type EquipmentType,
 } from "src/shared/economy/Equipment";
 import type { System } from ".";
-import type { WorldEvent, WorldState } from "../world/WorldState";
+import {
+  efficiencyCapFor,
+  factoryOutput,
+  nationModifiers,
+  type WorldEvent,
+  type WorldState,
+} from "../world/WorldState";
 import { measureNation } from "./economy";
 
 export const productionSystem: System = {
@@ -52,6 +55,7 @@ export const productionSystem: System = {
       // shortage scales what the factories make, exactly as it scales
       // everything else (invariant 2) — it never stops a line.
       const { sufficiency } = measureNation(state, nation);
+      const cap = efficiencyCapFor(state, nation);
       const produced = new Map<number, number>();
 
       for (const line of lines) {
@@ -71,8 +75,7 @@ export const productionSystem: System = {
         }
 
         const spec = EQUIPMENT[line.equipment];
-        const perFactory =
-          spec.yard === "dockyard" ? DOCKYARD_OUTPUT : MILITARY_FACTORY_OUTPUT;
+        const perFactory = factoryOutput(state, nation, spec.yard);
         const output =
           line.factories * perFactory * line.efficiency * sufficiency;
         if (output <= 0) continue;
@@ -80,7 +83,7 @@ export const productionSystem: System = {
         const index = equipmentIndex(line.equipment);
         produced.set(index, (produced.get(index) ?? 0) + output / spec.cost);
 
-        if (line.efficiency < EFFICIENCY_CAP) {
+        if (line.efficiency < cap) {
           events.push({
             kind: "production_efficiency_changed",
             nation,
@@ -123,6 +126,9 @@ function reinforce(state: WorldState, nation: number): WorldEvent[] {
   if (divisions.length === 0) return [];
 
   const available = [...state.nations[nation].stockpile];
+  const rate =
+    DIVISION_REINFORCE_RATE *
+    (1 + nationModifiers(state, nation).reinforceRate);
   const events: WorldEvent[] = [];
   const takenTotal = new Map<number, number>();
 
@@ -134,7 +140,7 @@ function reinforce(state: WorldState, nation: number): WorldEvent[] {
       const short = wanted - division.equipment[index];
       if (short <= 0) continue;
 
-      const asked = Math.min(short, wanted * DIVISION_REINFORCE_RATE);
+      const asked = Math.min(short, wanted * rate);
       const taken = Math.min(asked, available[index]);
       if (taken <= 0) continue;
 

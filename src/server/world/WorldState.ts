@@ -26,12 +26,20 @@
 import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
 import {
+  DOCKYARD_OUTPUT,
   EFFICIENCY_CAP,
   EFFICIENCY_FLOOR,
   EQUIPMENT_CAP,
   MANPOWER_PER_TILE,
+  MILITARY_FACTORY_OUTPUT,
   RESOURCE_CAP,
 } from "src/shared/config/rates";
+import {
+  MAX_RESEARCH_SLOTS,
+  modifiersOf,
+  type Modifiers,
+  type TechId,
+} from "src/shared/config/techs";
 import {
   BUILDING_TYPES,
   buildingIndex,
@@ -98,6 +106,20 @@ export interface Division {
   equipment: number[];
 }
 
+/**
+ * One research slot: what it is working on, and how far in.
+ *
+ * `MAX_RESEARCH_SLOTS` of these always exist, whether or not the nation has
+ * unlocked them. A fixed-length array keeps the snapshot's shape stable when a
+ * tech grants a slot, and `slotsFor` is what decides which of them a nation
+ * may actually use — the state does not change shape, only the rule does.
+ */
+export interface ResearchSlot {
+  tech: TechId | null;
+  /** Ticks of work done, against the tech's own duration. */
+  progress: number;
+}
+
 export interface NationState {
   resources: Record<Resource, number>;
   constructionQueue: ConstructionOrder[];
@@ -118,6 +140,9 @@ export interface NationState {
   /** The same, for production lines and divisions. */
   nextLineId: number;
   nextDivisionId: number;
+  researchSlots: ResearchSlot[];
+  /** Finished techs, in the order they finished. Order is not significant. */
+  unlockedTechs: TechId[];
 }
 
 export interface WorldState {
@@ -240,6 +265,44 @@ export function availableFactories(
   return total;
 }
 
+/**
+ * What this nation's research has done to the base rates.
+ *
+ * Read here rather than cached on the nation: a cached fold is a second source
+ * of truth that every restore has to keep in step with the first, and the fold
+ * is a handful of additions over a list that is never longer than the tech
+ * tree. Every system that reads a rate reads it through one of the three
+ * helpers below, so a tech takes effect everywhere or nowhere.
+ */
+export function nationModifiers(
+  state: WorldState,
+  nation: number,
+): Modifiers {
+  return modifiersOf(state.nations[nation].unlockedTechs);
+}
+
+/** What one factory of this kind turns out per tick, research included. */
+export function factoryOutput(
+  state: WorldState,
+  nation: number,
+  yard: Yard,
+): number {
+  const base = yard === "dockyard" ? DOCKYARD_OUTPUT : MILITARY_FACTORY_OUTPUT;
+  return base * (1 + nationModifiers(state, nation).factoryOutput);
+}
+
+/**
+ * How high this nation's production lines may climb.
+ *
+ * The cap, not the floor: research makes a committed line better, never a
+ * fresh one. That is the same lesson §6.2 is built around, from the other
+ * side — the reward is for the line that has been running, not for having
+ * looked something up.
+ */
+export function efficiencyCapFor(state: WorldState, nation: number): number {
+  return EFFICIENCY_CAP + nationModifiers(state, nation).efficiencyCap;
+}
+
 /** Factories of this kind already committed to a production line. */
 export function assignedFactories(
   state: WorldState,
@@ -289,6 +352,14 @@ export function createWorldState(
       nextOrderId: 1,
       nextLineId: 1,
       nextDivisionId: 1,
+      // Every slot exists from tick 0; `slotsFor` decides how many of them a
+      // nation may use. Growing the array when a tech lands would change the
+      // snapshot's shape mid-season for no gain.
+      researchSlots: Array.from({ length: MAX_RESEARCH_SLOTS }, () => ({
+        tech: null,
+        progress: 0,
+      })),
+      unlockedTechs: [],
     });
   }
 
@@ -376,6 +447,10 @@ export type WorldEvent =
       delta: [number, number][];
     }
   | { kind: "manpower_changed"; nation: number; delta: number }
+  | { kind: "research_started"; nation: number; slot: number; tech: TechId }
+  | { kind: "research_progressed"; nation: number; slot: number; delta: number }
+  | { kind: "research_completed"; nation: number; slot: number; tech: TechId }
+  | { kind: "research_cancelled"; nation: number; slot: number }
   | { kind: "division_raised"; nation: number; province: number }
   | { kind: "division_disbanded"; nation: number; divisionId: number }
   | {
@@ -494,9 +569,12 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
         (candidate) => candidate.id === event.lineId,
       );
       if (line === undefined) return;
+      // Clamped against *this nation's* cap, not the constant. A tech that
+      // raises the cap is worth nothing if the reducer still trims to the
+      // base one, and the failure would look like the tech doing nothing.
       line.efficiency = Math.max(
         EFFICIENCY_FLOOR,
-        Math.min(EFFICIENCY_CAP, event.efficiency),
+        Math.min(efficiencyCapFor(state, event.nation), event.efficiency),
       );
       return;
     }
@@ -515,6 +593,45 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
     case "manpower_changed": {
       const nation = state.nations[event.nation];
       nation.manpower = Math.max(0, nation.manpower + event.delta);
+      return;
+    }
+
+    case "research_started": {
+      const slot = state.nations[event.nation].researchSlots[event.slot];
+      if (slot === undefined) return;
+      slot.tech = event.tech;
+      slot.progress = 0;
+      return;
+    }
+
+    case "research_progressed": {
+      const slot = state.nations[event.nation].researchSlots[event.slot];
+      if (slot === undefined) return;
+      slot.progress += event.delta;
+      return;
+    }
+
+    case "research_completed": {
+      const nation = state.nations[event.nation];
+      const slot = nation.researchSlots[event.slot];
+      if (slot === undefined) return;
+      // Idempotent on the tech: a replay must not be able to unlock the same
+      // thing twice and double its modifier.
+      if (!nation.unlockedTechs.includes(event.tech)) {
+        nation.unlockedTechs.push(event.tech);
+      }
+      slot.tech = null;
+      slot.progress = 0;
+      return;
+    }
+
+    case "research_cancelled": {
+      const slot = state.nations[event.nation].researchSlots[event.slot];
+      if (slot === undefined) return;
+      // The work is lost, like a cancelled construction order. Changing your
+      // mind is the one thing in this game that costs progress.
+      slot.tech = null;
+      slot.progress = 0;
       return;
     }
 

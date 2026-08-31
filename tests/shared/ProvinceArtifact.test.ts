@@ -68,7 +68,12 @@ describe("the checked-in province artefact", () => {
     );
   });
 
-  test("generates identically twice over", () => {
+  // Partitioning 1.2 million tiles takes a few seconds, and a second full run
+  // is the whole point of this test. Vitest's default five is enough on an
+  // idle machine and not enough on one that is also building a Docker image —
+  // which is exactly when a phase is being closed. A determinism test that
+  // fails on load teaches the wrong lesson.
+  test("generates identically twice over", { timeout: 30_000 }, () => {
     const again = generateProvinceMap(MAP_ID, manifest, terrain);
     expect(Buffer.from(again.bin).equals(Buffer.from(regenerated.bin))).toBe(
       true,

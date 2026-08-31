@@ -11,10 +11,18 @@
       "src/*": ["./src/*"]
     },
     // Emit
+    //
+    // Nothing in this repository is emitted by tsc: vite builds the client and
+    // tsx runs the server. Saying so explicitly is not tidiness — with
+    // `allowJs` on and the gate scripts in the program, a config that *could*
+    // emit makes the linters refuse the whole project with "cannot write file
+    // ... because it would overwrite input file".
+    "noEmit": true,
     "sourceMap": true,
     // Type Checking
     "allowUnusedLabels": false,
     "experimentalDecorators": true,
+    "allowJs": true,
     "resolveJsonModule": true,
     "strictNullChecks": true,
     "useDefineForClassFields": false,
@@ -39,6 +47,13 @@
     // dependency of this fork. The parts of it a test actually imports are
     // already in the program through tests/.
     "scripts/*.ts",
+    // And the gate scripts, which are .mjs. They are here rather than in
+    // eslint's `allowDefaultProject` because that list is capped at eight
+    // matched files, and phase 6 was the ninth: the linter then aborts with
+    // "Too many files have matched the default project" and reports nothing
+    // at all. A real tsconfig project has no such cap. `checkJs` stays off,
+    // so this puts them in the program without typechecking their contents.
+    "scripts/*.mjs",
     "vite.config.ts",
     "drizzle.config.ts"
   ],

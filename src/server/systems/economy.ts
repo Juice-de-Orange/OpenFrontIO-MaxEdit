@@ -22,21 +22,23 @@ import { RESOURCES } from "src/shared/config/provinces";
 import {
   CIVILIAN_FACTORY_OUTPUT,
   DOCKYARD_DEMAND,
-  DOCKYARD_OUTPUT,
+  EQUIPMENT_MATERIALS,
   EXTRACTION_PER_DEPOSIT,
   EXTRACTION_UPGRADE_BONUS,
   INFRASTRUCTURE_EXTRACTION_BONUS,
   MANPOWER_REGROWTH,
   MILITARY_FACTORY_DEMAND,
-  MILITARY_FACTORY_OUTPUT,
   OCCUPIED_OUTPUT_FACTOR,
 } from "src/shared/config/rates";
 import { SYNTHETIC } from "src/shared/economy/Buildings";
 import type { System } from ".";
 import {
+  assignedFactories,
   countBuilding,
   effectiveInfrastructure,
+  factoryOutput,
   manpowerCap,
+  nationModifiers,
   type WorldEvent,
   type WorldState,
 } from "../world/WorldState";
@@ -78,8 +80,16 @@ export function measureNation(
 ): NationEconomy {
   const extraction = zeroed();
   const demand = zeroed();
+  // Research is read here, once, and multiplied into the rates below. §6.4's
+  // modifiers are flat and they land where the rate is read — never as a
+  // second copy of the constant that a restore could bring back stale.
+  const tech = nationModifiers(state, nation);
+  const militaryOutput = factoryOutput(state, nation, "military_factory");
+  const dockyardOutput = factoryOutput(state, nation, "dockyard");
   let construction = 0;
   let industry = 0;
+  let militaryHeld = 0;
+  let dockyardsHeld = 0;
 
   for (
     let province = 0;
@@ -100,7 +110,8 @@ export function measureNation(
     const yieldFactor =
       factor *
       (1 + infrastructure * INFRASTRUCTURE_EXTRACTION_BONUS) *
-      (1 + upgrades * EXTRACTION_UPGRADE_BONUS);
+      (1 + upgrades * EXTRACTION_UPGRADE_BONUS) *
+      (1 + tech.extraction);
     for (const resource of RESOURCES) {
       const deposit = deposits[resource];
       if (deposit === undefined) continue;
@@ -110,15 +121,15 @@ export function measureNation(
     construction +=
       countBuilding(state, province, "civilian_factory") *
       CIVILIAN_FACTORY_OUTPUT *
-      factor;
+      factor *
+      (1 + tech.construction);
 
     const military = countBuilding(state, province, "military_factory");
     const dockyards = countBuilding(state, province, "dockyard");
     industry +=
-      (military * MILITARY_FACTORY_OUTPUT + dockyards * DOCKYARD_OUTPUT) *
-      factor;
-    addDemand(demand, MILITARY_FACTORY_DEMAND, military);
-    addDemand(demand, DOCKYARD_DEMAND, dockyards);
+      (military * militaryOutput + dockyards * dockyardOutput) * factor;
+    militaryHeld += military;
+    dockyardsHeld += dockyards;
 
     for (const kind of ["synthetic_oil", "synthetic_rubber"] as const) {
       const count = countBuilding(state, province, kind);
@@ -127,6 +138,31 @@ export function measureNation(
       demand[recipe.from] += recipe.fromRate * count;
     }
   }
+
+  // What a factory draws depends on what it is making (§6.2 and decision
+  // 0009). Production lines are national rather than provincial — a line is a
+  // number of factories, not a set of buildings — so the split is done here,
+  // once, against the totals the loop above counted.
+  //
+  // An unassigned factory is not free: it draws the flat rate, which is about
+  // what the cheapest line draws. A plant kept ready costs something to keep
+  // ready, and without that a nation could park its whole industry for nothing
+  // — and the phase-3 gate, which builds only unassigned factories, would stop
+  // measuring the degradation rule it exists to measure.
+  for (const line of state.nations[nation].productionLines) {
+    if (line.factories <= 0) continue;
+    addDemand(demand, EQUIPMENT_MATERIALS[line.equipment], line.factories);
+  }
+  const militaryIdle = Math.max(
+    0,
+    militaryHeld - assignedFactories(state, nation, "military_factory"),
+  );
+  const dockyardsIdle = Math.max(
+    0,
+    dockyardsHeld - assignedFactories(state, nation, "dockyard"),
+  );
+  addDemand(demand, MILITARY_FACTORY_DEMAND, militaryIdle);
+  addDemand(demand, DOCKYARD_DEMAND, dockyardsIdle);
 
   const stock = state.nations[nation].resources;
   let sufficiency = 1;

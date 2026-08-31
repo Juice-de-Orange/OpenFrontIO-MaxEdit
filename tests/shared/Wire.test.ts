@@ -83,11 +83,18 @@ describe("the wire protocol", () => {
               outputPerTick: 0.08,
             },
           ],
-          divisions: [{ id: 1, provinceId: 3, strength: 0.5 }],
+          divisions: [{ id: 1, provinceId: 3, strength: 0.5, supply: 0.75 }],
           militaryFactoriesAssigned: 2,
           militaryFactoriesTotal: 3,
           dockyardsAssigned: 0,
           dockyardsTotal: 0,
+          researchSlots: [
+            { tech: "machine_tools", progress: 40, unlocked: true },
+            { tech: null, progress: 0, unlocked: true },
+            { tech: null, progress: 0, unlocked: false },
+            { tech: null, progress: 0, unlocked: false },
+          ],
+          unlockedTechs: ["excavation"],
         },
       },
       {
@@ -158,7 +165,12 @@ describe("the wire protocol", () => {
     // construction order gained an id and cancellation stopped naming a
     // position: a v4 client would send `index` and be disconnected as
     // malformed, which is the right answer but only if the version says so
-    // first. 5 -> 6 for production lines, the stockpile and divisions.
-    expect(PROTOCOL_VERSION).toBe(6);
+    // first. 5 -> 6 for production lines, the stockpile and divisions. 6 -> 7
+    // for research: a v6 client sends no `start_research` and would be
+    // disconnected for it, and a v6 server would refuse one it cannot parse.
+    // 7 -> 8 when a division gained a supply figure: a v7 client would show a
+    // starving army as merely under-equipped, which is the wrong diagnosis and
+    // the wrong fix.
+    expect(PROTOCOL_VERSION).toBe(8);
   });
 });

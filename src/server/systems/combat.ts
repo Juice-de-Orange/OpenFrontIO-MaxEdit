@@ -27,7 +27,12 @@ import {
   COMBAT_DEFENDER_LOSS,
 } from "src/shared/config/rates";
 import type { System } from ".";
-import type { Division, WorldEvent, WorldState } from "../world/WorldState";
+import {
+  nationModifiers,
+  type Division,
+  type WorldEvent,
+  type WorldState,
+} from "../world/WorldState";
 
 /** The stride the drift walks the province list with. Coprime with any count. */
 const DRIFT_STRIDE = 7919;
@@ -63,9 +68,21 @@ export const combatSystem: System = {
       if (from === undefined) continue;
 
       const attacker = state.provinceController[from];
+      // Entrenchment and the like reduce what a clash costs the side that is
+      // holding. Read per nation, so the defender's research protects the
+      // defender and not whoever happens to be attacking them.
+      const shelter =
+        defender <= 0 || defender > state.nationCount
+          ? 0
+          : nationModifiers(state, defender).defenderLoss;
       return [
         { kind: "control_changed", province, nation: attacker },
-        ...losses(state, defender, province, COMBAT_DEFENDER_LOSS),
+        ...losses(
+          state,
+          defender,
+          province,
+          Math.max(0, COMBAT_DEFENDER_LOSS * (1 + shelter)),
+        ),
         ...losses(state, attacker, from, COMBAT_ATTACKER_LOSS),
       ];
     }

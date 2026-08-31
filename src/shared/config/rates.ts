@@ -13,6 +13,7 @@
  * multiplies by `TICKS_PER_DAY` and says "per day".
  */
 
+import type { EquipmentType } from "../economy/Equipment";
 import type { Resource } from "./provinces";
 
 // ---------------------------------------------------------------------------
@@ -62,12 +63,17 @@ export const MILITARY_FACTORY_OUTPUT = 0.4;
 export const DOCKYARD_OUTPUT = 0.4;
 
 /**
- * What a military factory and a dockyard draw per tick to run.
+ * What a military factory or dockyard draws per tick with **no line to work on**.
  *
  * §5: resources are consumed by military factories, dockyards, and units in
  * the field. Civilian factories draw nothing — construction points are labour,
  * not steel — which is also why a nation that has lost its mines can still
  * build its way back.
+ *
+ * Since phase 4 this is the *idle* rate: a factory assigned to a production
+ * line draws `EQUIPMENT_MATERIALS` for whatever that line makes instead. An
+ * idle factory is not free, and is priced at about what the cheapest line
+ * costs — see docs/decisions/0009 for why, and for what it protects.
  */
 export const MILITARY_FACTORY_DEMAND: Partial<Record<Resource, number>> = {
   steel: 0.2,
@@ -77,6 +83,43 @@ export const MILITARY_FACTORY_DEMAND: Partial<Record<Resource, number>> = {
 export const DOCKYARD_DEMAND: Partial<Record<Resource, number>> = {
   steel: 0.25,
   rubber: 0.03,
+};
+
+/**
+ * What a factory draws per tick for the *thing it is making*.
+ *
+ * The two rates above are what an **unassigned** factory draws: a plant kept
+ * tooled and staffed, ready for a line, is not a plant that costs nothing. A
+ * factory that is on a production line draws this instead, by equipment type,
+ * so that choosing what to build is an economic decision and not only an
+ * industrial one — a tank line and a rifle line of the same size are not the
+ * same drain on the same mines.
+ *
+ * Read per factory per tick, exactly like the flat rates, and **not** scaled
+ * by the equipment's `cost`: a heavy type is slow to come off the line *and*
+ * expensive to feed, and multiplying the two would make armour cost fifty
+ * times what a rifle does rather than three.
+ *
+ * The cheapest line costs about what an idle factory costs, which is the
+ * anchor the whole table is hung on. That is what keeps the flat rates
+ * meaningful — and it is what keeps the phase-3 gate, which builds nothing but
+ * unassigned factories and measures exactly that flat draw, measuring the same
+ * thing it did before this table existed. See docs/decisions/0009.
+ */
+export const EQUIPMENT_MATERIALS: Record<
+  EquipmentType,
+  Partial<Record<Resource, number>>
+> = {
+  infantry_equipment: { steel: 0.2, aluminium: 0.02 },
+  artillery: { steel: 0.3, aluminium: 0.04 },
+  armour: { steel: 0.55, rubber: 0.06, oil: 0.05 },
+  fighter: { steel: 0.15, aluminium: 0.3 },
+  bomber: { steel: 0.2, aluminium: 0.4 },
+  transport: { steel: 0.25, rubber: 0.07 },
+  convoy: { steel: 0.25 },
+  submarine: { steel: 0.4, oil: 0.06 },
+  escort: { steel: 0.35, aluminium: 0.05 },
+  capital_ship: { steel: 0.65, aluminium: 0.08, oil: 0.05 },
 };
 
 // ---------------------------------------------------------------------------

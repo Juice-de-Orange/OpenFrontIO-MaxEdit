@@ -4,6 +4,7 @@ import { World } from "../../src/server/world/World";
 import { countBuilding, usedSlots } from "../../src/server/world/WorldState";
 import { RESOURCES } from "../../src/shared/config/provinces";
 import {
+  EQUIPMENT_MATERIALS,
   MILITARY_FACTORY_DEMAND,
   RESOURCE_CAP,
   STARTING_CAPITAL_BUILDINGS,
@@ -393,5 +394,88 @@ describe("five hundred ticks of invariants", () => {
     // shortage somewhere in the run, `blocked` is zero because nothing was
     // ever tested.
     expect(sawShortage).toBe(true);
+  });
+});
+
+/**
+ * Decision 0009: what a factory draws depends on what it is making, and a
+ * factory with no line to make anything for still draws the flat rate.
+ *
+ * The last of those is the one worth a test of its own. It is what keeps the
+ * phase-3 gate — which builds nothing but unassigned factories and measures
+ * exactly that flat draw — measuring the same thing it did before production
+ * lines existed.
+ */
+describe("what a factory draws depends on what it makes", () => {
+  let world: World;
+  let nation: number;
+
+  beforeEach(() => {
+    ({ world, nation } = build());
+  });
+
+  function command(body: Parameters<World["rejectionFor"]>[0]["body"]): void {
+    const full = { nation, body };
+    expect(world.rejectionFor(full)).toBeNull();
+    world.queueCommand(full);
+    world.step();
+  }
+
+  function demand(): Record<string, number> {
+    return measureNation(world.view(), nation).demand;
+  }
+
+  test("a factory on no line draws the flat rate", () => {
+    const held = STARTING_CAPITAL_BUILDINGS.military_factory;
+    expect(demand().steel).toBeCloseTo(
+      (MILITARY_FACTORY_DEMAND.steel ?? 0) * held,
+      9,
+    );
+  });
+
+  test("a rifle line and a tank line of the same size are not the same drain", () => {
+    command({
+      kind: "create_production_line",
+      equipment: "infantry_equipment",
+    });
+    const line = world.view().nations[nation].productionLines[0].id;
+    command({ kind: "assign_factories", lineId: line, factories: 1 });
+
+    const rifles = { ...demand() };
+    expect(rifles.steel).toBeCloseTo(
+      EQUIPMENT_MATERIALS.infantry_equipment.steel ?? 0,
+      9,
+    );
+
+    command({
+      kind: "switch_production_line",
+      lineId: line,
+      equipment: "armour",
+    });
+    const tanks = { ...demand() };
+
+    expect(tanks.steel).toBeCloseTo(EQUIPMENT_MATERIALS.armour.steel ?? 0, 9);
+    expect(tanks.steel).toBeGreaterThan(rifles.steel);
+    // And it asks for things a rifle line never needed at all.
+    expect(rifles.rubber).toBe(0);
+    expect(tanks.rubber).toBeGreaterThan(0);
+    expect(tanks.oil).toBeGreaterThan(0);
+  });
+
+  test("taking the factories off a line puts it back on the flat rate", () => {
+    command({ kind: "create_production_line", equipment: "armour" });
+    const line = world.view().nations[nation].productionLines[0].id;
+    command({ kind: "assign_factories", lineId: line, factories: 1 });
+    expect(demand().steel).toBeCloseTo(
+      EQUIPMENT_MATERIALS.armour.steel ?? 0,
+      9,
+    );
+
+    command({ kind: "assign_factories", lineId: line, factories: 0 });
+    expect(demand().steel).toBeCloseTo(
+      (MILITARY_FACTORY_DEMAND.steel ?? 0) *
+        STARTING_CAPITAL_BUILDINGS.military_factory,
+      9,
+    );
   });
 });

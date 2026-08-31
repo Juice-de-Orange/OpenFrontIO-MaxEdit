@@ -18,6 +18,7 @@
  */
 
 import { z } from "zod";
+import { TECH_IDS } from "../config/techs";
 import { BUILDING_TYPES } from "../economy/Buildings";
 import { EQUIPMENT_TYPES } from "../economy/Equipment";
 
@@ -26,7 +27,7 @@ import { EQUIPMENT_TYPES } from "../economy/Equipment";
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 8;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -165,6 +166,26 @@ export const DisbandDivisionSchema = z.object({
   divisionId: z.number().int().positive(),
 });
 
+/**
+ * Put a slot to work on a tech.
+ *
+ * By slot index and tech id, both absolute. The server checks that the slot
+ * exists, that the nation has unlocked it, that the tech's prerequisites are
+ * in hand and that it is not already known — §7, the client computes none of
+ * it.
+ */
+export const StartResearchSchema = z.object({
+  kind: z.literal("start_research"),
+  slot: z.number().int().nonnegative(),
+  tech: z.enum(TECH_IDS),
+});
+
+/** Take a slot off what it is doing. The hours already put in are lost. */
+export const CancelResearchSchema = z.object({
+  kind: z.literal("cancel_research"),
+  slot: z.number().int().nonnegative(),
+});
+
 export const CommandBodySchema = z.discriminatedUnion("kind", [
   ClaimProvinceSchema,
   QueueConstructionSchema,
@@ -175,6 +196,8 @@ export const CommandBodySchema = z.discriminatedUnion("kind", [
   AssignFactoriesSchema,
   RaiseDivisionSchema,
   DisbandDivisionSchema,
+  StartResearchSchema,
+  CancelResearchSchema,
 ]);
 export type CommandBody = z.infer<typeof CommandBodySchema>;
 
@@ -296,8 +319,28 @@ export const DivisionSchema = z.object({
   provinceId: z.number().int().nonnegative(),
   /** 0..1 — held equipment against what a division should hold (§6.3). */
   strength: z.number(),
+  /**
+   * 0..1 — how much of what it needs is actually reaching it (§6.6).
+   *
+   * Separate from `strength` rather than folded into it, because they are two
+   * different problems with two different answers: a weak division needs
+   * equipment out of the stockpile, an unsupplied one needs a hub or a shorter
+   * front. A single number would tell the player something is wrong and
+   * nothing about which.
+   */
+  supply: z.number(),
 });
 export type DivisionView = z.infer<typeof DivisionSchema>;
+
+export const ResearchSlotSchema = z.object({
+  /** What this slot is working on, or null when it is idle. */
+  tech: z.enum(TECH_IDS).nullable(),
+  /** Ticks of work done. The UI divides by the tech's own duration. */
+  progress: z.number(),
+  /** False for a slot the nation has not unlocked yet (§6.4: 2 of up to 4). */
+  unlocked: z.boolean(),
+});
+export type ResearchSlotView = z.infer<typeof ResearchSlotSchema>;
 
 export const NationEconomySchema = z.object({
   nation: z.number().int().positive(),
@@ -321,6 +364,9 @@ export const NationEconomySchema = z.object({
   militaryFactoriesTotal: z.number().int().nonnegative(),
   dockyardsAssigned: z.number().int().nonnegative(),
   dockyardsTotal: z.number().int().nonnegative(),
+  researchSlots: z.array(ResearchSlotSchema),
+  /** Techs this nation has finished. Order is not significant. */
+  unlockedTechs: z.array(z.enum(TECH_IDS)),
 });
 export type NationEconomyView = z.infer<typeof NationEconomySchema>;
 

@@ -38,10 +38,10 @@ export default [
             "__mocks__/fileMock.js",
             "eslint.config.js",
             "scripts/sync-assets.mjs",
-            "scripts/check-doc-links.mjs",
-            "scripts/phase1-gate.mjs",
-            "scripts/phase2-gate.mjs",
-            "scripts/phase3-gate.mjs",
+            // The gate scripts are NOT here: `allowDefaultProject` aborts
+            // the whole lint run once nine files match it, and there are
+            // seven gates. They are in tsconfig.json's `include` instead,
+            // which has no such cap. See the note beside "scripts/*.mjs".
           ],
         },
         tsconfigRootDir: import.meta.dirname,

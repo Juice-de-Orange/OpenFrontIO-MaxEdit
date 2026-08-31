@@ -32,11 +32,16 @@ import type { Resource } from "src/shared/config/provinces";
 import { OCCUPATION_TICKS, RESOURCES } from "src/shared/config/provinces";
 import {
   DIVISION_MANPOWER,
-  DOCKYARD_OUTPUT,
-  MILITARY_FACTORY_OUTPUT,
   STARTING_CAPITAL_BUILDINGS,
   STARTING_RESOURCES,
 } from "src/shared/config/rates";
+import {
+  MAX_RESEARCH_SLOTS,
+  slotsFor,
+  TECH_IDS,
+  TECHS,
+  type TechId,
+} from "src/shared/config/techs";
 import {
   buildingIndex,
   BUILDINGS,
@@ -55,9 +60,11 @@ import type {
   MapDescriptor,
   NationStatic,
   ProductionLineView,
+  ResearchSlotView,
 } from "src/shared/protocol/Wire";
 import { SYSTEMS } from "../systems";
 import { measureNation, type NationEconomy } from "../systems/economy";
+import { supplyCoverage, supplyOf, supplyReach } from "../systems/supply";
 import {
   applyEvent,
   assignedFactories,
@@ -66,11 +73,13 @@ import {
   createWorldState,
   divisionStrength,
   effectiveInfrastructure,
+  factoryOutput,
   manpowerCap,
   usedSlots,
   type ConstructionOrder,
   type Division,
   type ProductionLine,
+  type ResearchSlot,
   type WorldEvent,
   type WorldState,
 } from "./WorldState";
@@ -160,6 +169,9 @@ export interface WorldSnapshot {
     divisions: Division[];
     nextLineId: number;
     nextDivisionId: number;
+    /** Optional: a snapshot taken before phase 5 has neither. */
+    researchSlots?: ResearchSlot[];
+    unlockedTechs?: TechId[];
   }[];
 }
 
@@ -311,16 +323,25 @@ export class World {
     militaryFactoriesTotal: number;
     dockyardsAssigned: number;
     dockyardsTotal: number;
+    researchSlots: ResearchSlotView[];
+    unlockedTechs: TechId[];
   } {
     const state = this.state.nations[nation];
+    // Computed once for the whole view rather than per division: the reach is
+    // a single search over the nation's provinces and doing it per division
+    // would repeat it a dozen times for the same answer.
+    const reach = supplyReach(this.state, nation);
+    const coverage = supplyCoverage(this.state, nation);
     return {
       stockpile: [...state.stockpile],
       manpower: state.manpower,
       manpowerCap: manpowerCap(this.state, nation),
       productionLines: state.productionLines.map((line) => {
         const spec = EQUIPMENT[line.equipment];
-        const perFactory =
-          spec.yard === "dockyard" ? DOCKYARD_OUTPUT : MILITARY_FACTORY_OUTPUT;
+        // Through the helper, not the constant. A tech that raises factory
+        // output has to raise the number on the screen too, or the screen is
+        // quietly lying about what the factories are doing.
+        const perFactory = factoryOutput(this.state, nation, spec.yard);
         return {
           id: line.id,
           equipment: line.equipment,
@@ -335,7 +356,14 @@ export class World {
         id: division.id,
         provinceId: division.province,
         strength: divisionStrength(division),
+        supply: supplyOf(reach, coverage, division.province),
       })),
+      researchSlots: state.researchSlots.map((slot, index) => ({
+        tech: slot.tech,
+        progress: slot.progress,
+        unlocked: index < slotsFor(state.unlockedTechs),
+      })),
+      unlockedTechs: [...state.unlockedTechs],
       militaryFactoriesAssigned: assignedFactories(
         this.state,
         nation,
@@ -385,6 +413,8 @@ export class World {
         })),
         nextLineId: nation.nextLineId,
         nextDivisionId: nation.nextDivisionId,
+        researchSlots: nation.researchSlots.map((slot) => ({ ...slot })),
+        unlockedTechs: [...nation.unlockedTechs],
       })),
     };
   }
@@ -474,6 +504,18 @@ export class World {
       }));
       live.nextLineId = stored.nextLineId;
       live.nextDivisionId = stored.nextDivisionId;
+      // A world that was running before phase 5 has no research in its
+      // snapshot. It comes back with empty slots rather than refusing to
+      // start: a season in progress is not something to throw away over a
+      // field that did not exist when it was written.
+      live.researchSlots = Array.from(
+        { length: MAX_RESEARCH_SLOTS },
+        (unused, index) => ({
+          tech: stored.researchSlots?.[index]?.tech ?? null,
+          progress: stored.researchSlots?.[index]?.progress ?? 0,
+        }),
+      );
+      live.unlockedTechs = [...(stored.unlockedTechs ?? [])];
     }
     this.state.tick = snapshot.tick;
     this.pending.clear();
@@ -529,6 +571,15 @@ export class World {
       }
       mixFloat(nation.manpower);
       for (const held of nation.stockpile) mixFloat(held);
+      // Research is in the hash for the same reason everything else is: a
+      // world that came back having forgotten a tech is a world that has
+      // diverged, and the restore gate's whole content is this number.
+      mix(nation.unlockedTechs.length);
+      for (const tech of nation.unlockedTechs) mix(TECH_IDS.indexOf(tech));
+      for (const slot of nation.researchSlots) {
+        mix(slot.tech === null ? -1 : TECH_IDS.indexOf(slot.tech));
+        mix(slot.progress);
+      }
       mix(nation.nextLineId);
       mix(nation.productionLines.length);
       for (const line of nation.productionLines) {
@@ -687,6 +738,41 @@ export class World {
         )
           ? null
           : `you have no division ${body.divisionId}`;
+
+      case "start_research": {
+        const state = this.state.nations[nation];
+        const slots = slotsFor(state.unlockedTechs);
+        if (body.slot >= slots) {
+          return `you have ${slots} research slots, not ${body.slot + 1}`;
+        }
+        if (state.unlockedTechs.includes(body.tech)) {
+          return `you already know ${body.tech}`;
+        }
+        const missing = TECHS[body.tech].requires.filter(
+          (need) => !state.unlockedTechs.includes(need),
+        );
+        if (missing.length > 0) {
+          return `${body.tech} needs ${missing.join(", ")} first`;
+        }
+        // Refused rather than silently allowed: two slots on one tech is one
+        // slot wasted, and the player cannot see it happening.
+        if (
+          state.researchSlots.some(
+            (slot, index) => index !== body.slot && slot.tech === body.tech,
+          )
+        ) {
+          return `another slot is already researching ${body.tech}`;
+        }
+        return null;
+      }
+
+      case "cancel_research": {
+        const slot = this.state.nations[nation].researchSlots[body.slot];
+        if (slot === undefined || slot.tech === null) {
+          return `slot ${body.slot} is not researching anything`;
+        }
+        return null;
+      }
     }
   }
 
@@ -980,6 +1066,19 @@ export class World {
           { kind: "division_raised", nation, province: body.provinceId },
           { kind: "manpower_changed", nation, delta: -DIVISION_MANPOWER },
         ];
+
+      case "start_research":
+        return [
+          {
+            kind: "research_started",
+            nation,
+            slot: body.slot,
+            tech: body.tech,
+          },
+        ];
+
+      case "cancel_research":
+        return [{ kind: "research_cancelled", nation, slot: body.slot }];
 
       case "disband_division": {
         // The equipment goes back to the stockpile; the men do not come back.
