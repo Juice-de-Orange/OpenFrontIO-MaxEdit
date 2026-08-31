@@ -348,6 +348,15 @@ function templateStock(economy) {
   return frozenStock;
 }
 
+/** How many divisions this stockpile could bring to full strength. */
+function equippableFrom(economy) {
+  return Math.min(
+    ...TEMPLATE.map(([index, want]) =>
+      Math.floor(economy.stockpile[index] / want),
+    ),
+  );
+}
+
 function totalStrength(economy) {
   return economy.divisions.reduce((sum, d) => sum + d.strength, 0);
 }
@@ -475,7 +484,16 @@ const MAX_STALLED = 6;
 
 /** Efficiency the ramp must reach before a switch has anything to take away. */
 const RAMP_TARGET = 0.35;
-const RAMP_BUDGET_MS = 180_000;
+/**
+ * Long, because artillery is the slow half and it is the one that counts.
+ *
+ * A division is 100 rifles and 12 guns, and a gun is four industrial points
+ * against a rifle's one — so two factories on guns fill a division's artillery
+ * about as fast as four on rifles fill its infantry, and any drift from that
+ * split shows up here as the gate waiting. It measures the world it has when
+ * the budget runs out rather than waiting for the one it wanted.
+ */
+const RAMP_BUDGET_MS = 300_000;
 
 /** Divisions to raise, at most. Each costs DIVISION_MANPOWER. */
 const MAX_RAISED = 12;
@@ -629,18 +647,33 @@ async function main() {
   // The ramp and the stockpile grow together: the same ticks that climb the
   // efficiency curve are the ticks that fill the warehouse half A empties.
   log("  ramping the line and filling the stockpile...");
-  const STOCK_TARGET = 500;
+  // Wait for what the gate actually needs, which is **divisions it can
+  // equip** — not for a total. A division is the worst ratio across its
+  // template (§6.3), so a warehouse of two and a half thousand rifles and
+  // twelve guns equips one division, and a gate that waited on the sum
+  // stopped there and had nothing to fight with. Artillery is four industrial
+  // points a piece against a rifle's one, so it is almost always the binding
+  // half and it is the one worth waiting for.
+  const DIVISIONS_WANTED = 4;
   await player.waitUntil(
     (p) =>
-      templateStock(p.economy) >= STOCK_TARGET &&
+      equippableFrom(p.economy) >= DIVISIONS_WANTED &&
       (lineOf(p.economy, rifleLine)?.efficiency ?? 0) >= RAMP_TARGET,
-    "the ramp and the stockpile",
+    "the ramp and enough equipment for a few divisions",
     RAMP_BUDGET_MS,
   );
+  for (const line of player.economy.productionLines) {
+    log(
+      `  line ${line.id}: ${line.equipment} on ${line.factories} ` +
+        `factories at ${(line.efficiency * 100).toFixed(1)}%, ` +
+        `${line.outputPerTick.toFixed(3)} a tick`,
+    );
+  }
   log(
-    `  efficiency ${(lineOf(player.economy, rifleLine).efficiency * 100).toFixed(1)}%, ` +
-      `stockpile ${player.economy.stockpile[INFANTRY_EQUIPMENT].toFixed(0)} rifles ` +
-      `and ${player.economy.stockpile[ARTILLERY].toFixed(0)} guns`,
+    `  stockpile ${player.economy.stockpile[INFANTRY_EQUIPMENT].toFixed(0)} rifles ` +
+      `and ${player.economy.stockpile[ARTILLERY].toFixed(0)} guns — ` +
+      `${equippableFrom(player.economy)} division(s) worth, at ` +
+      `${(player.economy.sufficiency * 100).toFixed(0)}% sufficiency`,
   );
 
   // -------------------------------------------------------------------------
@@ -767,10 +800,7 @@ async function main() {
 
   const borders = borderProvinces(player, neighbours);
   const affordable = Math.floor(player.economy.manpower / 1000);
-  const equippable = Math.min(
-    Math.floor(player.economy.stockpile[INFANTRY_EQUIPMENT] / TEMPLATE[0][1]),
-    Math.floor(player.economy.stockpile[ARTILLERY] / TEMPLATE[1][1]),
-  );
+  const equippable = equippableFrom(player.economy);
   const wanted = Math.min(MAX_RAISED, borders.length, affordable, equippable);
   log(
     `  ${borders.length} border provinces, manpower for ${affordable} divisions, ` +

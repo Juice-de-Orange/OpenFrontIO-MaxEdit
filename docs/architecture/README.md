@@ -4,7 +4,7 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-31, phase 3 complete, phase 4 part-built. A world server ticks, persists
+**Last verified:** 2026-08-31, phases 0-6 gated. A world server ticks, persists
 to Postgres, accepts commands and survives being killed; the renderer draws
 what it sends. `src/core` and upstream's match server are deleted and the rest
 of the inherited client is quarantined. Current status is in
@@ -36,9 +36,10 @@ because that is where the line is.
 Underneath that is an economy: provinces extract from their deposits, factories
 consume and produce, a construction queue turns construction points into
 buildings over hundreds of ticks, and production lines turn industry into
-equipment that divisions draw on. What is still not there is everything
-diplomatic and most of what is military — no supply, no zones, no agreements,
-and no real combat resolution.
+equipment that divisions draw on. Research moves the rates those systems read,
+and supply decides how much of it reaches a division at the end of a long
+front. What is still not there is everything diplomatic and the rest of what is
+military — no zones, no agreements, no convoys, and no real combat resolution.
 
 The border drift remains: one province changes hands per tick, at a border,
 deterministically. A heartbeat, kept because a persistent world has to look
@@ -82,6 +83,17 @@ persistence design rests on.
   A line's efficiency climbs while it runs and is **thrown back to the floor
   whenever its equipment type changes**; adding or removing factories never
   touches it. Divisions then draw from the stockpile toward full strength.
+- **research** — a slot works on one tech, one tick at a time, and the nation
+  keeps it for good. The system does not apply the modifiers: every rate is
+  read through `nationModifiers`, `factoryOutput` or `efficiencyCapFor` at the
+  moment it is used, so there is one source of truth and a restored world
+  cannot come back with a stale copy of its own bonuses (decision 0010).
+- **supply** — reach times coverage. Reach is a weighted shortest path from
+  the nation's capitals and supply hubs over ground it controls, falling with
+  distance and rising with the infrastructure on the way; coverage is the
+  nation's total source throughput against its total demand. An under-supplied
+  division loses equipment in proportion to how short it is. Land only: the
+  sea path waits for convoys in phase 9.
 - **combat** — the border drift, which since phase 1 has moved one province a
   tick to keep an empty world alive, now costs the divisions on both sides
   equipment. That is the smallest honest version of invariant 6: a fight
@@ -112,7 +124,7 @@ disagree.
 | `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                                                              |
 | `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                                                     |
 | `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                                                                   |
-| `src/server/`               | new      | The world server: `world/` (World, WorldState and its reducer, TickLoop, WorldRunner), `systems/` (economy, construction, production, combat, and the seven still empty), `db/` (store interface, memory and Postgres store), `net/` (socket and health).                 |
+| `src/server/`               | new      | The world server: `world/` (World, WorldState and its reducer, TickLoop, WorldRunner), `systems/` (economy, construction, production, research, supply, combat, and the five still empty), `db/` (store interface, memory and Postgres store), `net/` (socket and health).                 |
 | `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `economy/` (the building catalogue), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`. |
 | `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                                                     |
 | `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                                                                    |

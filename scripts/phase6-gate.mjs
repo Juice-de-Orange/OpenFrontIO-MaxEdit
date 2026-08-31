@@ -45,6 +45,10 @@ const MAX_TICK_MS = 200;
 
 const MESSAGE_TIMEOUT_MS = 300_000;
 
+/** EQUIPMENT_TYPES.indexOf(...) in src/shared/economy/Equipment.ts. */
+const INFANTRY_EQUIPMENT = 0;
+const ARTILLERY = 1;
+
 /** BUILDING_TYPES.length, and buildingIndex("supply_hub"). */
 const BUILDING_COUNT = 10;
 const SUPPLY_HUB = 7;
@@ -185,23 +189,6 @@ class Player {
   }
 }
 
-function largestNation(controllers) {
-  const held = new Map();
-  for (const nation of controllers) {
-    if (nation === 0) continue;
-    held.set(nation, (held.get(nation) ?? 0) + 1);
-  }
-  let best = 0;
-  let bestCount = 0;
-  for (const [nation, count] of held) {
-    if (count > bestCount) {
-      best = nation;
-      bestCount = count;
-    }
-  }
-  return best;
-}
-
 /**
  * The province graph, read from the artefact both sides load (decision 0006).
  *
@@ -235,7 +222,7 @@ async function neighbourLists(mapId) {
  * are plainly near and plainly far. Agreeing exactly would mean copying the
  * cost model, and a gate that copies the thing it checks checks nothing.
  */
-function hopsFromHome(player, neighbours, capitals) {
+function hopsFromHome(player, neighbours, capitals, nation) {
   const depth = new Map();
   const queue = [...capitals];
   for (const capital of capitals) depth.set(capital, 0);
@@ -243,8 +230,13 @@ function hopsFromHome(player, neighbours, capitals) {
     const here = queue[head];
     for (const next of neighbours.get(here) ?? []) {
       if (depth.has(next)) continue;
-      if (player.controllers[next] !== player.nation) continue;
-      if (player.owners[next] !== player.nation) continue;
+      // **Controlled, not owned.** The server's own search conducts supply
+      // over ground the nation holds; ownership follows a fortnight later
+      // (decision 0002). Requiring both here found seven provinces on a world
+      // four thousand ticks old, where almost everything held is still
+      // occupied territory — the gate failing rather than the world, which is
+      // the most expensive way for a gate to fail.
+      if (player.controllers[next] !== nation) continue;
       depth.set(next, (depth.get(here) ?? 0) + 1);
       queue.push(next);
     }
@@ -252,6 +244,116 @@ function hopsFromHome(player, neighbours, capitals) {
   return depth;
 }
 
+/**
+ * A nation deep enough to have a supply problem at all.
+ *
+ * Not simply the largest: a wide, shallow nation has every province within a
+ * hop of a capital and nothing this gate can measure. Wanted is one with
+ * provinces it *owns* — `raise_division` needs that — several hops out.
+ */
+function deepestNation(player, neighbours, provinces) {
+  let best = null;
+  const deposits = provinces.deposits;
+  for (let nation = 1; nation <= provinces.nations; nation++) {
+    const capitals = provinces.capitals.filter(
+      (id) => player.controllers[id] === nation && player.owners[id] === nation,
+    );
+    if (capitals.length === 0) continue;
+    const depth = hopsFromHome(player, neighbours, capitals, nation);
+    const usable = [...depth.entries()].filter(
+      ([id]) => player.owners[id] === nation,
+    );
+    if (usable.length < 4) continue;
+    const furthest = usable.reduce((a, b) => Math.max(a, b[1]), 0);
+    if (furthest < 2) continue;
+
+    // **And rich enough to build anything.** Depth alone picked a nation whose
+    // mines could not feed six factories: sufficiency sat near zero and the
+    // artillery line turned out 0.7 guns in two thousand ticks. That is
+    // invariant 2 working exactly as designed and a gate that can never
+    // finish its own setup. Steel is what a line draws most of.
+    const steel = [...depth.keys()].reduce(
+      (sum, id) => sum + (deposits.get(id) ?? 0),
+      0,
+    );
+    if (steel < 4) continue;
+    const score = furthest * 100 + steel * 10 + usable.length;
+    if (best === null || score > best.score) {
+      best = { nation, capitals, depth, usable, furthest, score };
+    }
+  }
+  return best;
+}
+
+/**
+ * Open a line and find out what it was called.
+ *
+ * The ack says "accepted for tick N", not "and its id is 3" — ids are handed
+ * out by the reducer so that a replay hands out the same ones (the same
+ * reasoning as construction order ids, and the same bug that taught it). So
+ * the id is read off the wire on the tick the line appears.
+ */
+async function createLine(player, equipment, idPrefix) {
+  const before = new Set(player.economy.productionLines.map((l) => l.id));
+  await player.require(
+    { kind: "create_production_line", equipment },
+    `${idPrefix}-create`,
+  );
+  await player.waitFor(
+    (p) => p.economy.productionLines.some((l) => !before.has(l.id)),
+    `the ${equipment} line to appear`,
+    30_000,
+  );
+  return player.economy.productionLines.find((l) => !before.has(l.id)).id;
+}
+
+/**
+ * Put as many factories on a line as the nation can actually spare, right now.
+ *
+ * Not `require`: the border drift moves a province every tick, and a province
+ * with a factory in it can be gone between counting the factories and asking
+ * for them. That is the world working, not the command failing, so the gate
+ * asks for what is left rather than dying — and returns the number it got, so
+ * every later sum is the truth rather than the plan.
+ */
+async function assignUpTo(player, lineId, want, id) {
+  const yardTotal = player.economy.militaryFactoriesTotal;
+  const elsewhere = player.economy.productionLines
+    .filter((line) => line.id !== lineId)
+    .reduce((sum, line) => sum + line.factories, 0);
+  const possible = Math.max(0, Math.min(want, yardTotal - elsewhere));
+  if (possible === 0) return 0;
+  const ack = await player.command(
+    { kind: "assign_factories", lineId, factories: possible },
+    id,
+  );
+  if (!ack.accepted) {
+    log(`  assign_factories(${possible}) refused: ${ack.reason}`);
+    return 0;
+  }
+  // An accepted command is not an applied one: World.ts revalidates at apply
+  // time and silently skips what no longer holds. Believe the wire, not the ack.
+  await player.waitUntil(
+    (p) => (lineOf(p.economy, lineId)?.factories ?? -1) === possible,
+    `line ${lineId} to hold ${possible} factories`,
+    20_000,
+  );
+  return lineOf(player.economy, lineId)?.factories ?? 0;
+}
+
+function lineOf(economy, id) {
+  return economy.productionLines.find((line) => line.id === id);
+}
+
+/**
+ * Whatever an earlier run left behind.
+ *
+ * Divisions matter: they cost manpower that is never refunded and they count
+ * against coverage, so inheriting six of them from the last run silently
+ * changes the number this gate is measuring. Lines go too, but they are put
+ * straight back — this gate needs factories making things, it just needs to
+ * know exactly which lines they are.
+ */
 async function sweep(player) {
   const divisions = [...player.economy.divisions];
   const lines = [...player.economy.productionLines];
@@ -282,7 +384,10 @@ async function sweep(player) {
 }
 
 const WATCH_BUDGET_MS = 120_000;
-const SETUP_BUDGET_MS = 120_000;
+const SETUP_BUDGET_MS = 240_000;
+
+/** Equipment a division needs before attrition has anything to take from it. */
+const MIN_STRENGTH = 0.05;
 
 async function main() {
   let failures = 0;
@@ -319,11 +424,44 @@ async function main() {
 
   const spectator = new Player(null);
   await spectator.ready;
-  const nation = largestNation(spectator.controllers);
   const mapId = spectator.map.id;
-  spectator.close();
-
   const neighbours = await neighbourLists(mapId);
+
+  const { readFile } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const url = await import("node:url");
+  const repo = path.dirname(path.dirname(url.fileURLToPath(import.meta.url)));
+  const meta = JSON.parse(
+    await readFile(
+      path.join(repo, "resources", "maps", mapId, "provinces.json"),
+      "utf-8",
+    ),
+  );
+  const provinces = {
+    nations: spectator.nations.length,
+    capitals: meta.provinces.filter((p) => p.capital).map((p) => p.id),
+    deposits: new Map(
+      meta.provinces.map((p) => [p.id, p.resourceDeposits?.steel ?? 0]),
+    ),
+  };
+
+  // Not simply the biggest nation. Supply is a distance, so the gate needs one
+  // with somewhere far to stand — and one whose far provinces it *owns*,
+  // because a division cannot be raised on occupied ground.
+  const chosen = deepestNation(spectator, neighbours, provinces);
+  spectator.close();
+  if (chosen === null) {
+    log("");
+    log("  No nation on this world owns four connected provinces reaching two");
+    log("  hops from a capital with steel enough to build with, so there is");
+    log("  nowhere to be out of supply that could also arm anything.");
+    log("  That is a world this gate cannot use, not a finding. Let it run on");
+    log("  (ownership follows control by OCCUPATION_TICKS) and try again.");
+    log("");
+    process.exit(2);
+  }
+  const nation = chosen.nation;
+
   const player = new Player(nation);
   await player.ready;
   check(
@@ -336,38 +474,23 @@ async function main() {
   );
   await sweep(player);
 
-  // The nation's own capitals, from the artefact. Supply hubs would count too;
-  // a nation that has never built one has exactly its capitals.
-  const { readFile } = await import("node:fs/promises");
-  const path = await import("node:path");
-  const url = await import("node:url");
-  const repo = path.dirname(path.dirname(url.fileURLToPath(import.meta.url)));
-  const meta = JSON.parse(
-    await readFile(
-      path.join(repo, "resources", "maps", mapId, "provinces.json"),
-      "utf-8",
-    ),
-  );
-  const capitals = meta.provinces
-    .filter((p) => p.capital)
-    .map((p) => p.id)
-    .filter(
-      (id) => player.controllers[id] === nation && player.owners[id] === nation,
-    );
   const hubs = player.buildings.filter(
     (unused, index) =>
       index % BUILDING_COUNT === SUPPLY_HUB && player.buildings[index] > 0,
   ).length;
-  const sources = capitals.length + hubs;
+  const sources = chosen.capitals.length + hubs;
   check(sources > 0, `the nation draws supply from ${sources} source(s)`);
 
-  const depth = hopsFromHome(player, neighbours, capitals);
-  const ranked = [...depth.entries()].sort((a, b) => a[1] - b[1]);
-  check(
-    ranked.length >= 4 && ranked[ranked.length - 1][1] >= 3,
-    `it holds ${ranked.length} connected provinces, the furthest ` +
-      `${ranked[ranked.length - 1]?.[1]} hops from home`,
+  // Only ground it owns can take a division, so only that is ranked. The path
+  // to it may run over occupied territory; supply does not care who the deeds
+  // belong to, only who is standing there.
+  const ranked = chosen.usable.sort((a, b) => a[1] - b[1]);
+  log(
+    `  playing nation ${nation}: ${ranked.length} of its own provinces ` +
+      `connected to ${chosen.capitals.length} capital(s), the furthest ` +
+      `${chosen.furthest} hops out`,
   );
+  const depth = chosen.depth;
 
   // Exactly what the hubs can carry, so national coverage is 1 and the only
   // thing that can differ between these divisions is how far out they are.
@@ -430,13 +553,86 @@ async function main() {
       `${((supplyNow.get(best) ?? 0) * 100).toFixed(0)}%`,
   );
 
-  // They start empty, so give them something to lose first.
-  log("  letting them draw equipment, then watching the line stretch...");
+  // A division is raised empty, and attrition cannot take anything from a
+  // division that holds nothing — the first version of this gate swept the
+  // production lines away for tidiness and then waited two minutes for a
+  // strength that was never going to leave zero. So: make some equipment,
+  // let them draw it, and only then stop the factories.
+  //
+  // Both types, because `divisionStrength` is the *worst* ratio across the
+  // template (§6.3) and a warehouse of rifles with no guns is a division at
+  // zero.
+  log("  giving them something to lose...");
+  const rifles = await createLine(player, "infantry_equipment", "rifles");
+  const guns = await createLine(player, "artillery", "guns");
+  const held = player.economy.militaryFactoriesTotal;
+  log(`  ${held} military factor${held === 1 ? "y" : "ies"} to work with`);
+
+  // **One type at a time, on every factory the nation has.** Splitting them
+  // does not work: a nation with a single military factory gives it to
+  // whichever line asks first and the other line gets nothing, so the
+  // divisions sit at zero for ever — `divisionStrength` is the worst ratio
+  // across the template, and half a template is nothing. Moving factories
+  // between lines is free (§6.2 resets only on a type change), so the gate
+  // makes guns, then makes rifles, then stops.
+  const stock = (index) => player.economy.stockpile[index] ?? 0;
+  const needGuns = raised.length * 12 * MIN_STRENGTH * 4;
+  const needRifles = raised.length * 100 * MIN_STRENGTH * 4;
+
+  await assignUpTo(player, guns, held, "on-guns");
   await player.waitUntil(
-    (p) => (p.economy.divisions.find((d) => d.id === worst)?.strength ?? 0) > 0,
-    "the divisions to draw something",
-    SETUP_BUDGET_MS,
+    () => stock(ARTILLERY) >= needGuns,
+    `${needGuns.toFixed(0)} guns`,
+    SETUP_BUDGET_MS / 2,
   );
+  log(`  ${stock(ARTILLERY).toFixed(1)} guns made; retooling for rifles`);
+
+  await player.command(
+    { kind: "assign_factories", lineId: guns, factories: 0 },
+    "off-guns",
+  );
+  await player.waitUntil(
+    (p) => (lineOf(p.economy, guns)?.factories ?? -1) === 0,
+    "the guns line to stand down",
+    20_000,
+  );
+  await assignUpTo(player, rifles, held, "on-rifles");
+  await player.waitUntil(
+    () => stock(INFANTRY_EQUIPMENT) >= needRifles,
+    `${needRifles.toFixed(0)} rifles`,
+    SETUP_BUDGET_MS / 2,
+  );
+  log(`  ${stock(INFANTRY_EQUIPMENT).toFixed(1)} rifles made`);
+
+  const equipped = await player.waitUntil(
+    (p) =>
+      (p.economy.divisions.find((d) => d.id === worst)?.strength ?? 0) >=
+      MIN_STRENGTH,
+    `the divisions to reach ${MIN_STRENGTH * 100}% equipment`,
+    SETUP_BUDGET_MS / 2,
+  );
+  check(
+    equipped,
+    `the divisions drew enough to have something to lose ` +
+      `(${((player.economy.divisions.find((d) => d.id === worst)?.strength ?? 0) * 100).toFixed(1)}%)`,
+  );
+
+  // And now stop making it, so that the only thing that can move a division's
+  // equipment downwards is attrition — and the only thing that could move it
+  // upwards is gone.
+  for (const line of [rifles, guns]) {
+    await player.command(
+      { kind: "assign_factories", lineId: line, factories: 0 },
+      `off-${line}`,
+    );
+  }
+  await player.waitUntil(
+    (p) => p.economy.productionLines.every((line) => line.factories === 0),
+    "the factories to stand down",
+    30_000,
+  );
+
+  log("  watching the line stretch...");
 
   let lastTick = player.tick;
   const startStrength = new Map(
