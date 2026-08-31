@@ -14,6 +14,39 @@ traps have already been paid for.
 
 ## Where we are
 
+**Between phases 8 and 9, after a night shift on 2026-08-31/09-01.** Three
+pieces landed since the paragraph below was written, all planned in "The plan,
+end to end" and all gated:
+
+- **The state-hash check holds within a hash version** (decision 0016, Max's
+  call answering the open question below): `STATE_HASH_VERSION` rides in every
+  snapshot, a cross-version restore loads loudly instead of dying as
+  "damaged", and a season can now survive a deploy that touches the state.
+- **The front is a rate, tile by tile** (plan item 1). `AttackOrder` carries
+  `progress`; `combat.ts` moves it per tick out of the same strength
+  comparison — `FRONT_ADVANCE × (pressed − defence) / (pressed + defence)`,
+  the roll varying the rate — and empty ground is marched into at
+  `FRONT_MARCH_ADVANCE` (an eighth, exactly: eight additions reach 1.0 with no
+  float residue). A battle costs equipment every tick; a march costs nothing.
+  Cancelling loses the progress, so a front cannot be banked. The wire went
+  11 → 12: `attacks` carries progress and a public `fronts` list rides every
+  full state and delta, because the defender and every spectator paint the
+  partial progress as tiles — `FrameAdapter` orders a contested province's
+  tiles by BFS from the attacking border and colours the first
+  `progress × tileCount` of them. The phase-4 gate now proves the course
+  ("progress seen strictly between 0 and 1, largest one-tick step ≤ the march
+  rate") with a `--break=lump` counter-proof; the phase-8 gate measures how
+  *deep* the same front grinds in a fixed window with and without bombers,
+  fought twice over the same provinces since cancel-resets-progress makes
+  that fair.
+- **A menu instead of six open panels** (plan item 2): an icon bar top-left,
+  one panel at a time, forms keep their identity across switches, the
+  province panel stays on the right. `tests/client/world/HudMenu.test.ts`
+  holds the rules; how it *looks* is the morning checklist's first item.
+
+The paragraphs below describe the state as of phase 8's gate and are still
+accurate about everything they cover.
+
 **Phase 8 of 13 — air zones, and §6.9 underneath it.** The ground combat
 phase 8's gate needs to shift now exists: `claim_province` is a standing attack
 order, resolved every tick against equipment, supply, terrain and combat width

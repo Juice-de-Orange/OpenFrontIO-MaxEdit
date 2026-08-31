@@ -94,13 +94,32 @@ const STYLE = `
 #world-hud .row { display: flex; justify-content: space-between; gap: 1rem; }
 #world-hud .row span:last-child { color: #fff; font-variant-numeric: tabular-nums; }
 #world-hud .muted { color: #9aa4b2; }
-#world-economy { top: 1rem; left: 1rem; width: 15rem; }
-#world-queue { top: 1rem; left: 17.5rem; width: 16rem; }
+/* One panel at a time, all anchored under the menu bar. The province panel
+   is the exception: it answers a click on the map and lives on the right. */
+#world-economy { top: 3.4rem; left: 1rem; width: 15rem; }
+#world-queue { top: 3.4rem; left: 1rem; width: 16rem; }
 #world-province { top: 1rem; right: 1rem; width: 17rem; }
-#world-production { bottom: 1rem; left: 1rem; width: 20rem; max-height: 60vh; }
-#world-research { bottom: 1rem; right: 1rem; width: 18rem; max-height: 50vh; }
-#world-diplomacy { bottom: 1rem; left: 21.5rem; width: 21rem; max-height: 70vh; }
-#world-air { top: 1rem; left: 34rem; width: 19rem; max-height: 60vh; }
+#world-production { top: 3.4rem; left: 1rem; width: 20rem; max-height: 75vh; }
+#world-research { top: 3.4rem; left: 1rem; width: 18rem; max-height: 75vh; }
+#world-diplomacy { top: 3.4rem; left: 1rem; width: 21rem; max-height: 75vh; }
+#world-air { top: 3.4rem; left: 1rem; width: 19rem; max-height: 75vh; }
+#world-menu {
+  position: absolute; top: 1rem; left: 1rem; display: flex; gap: .25rem;
+  /* The HUD root is pointer-events:none so the map still pans; the bar, like
+     .panel, takes them back. */
+  pointer-events: auto;
+}
+#world-menu button {
+  display: block; width: 2.1rem; margin-top: 0; padding: .3rem 0;
+  text-align: center; font-size: 15px; line-height: 1.2; cursor: pointer;
+  background: rgba(18,18,20,.88); color: #eee;
+  border: 1px solid rgba(255,255,255,.12); border-radius: 6px;
+  backdrop-filter: blur(3px);
+}
+#world-menu button:hover:enabled { background: rgba(255,255,255,.14); }
+#world-menu button[aria-pressed="true"] {
+  background: rgba(110,168,254,.28); border-color: rgba(110,168,254,.6);
+}
 #world-hud input[type=number] {
   width: 100%; margin-top: .25rem; padding: .25rem;
   background: rgba(255,255,255,.06); color: #eee; font: inherit;
@@ -133,6 +152,15 @@ const STYLE = `
 #world-hud .bar > div { height: 100%; background: #6ea8fe; }
 #world-hud .queue-item { margin-bottom: .5rem; }
 `;
+
+/** The panels the menu bar rotates between. */
+type PanelId =
+  | "economy"
+  | "queue"
+  | "production"
+  | "research"
+  | "diplomacy"
+  | "air";
 
 export interface HudModel {
   /** Null while watching. */
@@ -223,6 +251,17 @@ export class Hud {
   private airWhich: HTMLSelectElement | null = null;
   private airZone: HTMLSelectElement | null = null;
 
+  /**
+   * Which of the menu's panels is open. One at a time: six always-open panels
+   * covered half the map, and the first thing anyone should see is the map.
+   * The province panel is not in this rotation — it answers a click on the
+   * map and comes and goes with the selection.
+   */
+  private open: PanelId | null = "economy";
+  /** The last model seen, so a menu click can redraw without waiting a tick. */
+  private lastModel: HudModel | null = null;
+  private readonly menuButtons = new Map<PanelId, HTMLButtonElement>();
+
   constructor(private readonly actions: HudActions) {
     const style = document.createElement("style");
     style.textContent = STYLE;
@@ -230,6 +269,7 @@ export class Hud {
 
     this.root = document.createElement("div");
     this.root.id = "world-hud";
+    this.buildMenu();
     this.economyPanel = this.panel("world-economy");
     this.queuePanel = this.panel("world-queue");
     this.provincePanel = this.panel("world-province");
@@ -249,7 +289,44 @@ export class Hud {
     return element;
   }
 
+  private buildMenu(): void {
+    const bar = document.createElement("nav");
+    bar.id = "world-menu";
+    const entries: readonly [PanelId, string, StringKey][] = [
+      ["economy", "📊", "economy.title"],
+      ["queue", "🏗️", "queue.title"],
+      ["production", "🏭", "production.title"],
+      ["research", "🔬", "research.title"],
+      ["diplomacy", "🤝", "diplomacy.title"],
+      ["air", "✈️", "air.title"],
+    ];
+    for (const [id, glyph, label] of entries) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = glyph;
+      button.title = t(label);
+      button.setAttribute("aria-label", t(label));
+      button.setAttribute("aria-pressed", String(this.open === id));
+      button.addEventListener("click", () => this.toggle(id));
+      this.menuButtons.set(id, button);
+      bar.appendChild(button);
+    }
+    this.root.appendChild(bar);
+  }
+
+  /** Open a panel, or close it again if it was the open one. */
+  private toggle(id: PanelId): void {
+    this.open = this.open === id ? null : id;
+    for (const [panel, button] of this.menuButtons) {
+      button.setAttribute("aria-pressed", String(this.open === panel));
+    }
+    // Redraw from the last model rather than waiting for the next tick: five
+    // seconds between click and panel would read as a broken button.
+    if (this.lastModel !== null) this.update(this.lastModel);
+  }
+
   update(model: HudModel): void {
+    this.lastModel = model;
     this.renderEconomy(model);
     this.renderQueue(model);
     this.renderProvince(model);
@@ -263,7 +340,7 @@ export class Hud {
 
   private renderEconomy(model: HudModel): void {
     const economy = model.economy;
-    this.economyPanel.hidden = economy === null;
+    this.economyPanel.hidden = economy === null || this.open !== "economy";
     if (economy === null) return;
 
     // **What the queue actually gets**, not what the factories made. Since
@@ -312,7 +389,7 @@ export class Hud {
 
   private renderQueue(model: HudModel): void {
     const economy = model.economy;
-    this.queuePanel.hidden = economy === null;
+    this.queuePanel.hidden = economy === null || this.open !== "queue";
     if (economy === null) return;
 
     const children: Node[] = [heading(t("queue.title"))];
@@ -523,7 +600,8 @@ export class Hud {
    */
   private renderProduction(model: HudModel): void {
     const economy = model.economy;
-    this.productionPanel.hidden = economy === null;
+    this.productionPanel.hidden =
+      economy === null || this.open !== "production";
     if (economy === null) return;
 
     const children: Node[] = [
@@ -712,7 +790,7 @@ export class Hud {
    */
   private renderResearch(model: HudModel): void {
     const economy = model.economy;
-    this.researchPanel.hidden = economy === null;
+    this.researchPanel.hidden = economy === null || this.open !== "research";
     if (economy === null) return;
 
     const children: Node[] = [heading(t("research.title"))];
@@ -808,7 +886,8 @@ export class Hud {
    */
   private renderDiplomacy(model: HudModel): void {
     const nation = model.nation;
-    this.diplomacyPanel.hidden = nation === null || model.economy === null;
+    this.diplomacyPanel.hidden =
+      nation === null || model.economy === null || this.open !== "diplomacy";
     if (nation === null || model.economy === null) return;
 
     const mine = model.agreements.filter((a) => a.parties.includes(nation));
@@ -1010,7 +1089,7 @@ export class Hud {
    */
   private renderAir(model: HudModel): void {
     const economy = model.economy;
-    this.airPanel.hidden = economy === null;
+    this.airPanel.hidden = economy === null || this.open !== "air";
     if (economy === null) return;
 
     if (this.airList === null) {
