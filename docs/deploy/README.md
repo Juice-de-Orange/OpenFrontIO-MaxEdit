@@ -14,8 +14,9 @@ proxies `/ws` to port 3000; in production a reverse proxy puts the built bundle
 and this socket on one hostname, which is the part below.
 
 To play a nation rather than watch, open `http://localhost:9000/?nation=1`.
-There are no accounts yet — that is phase 3's business, and a world exposed to
-the internet needs them.
+**That is the whole of authentication.** Accounts belong with the registration
+screen rather than ahead of it, so they are still an open question in
+`HANDOVER.md` — and a world exposed to the internet needs them settled first.
 
 **Verify a deployment the way the gate does:**
 

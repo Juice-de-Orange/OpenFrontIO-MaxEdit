@@ -70,3 +70,5 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0006](0006-the-partition-is-checked-in-map-data.md)       | The province partition is checked-in map data, not a startup computation  | Accepted |
 | [0007](0007-events-apply-between-systems.md)               | A system's events are applied before the next system runs                 | Accepted |
 | [0008](0008-manpower-is-a-population-cap.md)               | Manpower is a population-scaled cap, not a conscription law               | Accepted |
+| [0009](0009-a-factory-is-fed-by-what-it-makes.md)          | A factory is fed by what it makes, and an idle one still eats             | Accepted |
+| [0010](0010-research-modifiers-are-read-not-stored.md)     | Research modifiers are read where the rate is read, never stored          | Accepted |

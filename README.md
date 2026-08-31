@@ -87,8 +87,9 @@ Useful things to know before you start:
 - **Read [CLAUDE.md](CLAUDE.md) first**, especially § 2 (design invariants). A
   mechanic that needs an exception to those is the wrong mechanic, however good
   it is on its own — that constraint is what keeps the game coherent.
-- **Phases are built in order** and each has a gate. A pull request for phase 7
-  while phase 3 is unbuilt has nothing to attach to.
+- **Phases are built in order** and each has a gate. A pull request for phase 8
+  while phase 7 is unbuilt has nothing to attach to, and a phase counts as done
+  when its gate has been _demonstrated_ — not when it compiles.
 - Docs live in [`docs/`](docs/) — architecture notes, and a decision log
   explaining _why_ things are the way they are. [HANDOVER.md](HANDOVER.md) is
   the quickest way in: it names the next task and the mistakes not worth

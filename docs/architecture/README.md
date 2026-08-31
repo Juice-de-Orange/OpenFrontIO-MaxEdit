@@ -4,9 +4,11 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-31, phases 0-6 gated. A world server ticks, persists
-to Postgres, accepts commands and survives being killed; the renderer draws
-what it sends. `src/core` and upstream's match server are deleted and the rest
+**Last verified:** 2026-08-31, phases 0-5 gated, phase 6 built but not gated.
+A world server ticks, persists to Postgres, accepts commands and survives being
+killed; the renderer draws what it sends. Supply is written, unit-tested and
+live in the tick, and its gate does not yet pass — `HANDOVER.md` says exactly
+why, and the reason is in the gate rather than in the simulation. `src/core` and upstream's match server are deleted and the rest
 of the inherited client is quarantined. Current status is in
 [`../../HANDOVER.md`](../../HANDOVER.md).
 
@@ -118,18 +120,18 @@ disagree.
 
 ## The tree, and where it came from
 
-| Path                        | Origin   | State                                                                                                                                                                                                                                                                     |
-| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                                                                            |
-| `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                                                              |
-| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                                                     |
-| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                                                                   |
-| `src/server/`               | new      | The world server: `world/` (World, WorldState and its reducer, TickLoop, WorldRunner), `systems/` (economy, construction, production, research, supply, combat, and the five still empty), `db/` (store interface, memory and Postgres store), `net/` (socket and health).                 |
-| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `economy/` (the building catalogue), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`. |
-| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                                                     |
-| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                                                                    |
-| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                                                                                |
-| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                                                                     |
+| Path                        | Origin   | State                                                                                                                                                                                                                                                                      |
+| --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                                                                             |
+| `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                                                               |
+| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                                                      |
+| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                                                                    |
+| `src/server/`               | new      | The world server: `world/` (World, WorldState and its reducer, TickLoop, WorldRunner), `systems/` (economy, construction, production, research, supply, combat, and the five still empty), `db/` (store interface, memory and Postgres store), `net/` (socket and health). |
+| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `economy/` (the building catalogue), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`.  |
+| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                                                      |
+| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                                                                     |
+| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                                                                                 |
+| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                                                                      |
 
 What was rescued from `src/core` before it went: `GameMap`, `TileSet`,
 `EventBus`, `PseudoRandom`, `DebugSpan`, `Maps.gen`, and 19 of 23 pathfinding

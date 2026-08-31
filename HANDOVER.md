@@ -133,8 +133,8 @@ supply model does exactly what §6.6 asks: 100% at the capital, 0% seven hops
 out. What the gate then cannot do is give the far divisions something to lose,
 and the reason is a real dynamic rather than a bug.
 
-A division draws `DIVISION_REINFORCE_RATE` of its *shortfall* per tick and
-loses `SUPPLY_ATTRITION × (1 − supply)` of its *holdings* per tick. At full
+A division draws `DIVISION_REINFORCE_RATE` of its _shortfall_ per tick and
+loses `SUPPLY_ATTRITION × (1 − supply)` of its _holdings_ per tick. At full
 supply those settle at full strength. At **zero** supply they settle at
 nothing: whatever it draws this tick is taken away again, so it never
 accumulates and there is nothing to watch decay. The gate picked its far
@@ -175,10 +175,10 @@ $ node scripts/phase6-gate.mjs --break=attrition
 ```
 
 The first is the one that matters and it took two attempts to get right. Its
-first version stood everybody *one hop* from a source and passed — a hop is 86%
+first version stood everybody _one hop_ from a source and passed — a hop is 86%
 supply, 86% is short, and short divisions waste away exactly as the gate says
 they do. A counter-proof has to remove its subject, not reduce it, so it now
-stands every division *on* a source, where supply is 1 and there is nothing to
+stands every division _on_ a source, where supply is 1 and there is nothing to
 find.
 
 The second stopped at the setup rather than at the check it is aimed at, for
@@ -209,7 +209,7 @@ phase-5 gate
 PASS
 ```
 
-The whole difficulty of this gate is the word *measurably*. Every number on the
+The whole difficulty of this gate is the word _measurably_. Every number on the
 wire moves for reasons that have nothing to do with research: the drift takes a
 mine, the ramp climbs a step, a shortage scales everything down. So it measures
 the one term research actually touches, isolated. The server computes
@@ -278,8 +278,8 @@ Two halves, and §8 words them plainly: a sustained fight visibly drains a
 stockpile and weakens units, and switching a production line visibly costs the
 player output for a long time.
 
-The load-bearing check is the attribution. Reinforcement only ever *adds* to a
-division and combat only ever *takes away*, so a tick on which a division got
+The load-bearing check is the attribution. Reinforcement only ever _adds_ to a
+division and combat only ever _takes away_, so a tick on which a division got
 weaker is a tick something cost it equipment — and the gate then demands that
 every such loss coincides with a province changing hands under that division or
 next to it. That is what makes this half mean "the fight did it" rather than
@@ -398,7 +398,7 @@ PASS
 **Note what the restart does to the clock.** The gate brings the container back
 without `WORLD_TICK_MS`, so the world returns at its real five seconds a tick
 and every gate run after it refuses with instructions rather than hanging —
-which is the override working, but it means phase 1 goes *last* and the clock
+which is the override working, but it means phase 1 goes _last_ and the clock
 is put back by hand afterwards.
 
 The phase-1 hash line is the one that matters. The client tracks province
@@ -454,16 +454,16 @@ Phase 4:
 | Commit     | What                                                                                                                                |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `3b125690` | **Production lines, the efficiency ramp and its reset, equipment, divisions, manpower, and a border clash that destroys equipment** |
-| `985c5936` | Materials by equipment type, and `scripts/phase4-gate.mjs` with three counter-proofs                                                 |
+| `985c5936` | Materials by equipment type, and `scripts/phase4-gate.mjs` with three counter-proofs                                                |
 | `ba05c98b` | The production screen, and a division you can raise                                                                                 |
 
 Phases 5 and 6 landed together, because they share a wire version and could
 not be split into commits that each build:
 
-| Commit     | What                                                                                                        |
-| ---------- | ------------------------------------------------------------------------------------------------------------ |
-| `985c5936` | **Research and supply**, their gates, and decisions 0009 and 0010                                            |
-| `ba05c98b` | The research screen, and supply shown beside equipment on every division                                     |
+| Commit     | What                                                                     |
+| ---------- | ------------------------------------------------------------------------ |
+| `985c5936` | **Research and supply**, their gates, and decisions 0009 and 0010        |
+| `ba05c98b` | The research screen, and supply shown beside equipment on every division |
 
 ---
 
@@ -519,7 +519,7 @@ stands", and it is the difference between six gates and seven.
 
 Then **phase 7: diplomacy and trade.** It is the biggest single system left and the
 one the design leans on hardest — §6.5 is where invariant 3 lives, and
-invariant 3 (*every commitment is indefinite, with a cost to break*) has no
+invariant 3 (_every commitment is indefinite, with a cost to break_) has no
 representation anywhere in the code yet.
 
 Read §6.5 before starting. The parts that are easy to get wrong:
@@ -631,31 +631,31 @@ agreements can carry equipment.
 ## How to verify anything
 
 ```bash
-npm run inst                                  # npm ci --ignore-scripts — never `npm install`
-npm run typecheck                             # tsc over everything, must be clean
-npm run typecheck:strict                      # tsc over shared/ + server/ with strict: true
-npm run lint                                  # oxlint + eslint, must be clean
-npm run test                                  # one vitest run; see baseline below
-npm run test:db                               # the Postgres tests; needs `docker compose up -d db`
-npm run build-prod                            # tsc + vite + asset hashing; the real integration test
-npm run check:doc-links                       # every relative link in every .md resolves
-npm run gen-provinces                         # regenerate the province artefacts (see below)
-docker compose up -d                          # Postgres + the world
-npm run start:client                          # http://localhost:9000/?nation=17
+npm run inst             # npm ci --ignore-scripts — never `npm install`
+npm run typecheck        # tsc over everything, must be clean
+npm run typecheck:strict # tsc over shared/ + server/ with strict: true
+npm run lint             # oxlint + eslint, must be clean
+npm run test             # one vitest run; see baseline below
+npm run test:db          # the Postgres tests; needs `docker compose up -d db`
+npm run build-prod       # tsc + vite + asset hashing; the real integration test
+npm run check:doc-links  # every relative link in every .md resolves
+npm run gen-provinces    # regenerate the province artefacts (see below)
+docker compose up -d     # Postgres + the world
+npm run start:client     # http://localhost:9000/?nation=17
 ```
 
 And the gates, which need the faster clock and a world with some history:
 
 ```bash
-docker compose down -v                        # phase 5 changed the state hash; see above
+docker compose down -v # phase 5 changed the state hash; see above
 WORLD_TICK_MS=50 docker compose up -d --build
-sleep 150                                     # manpower starts at zero and regrows
+sleep 150 # manpower starts at zero and regrows
 
 node scripts/phase2-gate.mjs
 node scripts/phase2-gate.mjs --break=artefact # and it must fail
 node scripts/phase3-gate.mjs
 node scripts/phase4-gate.mjs
-node scripts/phase4-gate.mjs --break=quiet    # and these three must fail
+node scripts/phase4-gate.mjs --break=quiet # and these three must fail
 node scripts/phase4-gate.mjs --break=reset
 node scripts/phase4-gate.mjs --break=drain
 node scripts/phase5-gate.mjs
@@ -663,7 +663,7 @@ node scripts/phase5-gate.mjs --break=modifier # and this
 node scripts/phase6-gate.mjs
 node scripts/phase6-gate.mjs --break=supplied # and these two
 node scripts/phase6-gate.mjs --break=attrition
-node scripts/phase1-gate.mjs                  # last: it kills the container
+node scripts/phase1-gate.mjs # last: it kills the container
 ```
 
 **`npm run gen-provinces` is not part of the build.** It writes map data into
@@ -788,6 +788,13 @@ numbers do not add up.
 Docker image — which is exactly when a phase is being closed. It has a real
 timeout now, with the reason next to it.
 
+**A gate run is five to fifteen minutes, and a stalled-looking one usually is
+not.** Check `ps -eo pid,etimes` before concluding anything: elapsed seconds
+are the ground truth, not how many times you have looked at the log. Two gates
+were killed and restarted in this session for being "stuck" at two and three
+minutes into normal runs, which is how two chains ended up competing for the
+same nation and writing into the same file.
+
 **Killing a gate by pattern kills the chain that started it.** `pgrep -f
 "phase[0-9]-gate" | kill` found the gate and also orphaned the shell script
 running the sequence, which died with 144 and took the remaining gates with
@@ -798,7 +805,6 @@ Kill the one pid you mean, or stop the task.
 matched nothing because prettier had reflowed the lines. Every patch asserts
 its pattern matched before writing, and each time the assertion fired the file
 was left untouched — which is the whole point. Do not remove those assertions.
-
 
 **`vite.config.ts` imports from `src/`.** It pulls `src/shared/util/AssetPath`
 and `src/build/PublicAssetManifest` at _config evaluation time_ — before a build
