@@ -14,7 +14,7 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 8 of 11 — air zones.** Phases 0 to 7 have their gates demonstrated
+**Phase 8 of 12 — air zones.** Phases 0 to 7 have their gates demonstrated
 against the code as it stands, counter-proofs and all. Two of them went green
 on 2026-08-31: phase 6, whose gate needed three things this file had not
 predicted ("What the phase-6 gate was really asking" below), and phase 7,
@@ -645,7 +645,8 @@ Still worth doing, and still deferred:
 - **Supply's remaining half.** §6.6 wants consumption proportional to a unit's
   equipment and type; it is currently flat per division. And the sea path is
   stubbed until phase 9 gives it convoys to consume.
-- **Deployment to a real host** (phase 11) and **accounts**. The nation still
+- **Deployment to a real host** (now phase 12) and **accounts** (now phase 11,
+  see below). The nation still
   comes from `?nation=` in the URL.
 
 ---
@@ -691,23 +692,24 @@ it will not be. The alternative is a grace period, and a grace period is a
 duration, which is what invariant 3 exists to keep out — so this one needs
 thought rather than a constant.
 
-### Anybody may claim anybody's nation
+### Anybody may claim anybody's nation — now phase 11
 
 `hello` checks that the nation number exists and nothing else. No account, no
-token, and two sessions may hold the same nation at once — documented as a
-phase-1 deferral, and until phase 6 the worst it bought an impostor was
-somebody else's construction queue.
+token, and two sessions may hold the same nation at once — a phase-1 deferral,
+and until phase 6 the worst it bought an impostor was somebody else's
+construction queue.
 
-Phase 7 raised the price. The impostor is now sent the **private terms** of
-that nation's treaties, which §7 says only the two parties may see, and may
-`cancel_agreement` in its name — which spends trust the nation can never earn
-back and stops a flow its real player was depending on. Nothing in the
-diplomacy system can defend against it, because from the server's side the
-impostor _is_ the nation.
+Phase 7 raised the price: the impostor is sent the **private terms** of that
+nation's treaties, which §7 says only the two parties may see, and may
+`cancel_agreement` in its name — spending trust the nation can never earn back.
+Nothing in the diplomacy system can defend against it, because from the
+server's side the impostor _is_ the nation.
 
-Accounts are the fix. They are their own piece of work and they are not on
-§8's phase list at all, which is itself worth deciding about before a world
-runs anywhere public.
+**Decided on 2026-08-31: accounts are a phase of their own, and §8 has one
+now.** Phase 11 is accounts and identity; deployment moved to 12, which is the
+right order — a world reachable from outside with no accounts in front of it is
+a world in which anybody is everybody. Decision 0013 records why a guarantee
+the code cannot enforce is not a guarantee.
 
 ### Changing the state hash makes a running world unstartable
 
@@ -746,7 +748,7 @@ every nation begins with two empty divisions draining any stockpile they can
 reach, and deleting it drops a design decision that was written down on
 purpose. Nothing depends on the answer, so it can wait for one.
 
-**Needs a decision before the world is deployed anywhere real** (phase 11):
+**Needs a decision before the world is deployed anywhere real** (phase 12):
 
 - DNS record for the world's domain — who creates it, and by hand or via API.
 - The deployment host had a pending reboot when this was last discussed.
@@ -1206,7 +1208,7 @@ reference and reads it at draw time. A fresh array per tick renders the first
 frame and then silently ignores every update. Assert buffer _identity_ in
 tests, not equality.
 
-**`systemctl reload nginx` lies** (relevant from phase 11). Covered in
+**`systemctl reload nginx` lies** (relevant from phase 12). Covered in
 [`docs/deploy/README.md`](docs/deploy/README.md).
 
 ### From phase 4

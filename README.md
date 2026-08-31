@@ -60,7 +60,7 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Phase 7 of 11 done.** A world server ticks every five seconds, persists to
+**Phase 7 of 12 done.** A world server ticks every five seconds, persists to
 Postgres, accepts commands and comes back where it was after being killed. On
 top of that runs an economy: provinces extract from their deposits, civilian
 factories make construction points, military factories and dockyards draw the
@@ -86,7 +86,7 @@ what is next, and the traps already paid for — see
 - [x] Research — slots, prerequisites, modifiers the systems read
 - [x] Supply — reach over the province graph, coverage, attrition at the far end
 - [x] Diplomacy and trade — indefinite agreements, trust, per-tick flows, a world market
-- [ ] Air · Naval · Regent · Deployment
+- [ ] Air · Naval · Regent · Accounts · Deployment
 
 ## 🤝 Contributing
 

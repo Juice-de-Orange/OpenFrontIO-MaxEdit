@@ -632,7 +632,37 @@ rule, world market trade fallback.
 opponent still holds its capital, has a non-empty construction queue, and has
 not reset a single production line.
 
-### Phase 11 — Deployment
+### Phase 11 — Accounts and identity
+
+Until here a session says which nation it is and the server believes it: the
+nation comes from `?nation=` in the URL, there is no credential of any kind,
+and two sessions may hold the same nation at once. That was a deliberate
+deferral through phases 0 to 6, when the worst it bought an impostor was
+somebody else's construction queue.
+
+**Phase 7 made it load-bearing.** §7 promises that a trade agreement's terms
+are visible only to the two parties, and that promise cannot be kept by a
+server that cannot tell who is asking. Worse, an impostor may cancel that
+nation's agreements — spending trust it can never earn back, and stopping a
+flow its real player was relying on. A guarantee the code cannot enforce is not
+a guarantee.
+
+Accounts, sessions bound to accounts, and a nation claimed by exactly one
+account for the life of a season. Reconnecting resumes the same session rather
+than opening a second one. Registration is deliberately minimal — this is a
+hobby world, not a service — but it is a real credential and it is checked on
+every `hello`.
+
+This also answers §10's "how new players enter a world already in progress",
+because entering is now a thing that happens to an account rather than to a
+URL.
+
+**Gate**: a session that claims a nation it does not hold is refused, and is
+sent nothing about that nation. Two browsers signed in to the same account
+share one nation and one session; two accounts cannot hold the same nation.
+The refusal survives a world restart.
+
+### Phase 12 — Deployment
 
 Docker Compose, nginx vhost with WebSocket upgrade, an in-stack backup sidecar,
 and a systemd watchdog that pushes an alert when the world stops ticking.
@@ -655,6 +685,10 @@ the machine this world runs on. Verify each on yours rather than assuming:_
 
 **Gate**: a world runs uninterrupted for seven days on the deployment host,
 with snapshot restore verified at least once.
+
+_Deployment is last on purpose, and phase 11 is why: a world reachable from
+outside with no accounts in front of it is a world in which anybody is
+everybody._
 
 ---
 
