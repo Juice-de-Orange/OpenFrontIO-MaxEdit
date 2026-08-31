@@ -267,7 +267,15 @@ export class Hud {
     const traded = economy.tradePointsIn - economy.tradePointsOut;
 
     this.economyPanel.replaceChildren(
-      heading(t("economy.title")),
+      // **Whose economy this is, before what is in it.** A player who
+      // cannot tell which nation they are looking at cannot use any other
+      // number on the screen, and until this said so the only way to find out
+      // was to read the URL.
+      heading(
+        model.nation === null
+          ? t("economy.title")
+          : nationName(model, model.nation),
+      ),
       row(t("economy.construction"), perDay(netConstruction)),
       ...(Math.abs(traded) > 1e-9
         ? [row(t("economy.tradeShare"), perDay(traded))]

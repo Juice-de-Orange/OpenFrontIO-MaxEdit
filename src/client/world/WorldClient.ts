@@ -286,6 +286,48 @@ export async function startWorldClient(
  * or on map.bin where the world read map4x.bin — has nothing on the wire to
  * disagree about and shows up only as quietly mis-coloured regions.
  */
+/**
+ * Where to point the camera so a player can see their own country.
+ *
+ * The bounding box of everything the nation controls, framed with the same
+ * padding `Camera.focusBBox` uses. Province centres rather than tiles: the
+ * centres are in the artefact, a tile scan would be four megabytes of work for
+ * a framing that does not need to be exact, and §8 keeps tiles out of anything
+ * a player action touches anyway.
+ */
+function homeView(
+  grid: ProvinceMap,
+  controllers: number[],
+  nation: number,
+  canvas: HTMLCanvasElement,
+): { x: number; y: number; zoom: number } | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const province of grid.provinces) {
+    if (controllers[province.id] !== nation) continue;
+    minX = Math.min(minX, province.centre.x);
+    minY = Math.min(minY, province.centre.y);
+    maxX = Math.max(maxX, province.centre.x);
+    maxY = Math.max(maxY, province.centre.y);
+  }
+  // A nation with nothing left is not a framing problem; leave the map alone.
+  if (minX === Infinity) return null;
+
+  const width = Math.max(1, maxX - minX);
+  const height = Math.max(1, maxY - minY);
+  const zoom = Math.min(
+    canvas.width / width,
+    canvas.height / height,
+  ) / 1.4;
+  return {
+    x: (minX + maxX) / 2,
+    y: (minY + maxY) / 2,
+    zoom: Math.max(0.5, Math.min(8, zoom)),
+  };
+}
+
 async function buildFrom(
   state: FullState,
   onProvince: (province: number) => void,
@@ -352,11 +394,19 @@ async function buildFrom(
 
   // After construction, so the renderer's own initial fit has happened and
   // the controller continues from it rather than pushing a competing framing.
-  const initialCamera = view.getCameraState() ?? {
-    x: map.width / 2,
-    y: map.height / 2,
-    zoom: 1,
-  };
+  // **Start looking at the nation being played.** The renderer's own fit
+  // frames the whole map, which for a continent means a player opens the game
+  // pointed at nothing in particular and has to hunt for their own territory.
+  // A spectator still gets the whole map, which is what a spectator wants.
+  const own = state.economy?.nation ?? null;
+  const home = own === null ? null : homeView(grid, state.controllers, own, canvas);
+  const initialCamera = home ??
+    view.getCameraState() ?? {
+      x: map.width / 2,
+      y: map.height / 2,
+      zoom: 1,
+    };
+  if (home !== null) view.setCameraState(home.x, home.y, home.zoom);
   // Province borders as a map layer, drawn over the terrain and under the
   // territory. Awaited rather than fired off: the renderer keeps the bitmap,
   // and handing it one that is still decoding is a race with no error
