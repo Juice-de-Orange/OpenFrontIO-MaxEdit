@@ -967,6 +967,13 @@ its own luck rather than the world:
   seen — nothing to replay. It now waits until the world is between `margin`
   and one snapshot interval past _the record itself_, and kills inside that
   window.
+- **Phase 6 could not find a nation with two military factories.** It needs
+  two to run a rifle line and an artillery line at once, every nation starts
+  with exactly one, and since the drift was removed an unattended world does
+  not develop — so no nation was ever going to grow one. It builds the second
+  itself now, trying several provinces because a capital is usually out of
+  slots. That is what a player would do, and it is the first thing in this
+  project that had to be built _because_ the world stopped moving on its own.
 - **Phase 7 offered a trade to a nation whose warehouse was full.** Since the
   cap fix that moves nothing, correctly, so the gate now checks the buyer has
   room before choosing it — on a world a few hours old, a resource nobody

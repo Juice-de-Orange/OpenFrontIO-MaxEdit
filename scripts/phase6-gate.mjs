@@ -52,9 +52,22 @@ const MAX_TICK_MS = 200;
 
 const MESSAGE_TIMEOUT_MS = 300_000;
 
-/** BUILDING_TYPES.length, and buildingIndex("supply_hub"). */
+/** BUILDING_TYPES.length, and buildingIndex of the two this gate reads. */
 const BUILDING_COUNT = 10;
+const MILITARY_FACTORY = 1;
 const SUPPLY_HUB = 7;
+
+/**
+ * Military factories the chosen nation needs.
+ *
+ * Two, because the setup runs a rifle line and an artillery line **at the same
+ * time** — one type at a time cannot arm a division that is losing equipment,
+ * which is the measurement this gate rests on. A nation with one factory gives
+ * one of the two lines nothing and the division never leaves zero. Every nation
+ * starts with exactly one (`STARTING_CAPITAL_BUILDINGS`), so on a young world
+ * this is the binding constraint and it used to be discovered six minutes in.
+ */
+const MIN_MILITARY_FACTORIES = 2;
 
 /** SUPPLY_SOURCE_THROUGHPUT in shared/config/supply.ts: divisions per source. */
 const SUPPLY_SOURCE_THROUGHPUT = 4;
@@ -332,6 +345,19 @@ function deepestNation(player, neighbours, provinces) {
     );
     if (steel < 4) continue;
 
+    // **And enough industry to run two lines at once.** Checked here rather
+    // than discovered in the setup, where it cost six minutes and read as a
+    // failure of the simulation.
+    const factories = [...depth.keys()].reduce(
+      (sum, id) =>
+        sum + (player.buildings[id * BUILDING_COUNT + MILITARY_FACTORY] ?? 0),
+      0,
+    );
+    // One is enough to be chosen: the setup builds the second itself, the way
+    // a player would. Zero would mean no industry at all, which is a nation
+    // this gate cannot arm anything with.
+    if (factories < 1) continue;
+
     // **And somewhere sheltered to stand, at both ends.** A nation with a deep
     // interior and a capital on the front line is no use here: the home
     // division would be measured while a war went past it, and the gate would
@@ -564,7 +590,10 @@ async function main() {
   if (chosen === null) {
     log("");
     log("  No nation on this world owns four connected provinces reaching two");
-    log("  hops from a capital with steel enough to build with, and a capital");
+    log(
+      `  hops from a capital, with ${MIN_MILITARY_FACTORIES} military factories and steel`,
+    );
+    log("  enough to build with, and a capital");
     log("  and a far province both far enough behind their own front that the");
     log("  drift cannot reach them, so there is nowhere to be out of supply");
     log("  that could also arm anything and be left alone while it happens.");
@@ -753,6 +782,61 @@ async function main() {
   // template (§6.3) and a warehouse of rifles with no guns is a division at
   // zero.
   log("  giving them something to lose...");
+
+  // **Build what the measurement needs.** Two lines have to run at once — one
+  // type at a time cannot arm a division that is losing equipment — and every
+  // nation starts with exactly one military factory. Nothing hands out a
+  // second any more: since the border drift was replaced by §6.9 (decision
+  // 0014) an unattended world does not develop, so a gate that waited for a
+  // nation to have grown one would wait for ever. So it builds one, which is
+  // what a player would do, and which the phase-3 gate already proves works.
+  if (player.economy.militaryFactoriesTotal < MIN_MILITARY_FACTORIES) {
+    // Several sites, not one: a capital is where the starting buildings are and
+    // is usually out of slots, and the rules for where a factory may go are the
+    // server's — the gate asks rather than reimplementing them.
+    const sites = [...chosen.usable]
+      .sort((a, b) => a[1] - b[1])
+      .map(([province]) => province)
+      .filter((province) => player.owners[province] === nation);
+    let site = null;
+    let ack = { accepted: false, reason: "nowhere to build" };
+    for (const candidate of sites.slice(0, 12)) {
+      ack = await player.command(
+        {
+          kind: "queue_construction",
+          provinceId: candidate,
+          building: "military_factory",
+        },
+        `build-factory-${candidate}`,
+      );
+      if (ack.accepted) {
+        site = candidate;
+        break;
+      }
+    }
+    if (!ack.accepted) {
+      log(`  could not queue a second factory: ${ack.reason}`);
+    } else {
+      log(`  building a second military factory in province ${site}...`);
+      const built = await player.waitUntil(
+        (p) => p.economy.militaryFactoriesTotal >= MIN_MILITARY_FACTORIES,
+        "the second military factory",
+        SETUP_BUDGET_MS,
+      );
+      if (!built) {
+        log("");
+        log(
+          "  The factory did not finish inside the setup budget, so there is",
+        );
+        log("  no way to run two production lines at once and no way to arm a");
+        log("  division. That is a world this gate cannot use, not a finding.");
+        log("");
+        player.close();
+        process.exit(2);
+      }
+    }
+  }
+
   const rifles = await createLine(player, "infantry_equipment", "rifles");
   const guns = await createLine(player, "artillery", "guns");
   const held = player.economy.militaryFactoriesTotal;
