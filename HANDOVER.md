@@ -22,10 +22,22 @@ and an unattended world is quiet until phase 10 — decision 0014 has the whole
 argument. Every gate that leaned on the drift has been rebuilt around a war it
 starts itself, and the board is green again.
 
-What phase 8 still has to build is the air itself. The partition is already
-checked in: `airZone` per province and `airZoneCount` come from phase 2's
-artefact, so §6.7 starts at wing assignment rather than at geography. And the
-resolution it has to shift is one multiplier in `systems/combat.ts`.
+**Phase 8's code is built and green**: 567 tests, typecheck strict, lint,
+build-prod. One `Formation` entity serves wings and fleets alike, and
+`systems/zones.ts` is the machine §6.8 says phase 9 must reuse — what differs
+between a fighter wing and a submarine flotilla is a row in
+`shared/economy/Formations.ts`, not a branch in a system. The three effects
+§6.7 lists landed on systems that already existed: `ground_support` on the
+multiplier `combat.ts` had been holding a place for, `interdiction` on
+`supplyReach` where reach is computed, `strategic_bombing` on factory output.
+Wire went 10 → 11.
+
+`fighter` and `bomber` had been produceable since phase 4 and consumed by
+**nothing** — a nation could fill a warehouse with aircraft that did not exist
+as far as the rest of the game was concerned. That is the hole this closed.
+
+**What is not done is the gate script.** Two of its three checks pass against a
+live world; the third is below, with what it kept getting wrong.
 
 Phases 0 to 7 have their gates demonstrated
 against the code as it stands, counter-proofs and all. Two of them went green
@@ -80,7 +92,7 @@ compiles.
 | 5 · Research                   | A completed tech measurably changes a production or combat number                   | ✅ passed                                                          |
 | 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ✅ passed                                                          |
 | 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ✅ passed                                                          |
-| 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ⬜                                                                 |
+| 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | 🟨 code green, gate unfinished                                     |
 | 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ⬜                                                                 |
 | 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜                                                                 |
 | 11 · Accounts and identity     | A session claiming a nation it does not hold is refused and told nothing about it   | ⬜                                                                 |
@@ -565,6 +577,83 @@ And what it took to get phase 6's gate green, none of which was the simulation:
 | `e7496a92` | **The band, both lines running together, and a shelter the front cannot reach** — see the section above |
 
 ---
+
+## What the browser found that no gate could
+
+Three bugs, all in the client, all found on 2026-08-31 by a person opening the
+page rather than by anything failing. They are worth writing down together
+because they are the same kind of failure: **the server was right, the tests
+were green, and the game was unusable.**
+
+**The HUD was under the map.** `#world-hud` and the canvas are both
+`position: fixed; inset: 0` and both at `z-index: auto`, and the canvas is
+appended to the body _after_ the HUD — so at equal stacking the map painted
+over every panel. The HUD was fully built and fully populated the whole time:
+`elementFromPoint` over the economy panel's own centre returned
+`world-canvas`, while the panel's text read
+`Wirtschaft · Bau 36.0/Tag · Industrie 9.60/Tag`. No error, no console
+message, nothing hidden. It survived phase 3's HUD, phase 7's diplomacy panel
+and phase 8's air panel. One line fixed it, and
+`tests/client/world/HudProduction.test.ts` now asserts that `#world-hud`
+declares a `z-index` — the rule rather than the outcome, because jsdom has no
+layout to measure.
+
+**The HUD never said which nation you were.** Every panel showed one nation's
+numbers and none of them said whose. The name was on the wire from phase 0,
+used for the diplomacy list and nowhere else. The first panel's heading is the
+nation's name now.
+
+**The camera opened on the middle of the map.** On a continent that means
+arriving pointed at nobody's territory and hunting for your own. It frames what
+the nation controls now, from the province centres in the artefact. A spectator
+still gets the whole map.
+
+The lesson is the one this file has claimed since phase 1 and had never had to
+pay for: **everything here is proven by a script except the browser, and the
+browser is where a game is either playable or not.** Two of these three had
+been shipped for phases.
+
+## What the phase-8 gate kept getting wrong
+
+Left here because the next gate that stages a fight will hit all three.
+
+- **Production during the measurement window.** The first version raised
+  attackers at 35% strength and watched them take every province without any
+  air support at all — the factories were still running, and a division that
+  starts a fight under-equipped is at full strength forty ticks later. The
+  warehouse refills it faster than the fighting empties it. **Stand the lines
+  down for the duration of the window**, or measure the factories rather than
+  the sky.
+- **Rifles without artillery.** `divisionStrength` takes the _worst_ ratio
+  across `DIVISION_TEMPLATE` (§6.3), so a division holding every rifle it
+  wants and no guns is not 90% of a division — it is 0% of one. A gate that
+  produces only `infantry_equipment` waits forever for divisions that can
+  never become strong, and the fight below it is unwinnable by anybody.
+- **Bombing something that is not there.** `strategic_bombing` scales what
+  factories make, per province. A defender whose industry all sits in another
+  air zone loses exactly nothing however many bombers are overhead, and the
+  check then measures the map's geography instead of the mechanic. The gate
+  builds a factory in the zone it intends to bomb.
+
+## Deployed, and what that does not include
+
+The world runs on the machine `geoffrey` at
+`http://144.91.89.2:8095/`. **Host specifics are deliberately not in this
+repository** — they are in `docs/deploy/HOST.local.md`, which `.gitignore`
+keeps out because this repo is public.
+
+Two things about it belong here, though, because they are decisions rather than
+details:
+
+- **It has no accounts.** §8 puts deployment _after_ phase 11 for exactly this
+  reason: anyone who reaches the URL can play any nation by putting its number
+  in `?nation=`, read that nation's treaty terms and cancel its agreements.
+  Deploying first was a deliberate call to get a live test, made knowingly. It
+  is not a state to leave a world in.
+- **It has no TLS**, because it has no DNS record, because the zone is on
+  Cloudflare and there is no API token on either machine. The vhost for the
+  ACME challenge is already in place; the certificate is one command away from
+  a record existing.
 
 ## What you have to look at yourself
 
