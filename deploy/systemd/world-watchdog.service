@@ -32,8 +32,12 @@ ExecStart=/usr/local/bin/world-watchdog
 EnvironmentFile=/etc/world-watchdog.env
 
 # It reads one HTTP endpoint, one directory and one state file. Nothing else.
-User=nobody
-Group=nogroup
+#
+# DynamicUser rather than `User=nobody`: systemd warns that nobody is shared
+# with every other service that reuses it, so isolation from it is no isolation
+# at all. This allocates a user for the run and takes it away afterwards.
+# StateDirectory survives that — systemd hands the directory back to each run.
+DynamicUser=yes
 StateDirectory=world-watchdog
 NoNewPrivileges=yes
 PrivateTmp=yes
