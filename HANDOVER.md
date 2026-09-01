@@ -20,7 +20,7 @@ real borders (2026-09-01).** Natural Earth outlines replaced the
 capital-Voronoi territories and the palette got saturation/lightness steps —
 the player's three complaints about the political map (outlines, colours,
 sizes), all answered; see plan §8 below and decision 0021. The partition
-hash moved with it, so the local world was rebuilt fresh and the geoffrey
+hash moved with it, so the local world was rebuilt fresh and the host
 redeploy is a season boundary twice over.
 
 Before that: Twelve
@@ -194,12 +194,12 @@ git config user.email 200407033+Juice-de-Orange@users.noreply.github.com
 docker compose up -d          # Postgres + world + backup sidecar
 curl -s localhost:3000/health # healthy, ticking, 677 provinces
 npm run start:client          # http://localhost:9000
-npm run test                  # 624 passed, 9 skipped
+npm run test                  # 645 passed, 9 skipped
 ```
 
 The `user.email` line is not optional: GitHub's email privacy rejects a push
 whose commits carry the private address, and the rejection arrives at the
-*end* of the first day's work, not the start of it.
+_end_ of the first day's work, not the start of it.
 
 The province artefact is checked in — there is no generation step on a fresh
 clone. `npm run gen-provinces` exists for when the partition itself changes,
@@ -491,8 +491,8 @@ demo rather than a season.
 was really tested (78 commands, 2,219 snapshots, 10 claims back intact — the
 sequence is in docs/deploy/README.md), and `WORLD_SEASON=open` is the
 deployment checklist's first line now. Still needing a host or Max: the DNS
-record/TLS, the systemd watchdog on the machine itself, the redeploy of
-geoffrey (which restarts that world — hash and protocol both moved), and the
+record/TLS, the systemd watchdog on the machine itself, the redeploy of the
+host (which restarts that world — hash and protocol both moved), and the
 seven-day gate.
 
 Most of it is done and documented in `docs/deploy/README.md`, and the
@@ -568,13 +568,19 @@ hash. Plan it together with a season boundary.
 Before calling anything done:
 
 ```bash
-npm run test                          # 624 with the real borders
-TEST_DATABASE_URL=... npm run test:db # skipped silently without it
+npm run test    # 645 with the two architecture guards
+npm run test:db # the compose database, unless you name one
 npx tsc --noEmit -p tsconfig.strict.json
 npm run lint
 npm run build-prod
-node scripts/check-doc-links.mjs
+npm run check:doc-links
+npm run check:privacy:self-test # the guard must still bite
+npm run check:privacy           # nothing tracked names a deployment
 ```
+
+`npm run test:db` used to be a POSIX shell prefix and could not run on a
+Windows machine at all; it is `scripts/test-db.mjs` now and takes
+`TEST_DATABASE_URL` from the environment when you set one.
 
 Then the gate, on a world at `WORLD_TICK_MS=50`, plus its counter-proofs. Then
 the documents: `HANDOVER.md` (state), `docs/architecture/README.md` (how it
@@ -585,6 +591,20 @@ otherwise have to reconstruct, and `README.md` if the phase count moved.
 by a script except the client, and on 2026-08-31 that gap turned out to be
 hiding three bugs at once — a HUD that had been invisible under the map for
 three phases among them. A gate cannot tell you the game is unplayable.
+
+**Run the list yourself, because CI does not.** `.github/workflows/ci.yml`
+builds, tests, lints and prettier-checks on every push to `main` — and it has
+never executed. GitHub disables Actions on a forked repository until someone
+enables them in the Actions tab, and nobody has: the API reports nine active
+workflows, **zero runs, and zero checks against `main`**. Everything green in
+this project is green because a person ran it.
+
+One thing has been quietly failing that whole time: `npx prettier --check .`
+reports **41 files** at `62817f5f`, none of them touched by the work that
+introduced the guards above. Formatting is not a correctness problem and
+reformatting 41 files would bury a real diff, so it is recorded here rather
+than fixed in passing. Whoever enables Actions should expect that job red on
+the first run and clean it in a commit of its own.
 
 ---
 
@@ -1354,14 +1374,14 @@ The night and morning of 2026-08-31/09-01 (all six pushed to `origin/main`):
 
 The day of 2026-09-01 (all pushed to `origin/main`):
 
-| Commit     | What                                                                                                                                    |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `0ff04b4a` | **The regent — phase 10, gated the afternoon it was built** (decision 0018)                                                             |
-| `52b85be0` | **Accounts and identity — phase 11, gated** (decision 0019); `WORLD_SEASON=open` arms it, supersession, tokens stored as hashes only    |
-| `028067d7` | **The victory system** — transitive blocs, the 40%/seven-day hold, a season that ends on points (decision 0020)                         |
-| `dde361bc` | **The backup sidecar, and a restore that really ran** — phase 12's in-stack half                                                        |
-| `fe445316` | **Nations wear their real borders** — Natural Earth registered onto the tile grid (decision 0021), partition regenerated                |
-| `6e215cbc` | 52 nations get 52 tellable colours — saturation and lightness steps in the palette                                                      |
+| Commit     | What                                                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `0ff04b4a` | **The regent — phase 10, gated the afternoon it was built** (decision 0018)                                                          |
+| `52b85be0` | **Accounts and identity — phase 11, gated** (decision 0019); `WORLD_SEASON=open` arms it, supersession, tokens stored as hashes only |
+| `028067d7` | **The victory system** — transitive blocs, the 40%/seven-day hold, a season that ends on points (decision 0020)                      |
+| `dde361bc` | **The backup sidecar, and a restore that really ran** — phase 12's in-stack half                                                     |
+| `fe445316` | **Nations wear their real borders** — Natural Earth registered onto the tile grid (decision 0021), partition regenerated             |
+| `6e215cbc` | 52 nations get 52 tellable colours — saturation and lightness steps in the palette                                                   |
 
 Phase 7:
 
@@ -1468,10 +1488,11 @@ Left here because the next gate that stages a fight will hit all three.
 
 ## Deployed, and what that does not include
 
-The world runs on the machine `geoffrey` at
-`http://144.91.89.2:8095/`. **Host specifics are deliberately not in this
-repository** — they are in `docs/deploy/HOST.local.md`, which `.gitignore`
-keeps out because this repo is public.
+The world runs on the deployment host. **Which machine, at which address,
+on which port is deliberately not in this repository** — it is in
+`docs/deploy/HOST.local.md`, which `.gitignore` keeps out because this repo is
+public. This paragraph named the host and its address until 2026-09-01, in the
+same breath as saying it would not; see the note at the end of this section.
 
 Two things about it belong here, though, because they are decisions rather than
 details:
@@ -1485,6 +1506,23 @@ details:
   Cloudflare and there is no API token on either machine. The vhost for the
   ACME challenge is already in place; the certificate is one command away from
   a record existing.
+
+**A leak, and what it is worth.** From 2026-08-31 to 2026-09-01 this section
+carried the host's name, its IP address and its port — in a public repository,
+against the rule in [`docs/README.md`](docs/README.md) that puts exactly those
+three things in a git-ignored `*.local.md`, and in the same sentence as the
+claim that it did not. It arrived in one commit and nobody noticed it in the
+four that touched the file afterwards, because there was no check: the
+repository lints its code and resolves its links, and had nothing that reads a
+diff for a host.
+
+Removing it from the working tree does not undo it. Twenty commits carry the
+address in their blob and GitHub serves any of them by ref, so the useful
+conclusion is the other one: **treat that address as public and secure the
+port, rather than treating the deletion as a fix.** The deletion is hygiene, so
+that the rule is credible again. `scripts/check-privacy.mjs` is what keeps it
+that way; it fails on a host name, an address or a private path in a tracked
+file, and it carries its own counter-proof.
 
 ## What you have to look at yourself
 
@@ -1587,13 +1625,13 @@ game is unplayable.
 done — backup sidecar with a hard-abort verification, and a restore really
 tested. What remains needs the host or Max: a DNS record (Cloudflare token
 or a hand-created entry), TLS via the ACME vhost that is already in place,
-the systemd watchdog on the machine, and the redeploy of geoffrey — **with
+the systemd watchdog on the machine, and the host redeploy — **with
 `WORLD_SEASON=open`**, which restarts that world (hash and protocol both
 moved) and turns it from a demo into a season.
 
 **The map's real borders are done** (plan §8, decision 0021) — built after
 phase 11 instead of last, at the player's call. The partition hash moved, so
-the geoffrey redeploy above is now doubly a season boundary.
+the host redeploy above is now doubly a season boundary.
 
 **What phase 7 actually built**, for anyone reading §6.5 against the code:
 
@@ -1813,16 +1851,18 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**624 passed, 9 skipped, in one run — no tolerated failures.** The ninth
-skip is the Postgres claims test, which runs under `npm run test:db`. (The
-count moves by one with every gate script: the protocol-version guard
-counts them by glob.) The eight
-skipped are the Postgres integration tests, which run under `npm run test:db`
-against `docker compose up -d db`. **They are a suite that rots when nobody
-runs it**, so `npm run test:db` belongs in every phase's closing checks; it
-passed 9/9 after the borders landed.
+**645 passed, 9 skipped, in one run — no tolerated failures.** (The count
+moves by one with every gate script: the protocol-version guard counts them by
+glob.)
 
-The count moved from 597 at the end of phase 9, from 567 at the end of
+All nine skips are one file, `tests/server/PgStore.test.ts` — eight Postgres
+integration tests plus the claims test phase 11 added. They skip themselves
+unless `TEST_DATABASE_URL` names a database, and `npm run test:db` is what
+names one. **They are a suite that rots when nobody runs it**, so that command
+belongs in every phase's closing checks; 9/9 pass against the compose database.
+
+The count moved from 624 before the privacy and render-boundary guards, from
+597 at the end of phase 9, from 567 at the end of
 phase 8, from 533 at the end of
 phase 7's build (the phase-7 review added eleven more), from 506 at the end
 of phase 6's build, from 472 at the end of phase 4's build, from 462 at the
@@ -2514,8 +2554,8 @@ because it is per-machine and parts of it discuss a specific deployment host.
 to it.
 
 **It does not travel between machines, and phase 1 was planned twice because of
-that** — the phase-0 plan lived at `C:\Users\maxob\.claude\plans\` and was not
-there when the work moved to a Linux machine. Nothing was lost: `CLAUDE.md` §8
+that** — the phase-0 plan lived in the assistant's own plans directory on the
+first machine and was not there when the work moved to another one. Nothing was lost: `CLAUDE.md` §8
 and this file were enough to reconstruct it. That is the arrangement working as
 intended rather than a mishap, but it is worth knowing before you go looking
 for a file that is not coming.

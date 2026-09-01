@@ -1,7 +1,10 @@
 # Running your own world
 
-**Status: it runs locally.** Phase 1 is done: a world ticks, persists to
-Postgres, and comes back where it was after a hard kill.
+**Status: twelve of thirteen gates passed.** A world ticks, persists to
+Postgres, and comes back where it was after a hard kill; every system in
+CLAUDE.md §6 is built and gated. Phase 12 — this document's own subject — is
+the one that is not. Its in-stack half is done (a backup sidecar whose restore
+was really run); its host half is not.
 
 ```bash
 docker compose up -d          # Postgres, and a world on ws://localhost:3000/ws
@@ -14,9 +17,12 @@ proxies `/ws` to port 3000; in production a reverse proxy puts the built bundle
 and this socket on one hostname, which is the part below.
 
 To play a nation rather than watch, open `http://localhost:9000/?nation=1`.
-**That is the whole of authentication.** Accounts belong with the registration
-screen rather than ahead of it, so they are still an open question in
-`HANDOVER.md` — and a world exposed to the internet needs them settled first.
+**On a workbench world that is the whole of authentication**, and deliberately
+so: every gate depends on being able to be anybody. A real deployment sets
+`WORLD_SEASON=open` (see the table below), which arms accounts — a nation then
+needs a token, one account holds one nation, and a bare URL gets you a
+spectator. That is phase 11, and it is done (decision 0019). A world exposed to
+the internet without the flag is the anybody-is-everybody world §8 warns about.
 
 **Verify a deployment the way the gate does:**
 

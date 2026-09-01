@@ -4,12 +4,14 @@
 It is not the plan. The plan — every system, the build phases and their gates —
 is [`../../CLAUDE.md`](../../CLAUDE.md).
 
-**Last verified:** 2026-08-31, phases 0-5 gated, phase 6 built but not gated.
-A world server ticks, persists to Postgres, accepts commands and survives being
-killed; the renderer draws what it sends. Supply is written, unit-tested and
-live in the tick, and its gate does not yet pass — `HANDOVER.md` says exactly
-why, and the reason is in the gate rather than in the simulation. `src/core` and upstream's match server are deleted and the rest
-of the inherited client is quarantined. Current status is in
+**Last verified:** 2026-09-01, phases 0-11 gated; phase 12 (deployment) is the
+only one still open. A world server ticks, persists to Postgres, accepts
+commands and survives being killed; the renderer draws what it sends. Every
+system CLAUDE.md §6 lists is live in the tick, up to and including victory, and
+each phase carries the gate that demonstrated it — victory carries none,
+because §8 numbers no phase for it and the system is pure state arithmetic.
+`src/core` and upstream's match server are deleted and the rest of the
+inherited client is quarantined. Current status is in
 [`../../HANDOVER.md`](../../HANDOVER.md).
 
 > ⚠️ The fork is mid-surgery. Large parts of this tree are inherited upstream
@@ -450,7 +452,7 @@ and afterwards the log would describe a run neither of them had.
 
 ## The protocol
 
-JSON behind `shared/protocol/Wire.ts`, version 9, with `protocolVersion` in the
+JSON behind `shared/protocol/Wire.ts`, version 16, with `protocolVersion` in the
 handshake. The inherited `zbin` is positional and has no version field; its
 own docs warn that mismatched builds decode each other _silently wrong_, which
 for a world running six weeks while we deploy into it is the most expensive
