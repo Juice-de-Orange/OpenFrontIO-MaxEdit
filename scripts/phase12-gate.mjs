@@ -70,9 +70,20 @@ const CONTINUITY_TOLERANCE = 0.01;
 /** A dump older than this is not a backup, it is a souvenir. */
 const MAX_BACKUP_AGE_H = 30;
 
+/**
+ * `--name=value` or `--name value`. Both, because this gate documented one
+ * form and parsed the other, and the first real run silently measured
+ * localhost while printing a public URL in its own header.
+ */
 const arg = (name) => {
-  const found = process.argv.find((a) => a.startsWith(`--${name}=`));
-  return found === undefined ? null : found.slice(name.length + 3);
+  const index = process.argv.findIndex(
+    (a) => a === `--${name}` || a.startsWith(`--${name}=`),
+  );
+  if (index === -1) return null;
+  const found = process.argv[index];
+  if (found.startsWith(`--${name}=`)) return found.slice(name.length + 3);
+  const next = process.argv[index + 1];
+  return next === undefined || next.startsWith("--") ? null : next;
 };
 
 const BREAK = arg("break");
@@ -127,6 +138,37 @@ async function sh(command, args) {
       stderr: error.stderr ?? String(error),
     };
   }
+}
+
+/**
+ * The HTTP status the server answered a real WebSocket handshake with, or
+ * null if it never answered one. 101 is the only good answer.
+ */
+function upgradeStatus(url) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const socket = new WebSocket(url, { handshakeTimeout: 15000 });
+    // `ws` reports the upgrade response before it opens, which is the exact
+    // thing being measured; a swallowed upgrade never gets here.
+    socket.on("upgrade", (response) => {
+      done(response.statusCode);
+      socket.close();
+    });
+    socket.on("open", () => {
+      done(101);
+      socket.close();
+    });
+    socket.on("unexpected-response", (_request, response) => {
+      done(response.statusCode);
+    });
+    socket.on("error", () => done(null));
+    setTimeout(() => done(null), 20000).unref();
+  });
 }
 
 async function health() {
@@ -328,20 +370,20 @@ async function legPublicSurface() {
 
   // A status code is not proof: a 200 means the upgrade was swallowed and a
   // real client would wait forever. Only 101 counts.
+  //
+  // Not `fetch`: `Connection` and `Upgrade` are forbidden header names, so
+  // undici drops them and the request arrives as an ordinary GET. The first
+  // run of this gate reported the upgrade broken on a proxy that was in fact
+  // answering 101 to curl. `ws` speaks the handshake properly and hands over
+  // the response it got.
   const path_ = BREAK === "upgrade" ? "/health" : "/ws";
-  const handshake = await fetch(`${BASE_URL}${path_}`, {
-    headers: {
-      Connection: "Upgrade",
-      Upgrade: "websocket",
-      "Sec-WebSocket-Version": "13",
-      "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
-    },
-    signal: AbortSignal.timeout(15000),
-  }).catch(() => null);
+  const status = await upgradeStatus(
+    `${BASE_URL.replace(/^http/, "ws")}${path_}`,
+  );
   check(
-    handshake !== null && handshake.status === 101,
+    status === 101,
     "the WebSocket upgrade passes the proxy (101)",
-    `got ${handshake === null ? "no answer" : handshake.status}`,
+    `got ${status === null ? "no answer" : status}`,
   );
 }
 
