@@ -355,6 +355,7 @@ export async function startWorldClient(
     trust: [],
     agreements: [],
     victory: { holders: null, heldSinceTick: null, winner: null },
+    tick: 0,
     selected: null,
   };
 
@@ -441,6 +442,7 @@ export async function startWorldClient(
         model.trust = [...state.trust];
         model.agreements = state.agreements;
         model.victory = state.victory;
+        model.tick = state.tick;
 
         if (!view || !adapter) {
           // First full state carries the map identity, so the renderer cannot
@@ -480,6 +482,7 @@ export async function startWorldClient(
         // one thing a diff would be unforgivable for losing.
         model.agreements = delta.agreements;
         model.victory = delta.victory;
+        model.tick = delta.tick;
 
         if (!view || !adapter) return; // full state still loading
         // Control, not ownership: the map shows where the line is, not who

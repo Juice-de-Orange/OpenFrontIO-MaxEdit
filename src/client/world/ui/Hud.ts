@@ -35,6 +35,7 @@ import {
   isAvailable,
   TECH_IDS,
   TECHS,
+  type TechEffect,
   type TechId,
 } from "src/shared/config/techs";
 import { TICKS_PER_DAY } from "src/shared/config/time";
@@ -67,7 +68,14 @@ import type {
   VictoryView,
 } from "src/shared/protocol/Wire";
 import { nationCss } from "../Palette";
-import { amount, daysRemaining, fraction, perDay, share } from "./Format";
+import {
+  amount,
+  daysRemaining,
+  fraction,
+  percent,
+  perDay,
+  share,
+} from "./Format";
 import { t, type StringKey } from "./strings";
 
 const STYLE = `
@@ -160,8 +168,16 @@ const STYLE = `
   background: rgba(110,168,254,.26); color: #fff;
   border-color: rgba(110,168,254,.65);
 }
+/* The clock, then who you are. The clock takes the auto margin so both sit
+   on the right; the badge is separated from it by a hairline. */
+#world-menu .clock {
+  margin-left: auto; font-size: 13px; color: #aab4c4; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 #world-menu .who {
-  margin-left: auto; display: flex; align-items: center; gap: .5rem;
+  margin-left: .9rem; padding-left: .9rem;
+  border-left: 1px solid rgba(255,255,255,.10);
+  display: flex; align-items: center; gap: .5rem;
   font-size: 13px; color: #aab4c4; white-space: nowrap;
   /* Shrinkable, so a long spectator line yields before the buttons do. */
   min-width: 0; overflow: hidden; text-overflow: ellipsis;
@@ -210,7 +226,17 @@ const STYLE = `
   border: 1px solid rgba(255,255,255,.14); border-radius: 4px;
 }
 #world-hud button:hover:enabled { background: rgba(255,255,255,.14); }
-#world-hud button:disabled { opacity: .38; cursor: default; }
+/* Half, not a third: a disabled button now carries the reason it is disabled,
+   and a reason nobody can read is no better than none. */
+#world-hud button:disabled { opacity: .55; cursor: default; }
+/* Under a button's label: why it is disabled (.why), or what it does
+   (.effect). Inline in the button, because the HUD root is
+   pointer-events:none and a hover title alone is unreachable on touch. */
+#world-hud button .why, #world-hud button .effect {
+  display: block; font-size: 12px; line-height: 1.35; white-space: normal;
+}
+#world-hud button .why { color: #e4b660; }
+#world-hud button .effect { color: #8fb4e8; }
 #world-hud .bar {
   height: 4px; margin-top: .25rem; border-radius: 2px;
   background: rgba(255,255,255,.12); overflow: hidden;
@@ -244,6 +270,11 @@ export interface HudModel {
   agreements: AgreementView[];
   /** Where the season stands. Public (§10). */
   victory: VictoryView;
+  /**
+   * The world's tick, for the clock. One tick is one in-game hour (§4), and
+   * without a clock every "12/day" on screen is a number with no scale.
+   */
+  tick: number;
   selected: number | null;
 }
 
@@ -355,6 +386,8 @@ export class Hud {
   private readonly menuButtons = new Map<PanelId, HTMLButtonElement>();
   /** The bar's right-hand side, built with the bar. */
   private identity: HTMLElement | null = null;
+  /** The in-game day and hour, beside the identity. */
+  private clock: HTMLElement | null = null;
   /** The spectator's answer, built once and moved between panels. */
   private spectatorNote: HTMLElement | null = null;
 
@@ -429,12 +462,28 @@ export class Hud {
       bar.appendChild(button);
     }
 
+    // What time it is. Every rate on screen is per day and every estimate
+    // is in days; until the bar said which day it was, none of them had a
+    // scale a player could feel.
+    this.clock = document.createElement("span");
+    this.clock.className = "clock";
+    bar.append(this.clock);
+
     // Who you are, on the right. Reading the URL used to be the only way.
     this.identity = document.createElement("div");
     this.identity.className = "who";
     bar.append(this.identity);
 
     this.root.appendChild(bar);
+  }
+
+  /** Day and hour, from the tick alone (§4: one tick is one in-game hour). */
+  private renderClock(model: HudModel): void {
+    if (this.clock === null) return;
+    this.clock.textContent = t("hud.clock", {
+      day: Math.floor(model.tick / TICKS_PER_DAY),
+      hour: String(model.tick % TICKS_PER_DAY).padStart(2, "0"),
+    });
   }
 
   /** The bar's right-hand side: this nation, in its own colour, or watching. */
@@ -521,6 +570,7 @@ export class Hud {
     this.renderResearch(model);
     this.renderDiplomacy(model);
     this.renderAir(model);
+    this.renderClock(model);
     this.renderIdentity(model);
     // Last, because it overrides a panel the renderers above just hid.
     this.renderSpectator(model);
@@ -579,6 +629,13 @@ export class Hud {
             )}`,
         ),
       ),
+      // The door. The build menu lives in the province panel, which exists
+      // only after a click on the map, and nothing on screen said so: a
+      // player could read every number here and still not know how to build
+      // anything. The queue says the same when it is empty.
+      ...(model.nation === null
+        ? []
+        : [spacer(), hint(t("economy.howToBuild"))]),
     );
     this.buildRegentForm();
     this.syncRegentForm(model);
@@ -686,7 +743,7 @@ export class Hud {
 
     const children: Node[] = [heading(t("queue.title"))];
     if (economy.queue.length === 0) {
-      children.push(muted(t("queue.empty")));
+      children.push(muted(t("queue.empty")), hint(t("queue.howToBuild")));
     }
 
     economy.queue.forEach((order, index) => {
@@ -739,13 +796,21 @@ export class Hud {
     const controller = model.controllers[id];
     const owner = model.owners[id];
     const stride = BUILDING_TYPES.length;
-    const used = BUILDING_TYPES.reduce(
+    const built = BUILDING_TYPES.reduce(
       (sum, type) =>
         BUILDINGS[type].takesSlot
           ? sum + model.buildings[id * stride + buildingIndex(type)]
           : sum,
       0,
     );
+    // Queued orders hold their slot too — the server counts them (it would
+    // refuse a second factory into the last slot), so the panel counts them,
+    // or a button stays enabled that can only be refused.
+    const queuedHere =
+      model.economy?.queue.filter((order) => order.provinceId === id) ?? [];
+    const used =
+      built +
+      queuedHere.filter((order) => BUILDINGS[order.building].takesSlot).length;
     const builtInfrastructure =
       model.buildings[id * stride + buildingIndex("infrastructure")];
 
@@ -852,17 +917,28 @@ export class Hud {
       if (attacking) children.push(muted(t("province.attacking")));
     }
 
-    // The build menu is only shown where a building could actually go: a menu
-    // of things that will be refused is a menu that teaches nothing.
-    if (
-      model.nation !== null &&
-      controller === model.nation &&
-      owner === model.nation
-    ) {
+    // The build menu is shown wherever the nation *holds* the province, and
+    // every button that would be refused says why. It used to appear only
+    // where a building could actually go, and vanish on a province the
+    // player held but did not own — which is exactly the province a player
+    // looks at after taking one, and it looked like the menu had broken. A
+    // door with a sign on it teaches more than no door.
+    if (model.nation !== null && controller === model.nation) {
+      const occupied = owner !== model.nation;
+      const manpower = model.economy?.manpower ?? 0;
       const raise = document.createElement("button");
       raise.textContent = t("production.raise", { cost: DIVISION_MANPOWER });
-      raise.disabled =
-        model.economy === null || model.economy.manpower < DIVISION_MANPOWER;
+      explain(
+        raise,
+        occupied
+          ? t("build.occupied")
+          : manpower < DIVISION_MANPOWER
+            ? t("build.needsManpower", {
+                cost: DIVISION_MANPOWER,
+                have: Math.floor(manpower),
+              })
+            : null,
+      );
       raise.addEventListener("click", () => this.actions.raiseDivision(id));
       children.push(spacer(), raise);
 
@@ -881,8 +957,17 @@ export class Hud {
           what: t(`formation.${template}` as StringKey),
           cost: WING_MANPOWER,
         });
-        button.disabled =
-          model.economy === null || model.economy.manpower < WING_MANPOWER;
+        explain(
+          button,
+          occupied
+            ? t("build.occupied")
+            : manpower < WING_MANPOWER
+              ? t("build.needsManpower", {
+                  cost: WING_MANPOWER,
+                  have: Math.floor(manpower),
+                })
+              : null,
+        );
         button.addEventListener("click", () =>
           this.actions.raiseFormation(id, template),
         );
@@ -896,9 +981,28 @@ export class Hud {
         button.textContent = `${t(`building.${type}` as StringKey)} — ${spec.cost}`;
         // The same rules the server applies, for display only. The server
         // computes them again and its answer is the one that counts (§7).
-        button.disabled =
-          (spec.takesSlot && used >= province.buildingSlots) ||
-          (spec.coastalOnly && !province.coastal);
+        // Each refusal is written on the button: a greyed button with no
+        // reason is a puzzle, and this panel had eight of them.
+        const pendingOfType = queuedHere.filter(
+          (order) => order.building === type,
+        ).length;
+        const existing =
+          type === "infrastructure"
+            ? province.infrastructure + builtInfrastructure
+            : model.buildings[id * stride + buildingIndex(type)];
+        explain(
+          button,
+          occupied
+            ? t("build.occupied")
+            : spec.coastalOnly && !province.coastal
+              ? t("build.notCoastal")
+              : spec.takesSlot && used >= province.buildingSlots
+                ? t("build.noSlot")
+                : spec.maxPerProvince !== undefined &&
+                    existing + pendingOfType >= spec.maxPerProvince
+                  ? t("build.maxed", { max: spec.maxPerProvince })
+                  : null,
+        );
         button.addEventListener("click", () => this.actions.build(id, type));
         children.push(button);
       }
@@ -1122,7 +1226,12 @@ export class Hud {
     this.researchPanel.hidden = economy === null || this.open !== "research";
     if (economy === null) return;
 
-    const children: Node[] = [heading(t("research.title"))];
+    // The sentence this panel was missing. A list of slots and a list of
+    // techs does not say that one goes into the other, or that it is free.
+    const children: Node[] = [
+      heading(t("research.title")),
+      hint(t("research.how")),
+    ];
     const known = new Set<TechId>(economy.unlockedTechs);
 
     economy.researchSlots.forEach((slot, index) => {
@@ -1178,15 +1287,26 @@ export class Hud {
       const button = document.createElement("button");
       const days = Math.ceil(TECHS[id].ticks / 24);
       button.textContent = `${t(`tech.${id}` as StringKey)} — ${days}d`;
-      button.disabled = !ready || free < 0;
-      if (!ready) {
-        button.title = t("research.needs", {
-          techs: TECHS[id].requires
-            .filter((need) => !known.has(need))
-            .map((need) => t(`tech.${need}` as StringKey))
-            .join(", "),
-        });
-      }
+      // What it does, under the name. The effect was on the config the HUD
+      // already imported and was shown nowhere, so "why research this" had
+      // no answer on screen.
+      const effect = document.createElement("span");
+      effect.className = "effect";
+      effect.textContent = effectLine(TECHS[id].effect);
+      button.append(effect);
+      explain(
+        button,
+        !ready
+          ? t("research.needs", {
+              techs: TECHS[id].requires
+                .filter((need) => !known.has(need))
+                .map((need) => t(`tech.${need}` as StringKey))
+                .join(", "),
+            })
+          : free < 0
+            ? t("research.noSlot")
+            : null,
+      );
       button.addEventListener("click", () => {
         if (free >= 0) this.actions.startResearch(free, id);
       });
@@ -1866,6 +1986,47 @@ function captionFor(label: string, hint: string): DocumentFragment {
   return fragment;
 }
 
+/**
+ * Disable a button and say why, on the button itself.
+ *
+ * A `title` alone is not enough: the HUD is rebuilt every tick, the root is
+ * pointer-events:none, and a touch screen has no hover. The reason goes
+ * under the label where it is read at the moment the button fails to work.
+ * With no reason the button is left exactly as it was.
+ */
+function explain(button: HTMLButtonElement, reason: string | null): void {
+  if (reason === null) return;
+  button.disabled = true;
+  button.title = reason;
+  const why = document.createElement("span");
+  why.className = "why";
+  why.textContent = reason;
+  button.append(why);
+}
+
+/**
+ * A tech's effect as the player reads it: signed percentages (invariant 9),
+ * except a slot, which is a count.
+ */
+function effectLine(effect: TechEffect): string {
+  const parts: string[] = [];
+  const ratio = (key: StringKey, value: number | undefined): void => {
+    if (value !== undefined) parts.push(t(key, { value: percent(value) }));
+  };
+  ratio("effect.factoryOutput", effect.factoryOutput);
+  ratio("effect.efficiencyCap", effect.efficiencyCap);
+  ratio("effect.extraction", effect.extraction);
+  ratio("effect.construction", effect.construction);
+  ratio("effect.reinforceRate", effect.reinforceRate);
+  ratio("effect.defenderLoss", effect.defenderLoss);
+  if (effect.researchSlots !== undefined) {
+    parts.push(
+      t("effect.researchSlots", { value: `+${effect.researchSlots}` }),
+    );
+  }
+  return parts.join(" \u00b7 ");
+}
+
 function heading(text: string): HTMLElement {
   const element = document.createElement("h2");
   element.textContent = text;
@@ -1887,6 +2048,14 @@ function row(label: string, value: string): HTMLElement {
 function warn(text: string): HTMLElement {
   const element = document.createElement("div");
   element.className = "warn";
+  element.textContent = text;
+  return element;
+}
+
+/** One explanatory line, quieter than a row: what to do, or what this is. */
+function hint(text: string): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "hint";
   element.textContent = text;
   return element;
 }

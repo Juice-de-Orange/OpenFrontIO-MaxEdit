@@ -27,6 +27,7 @@ const en = {
   "hud.notConnected": "Not connected to the world.",
   "hud.orderAccepted": "Order accepted for tick {tick}.",
   "hud.orderRefused": "Order refused: {reason}",
+  "hud.clock": "Day {day} \u00b7 {hour}:00",
 
   "economy.title": "Economy",
   "victory.holding": "{bloc} stand on the victory threshold",
@@ -59,6 +60,8 @@ const en = {
   "economy.industry": "Industry",
   "economy.supplyRatio": "Resources covered",
   "economy.tradeShare": "of it from trade",
+  "economy.howToBuild":
+    "To build something, click one of your provinces on the map.",
   "economy.steel": "Steel",
   "economy.oil": "Oil",
   "economy.aluminium": "Aluminium",
@@ -84,6 +87,11 @@ const en = {
   "province.attacking": "Your front is grinding here, every tick.",
   "province.buildings": "Buildings",
   "province.build": "Build",
+  "build.occupied": "occupied territory \u2014 build in provinces you own",
+  "build.noSlot": "no free building slot",
+  "build.notCoastal": "needs a coast",
+  "build.maxed": "at the limit of {max}",
+  "build.needsManpower": "needs {cost} manpower, you have {have}",
 
   "terrain.plains": "Plains",
   "terrain.highland": "Highland",
@@ -93,6 +101,7 @@ const en = {
   "queue.empty": "Nothing under construction.",
   "queue.remaining": "{days} days left",
   "queue.cancel": "Cancel",
+  "queue.howToBuild": "To build, click one of your provinces on the map.",
 
   "production.title": "Production",
   "production.factories": "Military factories",
@@ -164,6 +173,16 @@ const en = {
   "research.known": "Known",
   "research.none": "Nothing researched yet.",
   "research.needs": "needs {techs}",
+  "research.noSlot": "no free slot",
+  "research.how":
+    "Each slot researches one technology at a time. It costs nothing but the slot.",
+  "effect.factoryOutput": "{value} factory output",
+  "effect.efficiencyCap": "{value} efficiency cap",
+  "effect.extraction": "{value} resource extraction",
+  "effect.construction": "{value} construction speed",
+  "effect.researchSlots": "{value} research slot",
+  "effect.reinforceRate": "{value} reinforcement rate",
+  "effect.defenderLoss": "{value} defender losses",
 
   "tech.machine_tools": "Machine tools",
   "tech.precision_tooling": "Precision tooling",
@@ -261,6 +280,7 @@ const de: Record<StringKey, string> = {
   "hud.notConnected": "Keine Verbindung zur Welt.",
   "hud.orderAccepted": "Befehl angenommen für Tick {tick}.",
   "hud.orderRefused": "Befehl abgelehnt: {reason}",
+  "hud.clock": "Tag {day} \u00b7 {hour}:00",
 
   "economy.title": "Wirtschaft",
   "victory.holding": "{bloc} stehen an der Siegschwelle",
@@ -293,6 +313,8 @@ const de: Record<StringKey, string> = {
   "economy.industry": "Industrie",
   "economy.supplyRatio": "Rohstoffe gedeckt",
   "economy.tradeShare": "davon aus Handel",
+  "economy.howToBuild":
+    "Zum Bauen eine eigene Provinz auf der Karte anklicken.",
   "economy.steel": "Stahl",
   "economy.oil": "Öl",
   "economy.aluminium": "Aluminium",
@@ -318,6 +340,11 @@ const de: Record<StringKey, string> = {
   "province.attacking": "Hier mahlt deine Front, jeden Tick.",
   "province.buildings": "Gebäude",
   "province.build": "Bauen",
+  "build.occupied": "besetztes Gebiet \u2014 gebaut wird in eigenen Provinzen",
+  "build.noSlot": "kein freier Bauplatz",
+  "build.notCoastal": "braucht eine K\u00fcste",
+  "build.maxed": "am Limit von {max}",
+  "build.needsManpower": "braucht {cost} Menschenreserve, vorhanden {have}",
 
   "terrain.plains": "Ebene",
   "terrain.highland": "Hügelland",
@@ -327,6 +354,7 @@ const de: Record<StringKey, string> = {
   "queue.empty": "Nichts im Bau.",
   "queue.remaining": "noch {days} Tage",
   "queue.cancel": "Abbrechen",
+  "queue.howToBuild": "Zum Bauen eine eigene Provinz auf der Karte anklicken.",
 
   "production.title": "Produktion",
   "production.factories": "Militärfabriken",
@@ -398,6 +426,16 @@ const de: Record<StringKey, string> = {
   "research.known": "Bekannt",
   "research.none": "Noch nichts erforscht.",
   "research.needs": "braucht {techs}",
+  "research.noSlot": "kein freier Slot",
+  "research.how":
+    "Jeder Slot forscht an einer Technologie zugleich. Es kostet nichts au\u00dfer dem Slot.",
+  "effect.factoryOutput": "{value} Fabrikaussto\u00df",
+  "effect.efficiencyCap": "{value} Effizienzobergrenze",
+  "effect.extraction": "{value} Rohstofff\u00f6rderung",
+  "effect.construction": "{value} Baugeschwindigkeit",
+  "effect.researchSlots": "{value} Forschungsslot",
+  "effect.reinforceRate": "{value} Verst\u00e4rkungsrate",
+  "effect.defenderLoss": "{value} Verteidigerverluste",
 
   "tech.machine_tools": "Werkzeugmaschinen",
   "tech.precision_tooling": "Präzisionswerkzeuge",
