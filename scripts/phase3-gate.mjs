@@ -39,7 +39,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 14;
+const PROTOCOL_VERSION = 15;
 
 /** Above this the gate would take a quarter of an hour; say so instead. */
 const MAX_TICK_MS = 1000;
@@ -78,6 +78,7 @@ class Player {
           protocolVersion: PROTOCOL_VERSION,
           worldId: WORLD_ID,
           nation: this.nation,
+          token: this.token ?? null,
         }),
       ),
     );

@@ -461,6 +461,17 @@ is public: the defender watches themselves being ground down, and every
 client, spectators included, paints the partial progress as tiles, which it
 could not do for a front it is not told about.
 
+**Identity lives beside the world** (phase 11, decision 0019): accounts and
+nation claims are Postgres tables the socket consults, never simulation
+state — no snapshot, no hash, no replay dependency. `WORLD_SEASON=open` arms
+it: playing a nation then needs the token `POST /register` returned exactly
+once (only its SHA-256 is stored), the first hello claims a free nation, one
+account holds one nation, a newer connection from the same account
+supersedes the older (close 4006, terminal), and the season opening switches
+regents on for every unclaimed nation through real `configure_regent`
+commands in the log. Without the flag the world is the workbench the gates
+run on.
+
 **An economy is private.** The map half of a delta is identical for everybody
 and is encoded once; the economy half is built per session and carries only
 that nation's own stockpile, rates and construction queue. A spectator gets

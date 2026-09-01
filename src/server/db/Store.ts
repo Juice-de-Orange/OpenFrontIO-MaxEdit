@@ -71,5 +71,38 @@ export interface WorldStore {
 
   writeSnapshot(worldId: string, snapshot: StoredSnapshot): Promise<void>;
 
+  // -------------------------------------------------------------------------
+  // Identity (phase 11). Beside the world, never in it: none of this touches
+  // the snapshot, the state hash or the command log (decision 0019).
+  // -------------------------------------------------------------------------
+
+  /** Create an account. The token hash is stored; the token never is. */
+  createAccount(id: string, name: string, tokenHash: string): Promise<void>;
+
+  /** The account this token hash belongs to, or null. */
+  accountByTokenHash(
+    tokenHash: string,
+  ): Promise<{ id: string; name: string } | null>;
+
+  /**
+   * Claim a nation for an account, atomically.
+   *
+   * The two unique constraints are the rules: "taken" when another account
+   * already holds the nation, "elsewhere" when this account already holds a
+   * different one, "ok" otherwise — including the idempotent case of
+   * claiming what it already holds.
+   */
+  claimNation(
+    worldId: string,
+    nationId: number,
+    accountId: string,
+  ): Promise<"ok" | "taken" | "elsewhere">;
+
+  /** The account holding this nation, or null while the regent does. */
+  claimOf(worldId: string, nationId: number): Promise<string | null>;
+
+  /** Every claimed nation of this world, for the season opening. */
+  claimedNations(worldId: string): Promise<number[]>;
+
   close(): Promise<void>;
 }

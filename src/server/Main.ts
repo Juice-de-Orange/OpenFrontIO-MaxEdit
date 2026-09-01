@@ -17,6 +17,8 @@ import { PgStore } from "./db/PgStore";
 import type { WorldStore } from "./db/Store";
 import { WorldSocketServer } from "./net/WsServer";
 import { World } from "./world/World";
+import { IdentityService } from "./net/Identity";
+import { openSeason } from "./world/Season";
 import { WorldRunner } from "./world/WorldRunner";
 
 import { TICK_MS } from "src/shared/config/time";
@@ -24,6 +26,19 @@ import { TICK_MS } from "src/shared/config/time";
 const PORT = Number(process.env.PORT ?? 3000);
 const WORLD_ID = process.env.WORLD_ID ?? "world-0";
 const MAP_ID = process.env.MAP_ID ?? "europe";
+
+/**
+ * Whether this world is a season or a workbench (decision 0019).
+ *
+ * `WORLD_SEASON=open` arms identity — playing a nation needs an account
+ * token, a nation is held by exactly one account, one account holds exactly
+ * one nation — and opens the season: every unclaimed nation's regent
+ * switches on (decision 0018). Without it the world behaves as the gates
+ * and the local loop have always known it: anyone may be anyone, and an
+ * unattended world is quiet. A deployment (phase 12) sets it; nothing else
+ * should.
+ */
+const SEASON = process.env.WORLD_SEASON === "open";
 
 /**
  * The tick interval, overridable for gates.
@@ -130,12 +145,22 @@ async function main(): Promise<void> {
   const resumedAt = await runner.restore();
   console.info(`[world] resuming at tick ${resumedAt}`);
 
+  const identity = new IdentityService(store, WORLD_ID);
+  if (SEASON) {
+    const opened = await openSeason(world, runner, store, WORLD_ID);
+    console.info(
+      `[world] season world: identity armed, ${opened} unclaimed nation(s) ` +
+        `handed to their regents`,
+    );
+  }
+
   const server = new WorldSocketServer(
     world,
     (nation, body) => runner.submit(nation, body),
     WORLD_ID,
     PORT,
     () => runner.status(),
+    { service: identity, season: SEASON },
   );
   runner.setOnChanges((tick, changes) => server.broadcastDelta(tick, changes));
   runner.start();

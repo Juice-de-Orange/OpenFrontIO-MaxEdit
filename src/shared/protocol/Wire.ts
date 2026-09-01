@@ -35,7 +35,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -44,6 +44,12 @@ export const CloseCode = {
   UnknownWorld: 4003,
   NoHelloTimeout: 4004,
   Unauthorised: 4005,
+  /**
+   * A newer connection from the same account took this session over.
+   * Terminal on purpose: two browsers auto-reconnecting would otherwise
+   * kick each other for ever.
+   */
+  Superseded: 4006,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -54,16 +60,19 @@ export const ClientHelloSchema = z.object({
   t: z.literal("hello"),
   protocolVersion: z.number().int(),
   worldId: z.string().min(1),
-  /**
-   * Which nation this session acts for, or null to watch.
-   *
-   * Phase 1 takes this at face value: there are no accounts yet, so a
-   * connection claims a nation the way a local development client claims a
-   * port. Authentication belongs with the account tables, not here, and
-   * putting a placeholder token in the handshake now would only have to be
-   * removed again.
-   */
+  /** Which nation this session acts for, or null to watch. */
   nation: z.number().int().positive().nullable(),
+  /**
+   * The account token from `POST /register`, or null.
+   *
+   * Phase 11: on a season world (`WORLD_SEASON=open`) playing a nation
+   * requires it — the token names an account, the account holds exactly one
+   * nation for the life of the season, and an impostor is refused before it
+   * is sent anything (decision 0019). Watching stays open, like /health. On
+   * a workbench world the field is carried and ignored, so every gate and
+   * local loop keeps working without a login step.
+   */
+  token: z.string().min(1).nullable(),
 });
 
 /**

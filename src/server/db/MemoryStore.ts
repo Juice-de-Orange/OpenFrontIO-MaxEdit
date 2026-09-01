@@ -15,6 +15,13 @@ import type { StoredCommand, StoredSnapshot, WorldStore } from "./Store";
 
 export class MemoryStore implements WorldStore {
   private readonly locks = new Set<string>();
+  private readonly accounts = new Map<
+    string,
+    { id: string; name: string; tokenHash: string }
+  >();
+  /** `worldId:nationId` -> accountId, and the reverse for the other rule. */
+  private readonly claims = new Map<string, string>();
+  private readonly holdings = new Map<string, number>();
   private readonly commands = new Map<string, StoredCommand[]>();
   private readonly snapshots = new Map<string, StoredSnapshot[]>();
   private readonly worlds = new Map<
@@ -91,6 +98,59 @@ export class MemoryStore implements WorldStore {
     const list = this.snapshots.get(worldId) ?? [];
     list.push(structuredClone(snapshot));
     this.snapshots.set(worldId, list);
+  }
+
+  async createAccount(
+    id: string,
+    name: string,
+    tokenHash: string,
+  ): Promise<void> {
+    for (const account of this.accounts.values()) {
+      if (account.tokenHash === tokenHash) {
+        throw new Error("token hash collision");
+      }
+    }
+    this.accounts.set(id, { id, name, tokenHash });
+  }
+
+  async accountByTokenHash(
+    tokenHash: string,
+  ): Promise<{ id: string; name: string } | null> {
+    for (const account of this.accounts.values()) {
+      if (account.tokenHash === tokenHash) {
+        return { id: account.id, name: account.name };
+      }
+    }
+    return null;
+  }
+
+  async claimNation(
+    worldId: string,
+    nationId: number,
+    accountId: string,
+  ): Promise<"ok" | "taken" | "elsewhere"> {
+    const byNation = this.claims.get(`${worldId}:${nationId}`);
+    if (byNation !== undefined) {
+      return byNation === accountId ? "ok" : "taken";
+    }
+    const held = this.holdings.get(`${worldId}:${accountId}`);
+    if (held !== undefined && held !== nationId) return "elsewhere";
+    this.claims.set(`${worldId}:${nationId}`, accountId);
+    this.holdings.set(`${worldId}:${accountId}`, nationId);
+    return "ok";
+  }
+
+  async claimOf(worldId: string, nationId: number): Promise<string | null> {
+    return this.claims.get(`${worldId}:${nationId}`) ?? null;
+  }
+
+  async claimedNations(worldId: string): Promise<number[]> {
+    const nations: number[] = [];
+    for (const key of this.claims.keys()) {
+      const [world, nation] = key.split(":");
+      if (world === worldId) nations.push(Number(nation));
+    }
+    return nations.sort((a, b) => a - b);
   }
 
   async close(): Promise<void> {

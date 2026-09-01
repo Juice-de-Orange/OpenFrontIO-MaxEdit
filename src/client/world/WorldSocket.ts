@@ -58,6 +58,8 @@ export class WorldSocket {
     private readonly worldId: string,
     private readonly nation: number | null,
     private readonly handlers: WorldSocketHandlers,
+    /** The account token, or null. A season world requires one to play. */
+    private readonly token: string | null = null,
   ) {
     this.connect();
   }
@@ -91,6 +93,7 @@ export class WorldSocket {
           protocolVersion: PROTOCOL_VERSION,
           worldId: this.worldId,
           nation: this.nation,
+          token: this.token,
         }),
       );
     });
@@ -160,7 +163,10 @@ export class WorldSocket {
         event.code === CloseCode.ProtocolVersion ||
         event.code === CloseCode.UnknownWorld ||
         event.code === CloseCode.Malformed ||
-        event.code === CloseCode.Unauthorised
+        event.code === CloseCode.Unauthorised ||
+        // Another connection from this account took over. Terminal, or two
+        // browsers would kick each other in a reconnect loop for ever.
+        event.code === CloseCode.Superseded
       ) {
         // The server already said why, and it will say the same thing next
         // time. Retrying only hides it.

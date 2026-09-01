@@ -14,8 +14,23 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 10 of 13 — the regent is gated (2026-09-01, afternoon).** Eleven of
-thirteen gates. Phase 10 landed after the morning's phase 9: `RegentConfig`
+**Phase 11 of 13 — identity is gated (2026-09-01, afternoon).** Twelve of
+thirteen gates. Phase 11 landed on the same afternoon as phase 10: two
+Postgres tables (`accounts`, `nation_claims` — migration `0002`), an opaque
+token from `POST /register` stored only as its SHA-256, and the whole of the
+enforcement in `net/Identity.ts` and the socket's hello. **Identity lives
+beside the world and `WORLD_SEASON=open` is what arms it** (decision 0019):
+on a season world playing a nation needs the token, the first hello claims a
+free nation, one account holds one nation (unique indexes, so racing
+sessions meet the rule in the database), a newer connection supersedes the
+older (close 4006, terminal), and the season opening switches regents on for
+every unclaimed nation — decision 0018's promised half, submitted as real
+commands so replays never read the accounts table. Without the flag the
+world stays the workbench every gate depends on. The gate restarts the world
+into season mode, proves each §8 sentence including the restart-surviving
+refusal, and restores the workbench; `--break=keys` hands the impostor the
+real token and fails at exactly the refusal check. Transcripts under
+"Phase 11 — accounts and identity" below. Phase 10 landed after the morning's phase 9: `RegentConfig`
 in the state (hash version 4), `configure_regent` on the wire (protocol 14,
 with the regent's controls in the economy panel), and `systems/regent.ts` —
 every 12 ticks, rule-based, garrisoning the capital, keeping the queue
@@ -385,6 +400,11 @@ Expect it to find every mechanic that only works when a human is watching.
 
 ### 5 · Phase 11 — accounts and identity
 
+**Done 2026-09-01, gated** — decision 0019 holds the design (identity beside
+the world, armed by `WORLD_SEASON=open`), the transcript is above, and the
+deployment note below is now the load-bearing one: **a deployment without
+`WORLD_SEASON=open` is still the anyone-is-everyone world.**
+
 **Why it is a phase.** Since phase 7 a session can claim any nation in its
 `hello`, read that nation's treaty terms and cancel its agreements. §7 promises
 terms are visible only to the two parties, and a server that cannot tell who is
@@ -468,7 +488,7 @@ hash. Plan it together with a season boundary.
 Before calling anything done:
 
 ```bash
-npm run test                          # 610 at the end of phase 10
+npm run test                          # 614 at the end of phase 11
 TEST_DATABASE_URL=... npm run test:db # skipped silently without it
 npx tsc --noEmit -p tsconfig.strict.json
 npm run lint
@@ -490,7 +510,7 @@ three phases among them. A gate cannot tell you the game is unplayable.
 
 ## The whole plan, and how far along it is
 
-Eleven of thirteen gates passed. **The gate is the unit of progress here, not the
+Twelve of thirteen gates passed. **The gate is the unit of progress here, not the
 code:** a phase is done when its gate has been demonstrated, not when it
 compiles.
 
@@ -507,7 +527,7 @@ compiles.
 | 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ✅ passed                                                          |
 | 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ✅ passed                                                          |
 | 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ✅ passed                                                          |
-| 11 · Accounts and identity     | A session claiming a nation it does not hold is refused and told nothing about it   | ⬜                                                                 |
+| 11 · Accounts and identity     | A session claiming a nation it does not hold is refused and told nothing about it   | ✅ passed                                                          |
 | 12 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜                                                                 |
 
 ---
@@ -533,6 +553,59 @@ a timeout.
 **A fresh world starts with zero manpower**, which regrows at 0.02% of the cap
 a tick, so nothing can raise a division for the first couple of thousand ticks.
 Give a new world two minutes at 50 ms before running phase 4 or 6.
+
+### Phase 11 — accounts and identity
+
+```
+phase-11 gate
+  world world-0 at tick 1913, 50 ms a tick
+  restarting the world as a season (WORLD_SEASON=open)...
+  the season world is up at tick 1864
+  ok    three accounts registered, each holding its one copy of a token
+  ok    Alice's account claimed nation 3 — free nations are joinable
+  ok    and inherited a nation the regent was already playing — the season opening kept §6.10's promise (decision 0018)
+  ok    a session claiming nation 3 without holding it is refused and sent nothing about it (messages: reject)
+  ok    and playing without any credential at all is refused too
+  ok    Bob's account claimed nation 4 of its own
+  ok    and could not claim a second nation this season — one account, one nation (§10)
+  ok    a second browser on Alice's account took the session over — the first was closed with 4006 (got 4006) and the second plays on
+  restarting the season world...
+  ok    the refusal survived the restart — the claim is the database's, not the process's
+  ok    while the rightful account resumed its nation without a second claim
+  restoring the workbench world (season off)...
+  ok    the world is back on the workbench clock and healthy (50 ms a tick at tick 1899)
+PASS
+```
+
+**And the counter-proof, which is the whole point of an identity system:**
+`--break=keys` hands the impostor Alice's real token, the impostor walks in
+(`welcome, full, delta...`), and the refusal check — and only it — goes red:
+
+```
+phase-11 gate
+  world world-0 at tick 2251, 50 ms a tick
+  running with --break=keys: this must FAIL
+  restarting the world as a season (WORLD_SEASON=open)...
+  the season world is up at tick 2220
+  ok    three accounts registered, each holding its one copy of a token
+  ok    Alice's account claimed nation 5 — free nations are joinable
+  ok    and inherited a nation the regent was already playing — the season opening kept §6.10's promise (decision 0018)
+  FAIL  a session claiming nation 5 without holding it is refused and sent nothing about it (messages: welcome, full, delta, delta, delta, delta)
+  ok    and playing without any credential at all is refused too
+  ok    Bob's account claimed nation 6 of its own
+  ok    and could not claim a second nation this season — one account, one nation (§10)
+  ok    a second browser on Alice's account took the session over — the first was closed with 4006 (got 4006) and the second plays on
+  restarting the season world...
+  ok    the refusal survived the restart — the claim is the database's, not the process's
+  ok    while the rightful account resumed its nation without a second claim
+  restoring the workbench world (season off)...
+  ok    the world is back on the workbench clock and healthy (50 ms a tick at tick 2258)
+FAIL
+```
+
+The gate is rerunnable on one world: each run registers fresh accounts and
+scans past the claims of earlier runs, and when the nations run out it says
+`docker compose down -v` instead of failing.
 
 ### Phase 10 — the regent
 
@@ -1410,13 +1483,6 @@ side of the assignment form, an invasion under way. Everything else in phases
 1–9 is proven by scripts; those four are not, and a gate cannot tell you the
 game is unplayable.
 
-**Then phase 11 — accounts** (plan §5, decision 0013): greenfield, no auth
-code and no tables exist. **Phase 11 also owes the regent its season rule**
-(decision 0018): when accounts arrive, the season opening switches regents on
-for every nation no account holds — forget it, and §6.10's promise is
-silently unkept. The insertion point for the credential check is
-`WsServer.ts`'s hello block; the `hello` schema's own comment names the job.
-
 **Then the victory system** (plan §7) and **phase 12's deployment remainder**
 (plan §6 — DNS/TLS needs a Cloudflare token or a hand-created record, and the
 deployed demo on geoffrey still runs the pre-front build; a redeploy restarts
@@ -1643,13 +1709,14 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**610 passed, 8 skipped, in one run — no tolerated failures.** (The
+**614 passed, 9 skipped, in one run — no tolerated failures.** The ninth
+skip is the Postgres claims test, which runs under `npm run test:db`. (The
 count moves by one with every gate script: the protocol-version guard
 counts them by glob.) The eight
 skipped are the Postgres integration tests, which run under `npm run test:db`
 against `docker compose up -d db`. **They are a suite that rots when nobody
 runs it**, so `npm run test:db` belongs in every phase's closing checks; it
-passed 8/8 at the end of phase 10.
+passed 9/9 at the end of phase 11.
 
 The count moved from 597 at the end of phase 9, from 567 at the end of
 phase 8, from 533 at the end of

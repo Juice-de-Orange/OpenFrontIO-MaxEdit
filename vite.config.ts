@@ -195,6 +195,11 @@ export default defineConfig(({ mode }) => {
           ws: true,
           changeOrigin: true,
         },
+        // Registration (phase 11): same origin as the socket, same reasoning.
+        "/register": {
+          target: "http://localhost:3000",
+          changeOrigin: true,
+        },
       },
     },
   };

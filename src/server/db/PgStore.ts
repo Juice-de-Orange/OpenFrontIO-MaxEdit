@@ -23,7 +23,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { gunzipSync, gzipSync } from "node:zlib";
 import pg from "pg";
 import type { WorldSnapshot } from "../world/World";
-import { commands, snapshots, worlds } from "./schema";
+import { accounts, commands, nationClaims, snapshots, worlds } from "./schema";
 import type { StoredCommand, StoredSnapshot, WorldStore } from "./Store";
 
 export interface PgStoreOptions {
@@ -198,6 +198,78 @@ export class PgStore implements WorldStore {
         state: gzipSync(Buffer.from(JSON.stringify(snapshot.state), "utf-8")),
       })
       .onConflictDoNothing();
+  }
+
+  async createAccount(
+    id: string,
+    name: string,
+    tokenHash: string,
+  ): Promise<void> {
+    await this.db.insert(accounts).values({ id, name, tokenHash });
+  }
+
+  async accountByTokenHash(
+    tokenHash: string,
+  ): Promise<{ id: string; name: string } | null> {
+    const rows = await this.db
+      .select({ id: accounts.id, name: accounts.name })
+      .from(accounts)
+      .where(eq(accounts.tokenHash, tokenHash))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async claimNation(
+    worldId: string,
+    nationId: number,
+    accountId: string,
+  ): Promise<"ok" | "taken" | "elsewhere"> {
+    // One insert, and the two unique indexes are the rules. Racing sessions
+    // land here concurrently, so the answer has to come from the database's
+    // own atomicity rather than from a check-then-insert this process runs.
+    try {
+      await this.db
+        .insert(nationClaims)
+        .values({ worldId, nationId, accountId });
+      return "ok";
+    } catch {
+      const held = await this.db
+        .select({ nationId: nationClaims.nationId })
+        .from(nationClaims)
+        .where(
+          and(
+            eq(nationClaims.worldId, worldId),
+            eq(nationClaims.accountId, accountId),
+          ),
+        )
+        .limit(1);
+      if (held[0]?.nationId === nationId) return "ok";
+      if (held.length > 0) return "elsewhere";
+      return "taken";
+    }
+  }
+
+  async claimOf(worldId: string, nationId: number): Promise<string | null> {
+    const rows = await this.db
+      .select({ accountId: nationClaims.accountId })
+      .from(nationClaims)
+      .where(
+        and(
+          eq(nationClaims.worldId, worldId),
+          eq(nationClaims.nationId, nationId),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.accountId ?? null;
+  }
+
+  async claimedNations(worldId: string): Promise<number[]> {
+    const rows = await this.db
+      .select({ nationId: nationClaims.nationId })
+      .from(nationClaims)
+      .where(eq(nationClaims.worldId, worldId))
+      .orderBy(asc(nationClaims.nationId));
+    return rows.map((row) => row.nationId);
   }
 
   async close(): Promise<void> {

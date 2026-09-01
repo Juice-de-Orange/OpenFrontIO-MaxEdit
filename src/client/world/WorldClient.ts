@@ -134,6 +134,11 @@ export async function startWorldClient(
   let adapter: FrameAdapter | undefined;
 
   const nation = nationFromUrl();
+  // Phase 11: the account token, if this browser has one. A season world
+  // requires it to play; a workbench world carries it and ignores it. No
+  // token yet and a nation wanted: register once and keep the credential —
+  // losing it means a new account, which is the whole account system.
+  const token = await ensureToken(nation);
 
   /**
    * Everything the HUD draws from.
@@ -284,7 +289,45 @@ export async function startWorldClient(
       },
       onFatal: (message) => showFatal(message),
     },
+    token,
   );
+}
+
+/**
+ * The account token for this browser, made on first need (phase 11).
+ *
+ * Kept in localStorage: the token *is* the account, there is no password
+ * and no recovery, and a browser that loses its storage starts a new
+ * account — which on a season world means a new nation, because the old
+ * one stays claimed. Watching needs no token at all.
+ */
+async function ensureToken(nation: number | null): Promise<string | null> {
+  if (nation === null) return null;
+  const KEY = "world.account.token";
+  try {
+    const held = localStorage.getItem(KEY);
+    if (held !== null && held.length > 0) return held;
+  } catch {
+    // Storage can be blocked; play tokenless and let the server decide.
+  }
+  try {
+    const response = await fetch("/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Anonymous" }),
+    });
+    if (!response.ok) return null;
+    const made = (await response.json()) as { token?: string };
+    if (typeof made.token !== "string") return null;
+    try {
+      localStorage.setItem(KEY, made.token);
+    } catch {
+      // Kept for this page's life only; the next load registers again.
+    }
+    return made.token;
+  } catch {
+    return null;
+  }
 }
 
 /**

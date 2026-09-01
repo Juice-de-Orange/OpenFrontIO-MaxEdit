@@ -15,6 +15,13 @@
       "when": 1788131957567,
       "tag": "0001_magical_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788263605644,
+      "tag": "0002_black_whistler",
+      "breakpoints": true
     }
   ]
 }

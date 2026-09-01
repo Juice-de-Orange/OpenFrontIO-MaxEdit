@@ -38,6 +38,7 @@ import {
 } from "src/shared/protocol/Wire";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { World, WorldChanges } from "../world/World";
+import type { IdentityService } from "./Identity";
 
 /** How long a connection may stay silent before sending `hello`. */
 const HELLO_TIMEOUT_MS = 5000;
@@ -86,6 +87,8 @@ interface Session {
   socket: WebSocket;
   ready: boolean;
   nation: number | null;
+  /** The account this session authenticated as, on a season world. */
+  accountId: string | null;
   /**
    * Commands are handled asynchronously (the log write is awaited), and the
    * ws "message" event is not. Without a chain, two commands sent back to back
@@ -126,6 +129,16 @@ export class WorldSocketServer {
       snapshotFailures: 0,
       stateHash: 0,
     }),
+    /**
+     * Phase 11. `service` answers /register on any world; `season` is what
+     * arms the checks — on a season world playing a nation needs a token
+     * and holds a claim, on a workbench world the hello works as it always
+     * has (decision 0019).
+     */
+    private readonly identity: {
+      service: IdentityService;
+      season: boolean;
+    } | null = null,
     path = "/ws",
   ) {
     this.http = createServer((request, response) =>
@@ -140,6 +153,10 @@ export class WorldSocketServer {
   }
 
   private onRequest(request: IncomingMessage, response: ServerResponse): void {
+    if (request.url === "/register" && request.method === "POST") {
+      void this.onRegister(request, response);
+      return;
+    }
     if (request.url !== "/health") {
       response.writeHead(404, { "content-type": "text/plain" });
       response.end("not found\n");
@@ -180,11 +197,102 @@ export class WorldSocketServer {
     response.end(body + "\n");
   }
 
+  /**
+   * Make an account: a name in, the one copy of a token out (phase 11).
+   *
+   * Answered on every world, season or not, so a client can hold a
+   * credential before the world starts caring about one. The body is
+   * bounded — this is a registration, not an upload.
+   */
+  private async onRegister(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
+    if (this.identity === null) {
+      response.writeHead(503, { "content-type": "text/plain" });
+      response.end("this world has no account store\n");
+      return;
+    }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of request) {
+      size += (chunk as Buffer).length;
+      if (size > 4096) {
+        response.writeHead(413, { "content-type": "text/plain" });
+        response.end("too large\n");
+        return;
+      }
+      chunks.push(chunk as Buffer);
+    }
+    let name = "Anonymous";
+    try {
+      const body: unknown = JSON.parse(
+        Buffer.concat(chunks).toString("utf-8") || "{}",
+      );
+      if (
+        typeof body === "object" &&
+        body !== null &&
+        "name" in body &&
+        typeof (body as { name: unknown }).name === "string" &&
+        (body as { name: string }).name.length > 0
+      ) {
+        name = (body as { name: string }).name.slice(0, 64);
+      }
+    } catch {
+      response.writeHead(400, { "content-type": "text/plain" });
+      response.end("the body has to be JSON\n");
+      return;
+    }
+    try {
+      const made = await this.identity.service.register(name);
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          accountId: made.account.id,
+          name: made.account.name,
+          token: made.token,
+        }) + "\n",
+      );
+    } catch (error) {
+      console.error("[world] register failed", error);
+      response.writeHead(500, { "content-type": "text/plain" });
+      response.end("registration failed\n");
+    }
+  }
+
+  /**
+   * Phase 11's whole question, answered before anything is sent: may this
+   * session be this nation? Null means yes; a string is the refusal, and the
+   * refusal is all the impostor ever learns (decision 0019).
+   */
+  private async authorise(
+    session: Session,
+    nation: number,
+    token: string | null,
+  ): Promise<string | null> {
+    if (this.identity === null || !this.identity.season) return null;
+    if (token === null) {
+      return "playing a nation on this world needs an account: POST /register";
+    }
+    const account = await this.identity.service.authenticate(token);
+    if (account === null) return "that token belongs to no account";
+    const claim = await this.identity.service.claim(nation, account.id);
+    if (claim === "taken") {
+      return `nation ${nation} is held by another account`;
+    }
+    if (claim === "elsewhere") {
+      return "your account already holds a different nation this season";
+    }
+    session.accountId = account.id;
+    return null;
+  }
+
   private onConnection(socket: WebSocket): void {
     const session: Session = {
       socket,
       ready: false,
       nation: null,
+      accountId: null,
       work: Promise.resolve(),
       seenAt: 0,
     };
@@ -244,16 +352,47 @@ export class WorldSocketServer {
           return;
         }
 
-        clearTimeout(helloTimer);
-        session.ready = true;
-        session.nation = message.nation;
-        if (message.nation !== null) this.announcePresence(session);
-        this.send(socket, {
-          t: "welcome",
-          protocolVersion: PROTOCOL_VERSION,
-          worldId: this.worldId,
-        });
-        this.sendFullState(session);
+        // Identity, before anything is sent (phase 11). Async, so the rest
+        // of the handshake moves into the continuation — and the hello
+        // timer keeps running until it lands, which is right: a hello that
+        // cannot be authorised is a hello that has not happened.
+        void (async () => {
+          if (message.nation !== null) {
+            const refusal = await this.authorise(
+              session,
+              message.nation,
+              message.token,
+            );
+            if (refusal !== null) {
+              this.reject(socket, "unauthorised", refusal);
+              socket.close(CloseCode.Unauthorised, "not yours");
+              return;
+            }
+            // One session per account: a newer connection takes the older
+            // one over rather than sitting beside it — reconnecting resumes
+            // the session instead of opening a second (§8, phase 11).
+            if (session.accountId !== null) {
+              for (const other of this.sessions) {
+                if (other === session) continue;
+                if (other.accountId !== session.accountId) continue;
+                other.socket.close(
+                  CloseCode.Superseded,
+                  "a newer connection from this account took over",
+                );
+              }
+            }
+          }
+          clearTimeout(helloTimer);
+          session.ready = true;
+          session.nation = message.nation;
+          if (message.nation !== null) this.announcePresence(session);
+          this.send(socket, {
+            t: "welcome",
+            protocolVersion: PROTOCOL_VERSION,
+            worldId: this.worldId,
+          });
+          this.sendFullState(session);
+        })();
         return;
       }
 

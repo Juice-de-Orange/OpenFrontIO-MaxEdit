@@ -1,9 +1,15 @@
 /**
  * The durable shape of a world.
  *
- * Three tables, and each of them answers a question the in-memory world
- * cannot: which worlds exist, what did players do, and what did the world look
- * like at some point recently.
+ * Five tables, and each of them answers a question the in-memory world
+ * cannot: which worlds exist, what did players do, what did the world look
+ * like at some point recently — and, since phase 11, who anybody is and
+ * which nation they hold.
+ *
+ * Identity lives beside the world, never in it (decision 0019): accounts and
+ * claims are not in the snapshot, not in the state hash, and not on the
+ * wire's simulation half. The simulation stays account-free and a replay
+ * needs no login history to land on the same world.
  *
  * Nothing derived is stored. The province partition, the nation list and the
  * map itself are computed from the map files both server and client already
@@ -118,5 +124,56 @@ export const snapshots = pgTable(
   },
   (table) => [
     uniqueIndex("snapshots_world_tick").on(table.worldId, table.tick),
+  ],
+);
+
+/**
+ * Who somebody is: a name and the hash of the token that proves it.
+ *
+ * Registration is deliberately minimal — this is a hobby world, not a
+ * service — but it is a real credential (CLAUDE.md §8, phase 11): the token
+ * is generated server-side, returned exactly once, and only its SHA-256 is
+ * stored. A database dump leaks no credentials, which is also why this
+ * repository's `.gitignore` was so wary of `*.sql`.
+ */
+export const accounts = pgTable("accounts", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * Which account holds which nation, per world, for the life of a season.
+ *
+ * Both unique indexes are the phase-11 gate's two sentences as constraints:
+ * two accounts cannot hold the same nation, and one account holds at most
+ * one nation. The claim is made by the first authenticated `hello` naming a
+ * free nation — §10's "new players take a nation no account holds" — and
+ * nothing short of a season reset releases it.
+ */
+export const nationClaims = pgTable(
+  "nation_claims",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    nationId: integer("nation_id").notNull(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    claimedAt: timestamp("claimed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("nation_claims_world_nation").on(table.worldId, table.nationId),
+    uniqueIndex("nation_claims_world_account").on(
+      table.worldId,
+      table.accountId,
+    ),
   ],
 );

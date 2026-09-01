@@ -14,6 +14,7 @@ const hello: ClientMessage = {
   protocolVersion: PROTOCOL_VERSION,
   worldId: "world-0",
   nation: 3,
+  token: "a-token-from-register",
 };
 
 describe("the wire protocol", () => {
@@ -264,6 +265,10 @@ describe("the wire protocol", () => {
     // 14 is the regent (§6.10): `configure_regent` joins the commands and
     // the economy view says how the nation is played when nobody is — a v13
     // client could neither see nor stop a steward spending its budget.
-    expect(PROTOCOL_VERSION).toBe(14);
+    //
+    // 15 is identity (phase 11): the hello carries an account token, and on
+    // a season world playing a nation requires one. A v14 client's hello no
+    // longer parses, which is the right failure — it cannot say who it is.
+    expect(PROTOCOL_VERSION).toBe(15);
   });
 });

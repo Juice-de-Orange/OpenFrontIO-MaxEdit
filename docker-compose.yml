@@ -48,6 +48,9 @@ services:
       # Only ever set by a gate. A real world ticks every five seconds; see
       # the note on TICK_INTERVAL_MS in src/server/Main.ts.
       WORLD_TICK_MS: ${WORLD_TICK_MS:-}
+      # Arms identity and opens the season (phase 11, decision 0019). Unset
+      # for a workbench world; a deployment sets it to "open".
+      WORLD_SEASON: ${WORLD_SEASON:-}
     ports:
       - "3000:3000"
     # No restart policy on purpose: the phase-1 gate is to kill this container

@@ -306,4 +306,35 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
       restored.controllerSnapshot(),
     );
   });
+
+  test("the claim rules hold in Postgres exactly as in memory", async () => {
+    // The rules are two unique indexes, and racing sessions meet them in the
+    // database rather than in this process — which is why the same test has
+    // to run against the real thing (the suite-that-rots lesson).
+    const store = await PgStore.connect({ connectionString: URL as string });
+    const id = `world-claims-${Date.now()}`;
+    await store.ensureWorld(id, "fixture", 1, 2);
+    try {
+      const suffix = Date.now().toString(36);
+      await store.createAccount(`alice-${suffix}`, "Alice", `hash-a-${suffix}`);
+      await store.createAccount(`bob-${suffix}`, "Bob", `hash-b-${suffix}`);
+      expect(
+        await store.accountByTokenHash(`hash-a-${suffix}`),
+      ).toEqual({ id: `alice-${suffix}`, name: "Alice" });
+      expect(await store.accountByTokenHash("hash-nobody")).toBeNull();
+
+      expect(await store.claimNation(id, 7, `alice-${suffix}`)).toBe("ok");
+      expect(await store.claimNation(id, 7, `alice-${suffix}`)).toBe("ok");
+      expect(await store.claimNation(id, 7, `bob-${suffix}`)).toBe("taken");
+      expect(await store.claimNation(id, 8, `alice-${suffix}`)).toBe(
+        "elsewhere",
+      );
+      expect(await store.claimNation(id, 8, `bob-${suffix}`)).toBe("ok");
+      expect(await store.claimOf(id, 7)).toBe(`alice-${suffix}`);
+      expect(await store.claimOf(id, 9)).toBeNull();
+      expect(await store.claimedNations(id)).toEqual([7, 8]);
+    } finally {
+      await store.close();
+    }
+  });
 });

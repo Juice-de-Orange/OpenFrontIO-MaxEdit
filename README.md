@@ -60,7 +60,7 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Phase 10 of 13 built.** A world server ticks every five seconds, persists to
+**Phase 11 of 13 built.** A world server ticks every five seconds, persists to
 Postgres, accepts commands and comes back where it was after being killed. On
 top of that runs an economy: provinces extract from their deposits, civilian
 factories make construction points, military factories and dockyards draw the
@@ -85,9 +85,11 @@ reach zero. Nothing takes a province unless somebody ordered it — and a
 nation may hand its orders to the regent: a rule-based steward that
 garrisons the capital, keeps building, runs both production lines a
 division needs, and buys the scarcest resource at the world market, without
-ever touching what an existing production line makes. It stays opt-in until
-accounts exist (phase 11), so an unattended world is still quiet. The
-inherited renderer draws all of it.
+ever touching what an existing production line makes. And the world knows who you are now: on a
+season world (`WORLD_SEASON=open`) an account token is the key to exactly
+one nation, an impostor is refused before it is told anything, and every
+nation nobody claims is played by its regent. On a workbench world all of
+that stays out of the way. The inherited renderer draws all of it.
 
 The build order and the gate each phase has to pass are in
 [CLAUDE.md § 8](CLAUDE.md). For the current state of the work — what is done,
