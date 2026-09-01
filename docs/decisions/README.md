@@ -83,3 +83,4 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0019](0019-identity-beside-the-world-armed-by-the-season.md)  | Identity lives beside the world, and the season is what arms it           | Accepted |
 | [0020](0020-blocs-are-transitive-and-winning-stops-nothing.md) | Victory blocs are transitive, and winning stops nothing                   | Accepted |
 | [0021](0021-nations-wear-their-real-borders.md)                | Nations wear their real borders, grown from Natural Earth outlines        | Accepted |
+| [0022](0022-which-nations-are-taken-is-public.md)              | Which nations are taken is public; who took them is not                   | Accepted |

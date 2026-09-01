@@ -492,6 +492,22 @@ regents on for every unclaimed nation through real `configure_regent`
 commands in the log. Without the flag the world is the workbench the gates
 run on.
 
+**`GET /register` is how a player gets in.** The same path, because a reverse
+proxy has to be told about every path it forwards and a chooser that works in
+development and 404s in production is worse than none. It answers the nation
+list and which entries are claimed; with a bearer token it also answers which
+nation is _the asker's own_. Claimed-or-not is public — a nation being played
+rather than regent-run shows in its behaviour within an hour, and a chooser
+that cannot show it makes the player discover it by being refused. _Who_ holds
+one is not: that is an account. See decision 0022.
+
+**The client asks before it connects.** The nation comes from `?nation=` when
+one is given — that is how a gate and a second window address a world, and it
+is deliberately never remembered — otherwise from what this browser chose last
+time, otherwise from the chooser. A browser that holds a token is not asked at
+all: `GET /register` tells it which nation is already its own. Watching is a
+remembered choice too, or the chooser blocks the door on every reload.
+
 **An economy is private.** The map half of a delta is identical for everybody
 and is encoded once; the economy half is built per session and carries only
 that nation's own stockpile, rates and construction queue. A spectator gets
