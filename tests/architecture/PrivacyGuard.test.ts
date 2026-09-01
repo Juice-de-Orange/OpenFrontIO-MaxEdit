@@ -88,7 +88,8 @@ describe("the privacy guard", () => {
     });
 
     test("but not an address that only looks reserved", () => {
-      // 203.0.113.0/24 is reserved; 203.113.0.0/16 is somebody's.
+      // Only the documentation /24 is reserved. The same leading octet with
+      // the other digits rearranged is a real address and must be reported.
       expect(isNonRoutable([203, 113, 0, 7])).toBe(false);
       expect(isNonRoutable([203, 0, 113, 7])).toBe(true);
     });

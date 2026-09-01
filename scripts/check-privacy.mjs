@@ -30,9 +30,9 @@
  * compose snippet is the *advice*, not the leak. The quarantine is skipped,
  * because it is inherited code nobody deploys.
  *
- * **Known false positive, accepted.** A four-part version number whose first
- * part is under 256 — `6.8.0.134`, say — is an address as far as any regular
- * expression is concerned, and gets reported. The trade is deliberate: a false
+ * **Known false positive, accepted.** A four-part version number whose parts
+ * are all under 256 — a Linux kernel version, say — is an address as far as
+ * any regular expression is concerned, and gets reported. The trade is deliberate: a false
  * positive costs one rephrase, a missed address costs a push to a public
  * repository. Nothing tracked here trips it today.
  *
@@ -94,7 +94,8 @@ export function isNonRoutable(octets) {
   if (a === 192 && b === 168) return true;
   if (a === 169 && b === 254) return true;
   // RFC 5737 documentation ranges. All three are /24s, so the third octet is
-  // part of the range — `203.0.113.0/24` is reserved, `203.113.0.0/16` is not.
+  // part of the range: matching on two octets would wave through every address
+  // that merely starts with the same number.
   if (a === 192 && b === 0 && c === 2) return true;
   if (a === 198 && b === 51 && c === 100) return true;
   if (a === 203 && b === 0 && c === 113) return true;
