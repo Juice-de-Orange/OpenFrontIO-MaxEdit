@@ -280,10 +280,37 @@ in phase 8 and this is where it shows.
 6. **Client**: the air panel's assignment form takes a zone _kind_, so it
    serves both. That is the invariant-5 test in the UI.
 
-**Gate** (`scripts/phase9-gate.mjs`): cutting an opponent's convoy routes
-starves an overseas province of supply **and** cuts their trade income, with
-no land engagement. Then a naval invasion lands and holds a beachhead.
-`--break=` one where the raiders never sail.
+**Gate** (`scripts/phase9-gate.mjs`) — **still owed; everything below it is
+built.** What it must prove, concretely, against the code as committed:
+
+1. Stage two coastal nations with no land route between their measured parts
+   (or use an overseas beachhead: control a far coastal province, port both
+   ends — `supplyReach` then reads it per division on the wire).
+2. Convoys exist only through production: a dockyard line on `convoy`. A
+   fresh nation has none, and sea supply then sits at `SEA_SUPPLY_FLOOR` —
+   stage the convoys first or the cut has nothing to cut.
+3. The starvation half: a garrison on the far shore reports its supply on
+   the wire; enemy `submarine_flotilla`s on `convoy_raiding` over the route
+   zone must drop it (SEA_RAID_SUPPLY_MAX caps the direct cut at 25%, and
+   the sinking compounds it as the stock drains). Never to zero — the floor
+   is the counter-proof of invariant 2.
+4. The trade half: a standing sea trade (propose/accept works across water
+   now); the same raiders must visibly drop the seller's points income —
+   `tradePointsIn` is on the wire.
+5. The landing: `naval_invade` an open hostile beach across a controlled
+   zone; the transit shows in the public `invasions` list; after
+   `zones × INVASION_TICKS_PER_ZONE` ticks the province's controller flips
+   and holds. Raise the garrison first in a second run and the same landing
+   must turn back — that is a counter-proof the mechanic hands you for free.
+6. `--break=moored`: the raiders never sail. Must fail at the starvation
+   check, not earlier.
+
+Traps already known: WORLD_TICK_MS through any compose restart; sweep your
+own leftovers (transits too); production stood down during measurement
+windows; `ps -eo pid,etimes` before calling a run stuck. And one new one:
+**a beachhead on the partner's island is a land route** — the trade-route
+BFS starts from every controlled province, so a gate that stages both a
+beachhead and a sea trade between the same pair is measuring a land trade.
 
 **Traps.** Everything the phase-8 gate learned applies: supply hubs before
 armies, production stopped during a measurement window, and time the fight
@@ -1119,7 +1146,24 @@ docker compose up -d
 npm run start:client
 ```
 
-Then open `http://localhost:9000/?nation=17` (or any nation number) and check:
+Then open `http://localhost:9000/?nation=17` (or any nation number) and check
+— **the first four are this night's work and nobody has ever seen them**:
+
+0a. **The menu bar**: six glyph buttons top-left, one panel at a time, the
+    map visible behind. Panel switches keep a half-typed trade rate alive.
+0b. **A front fills tile by tile**: order an attack on a garrisoned province
+    (two browsers help); the province should fill with your colour from your
+    border inward as `progress` climbs, while its controller stays theirs
+    until it completes. Call it off: the tiles fall back.
+0c. **The fleet**: a coastal province with a naval base offers the three
+    ship types on its raise buttons; the assignment form offers sea zones
+    and sea missions the moment a fleet is selected (one form, two
+    theatres).
+0d. **An invasion**: with a division on your coast, a hostile coastal
+    province's panel offers "Invade from the sea". The division shows "at
+    sea" in the production panel while it crosses.
+
+Then the standing list:
 
 1. **The map draws territory** — coloured regions, not a blank canvas.
 2. **Province borders are visible** as dark seams inside each nation, and
