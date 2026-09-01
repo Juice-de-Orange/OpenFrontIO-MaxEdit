@@ -33,14 +33,17 @@ configuration proves something about the special configuration.
 
 ## Configuration
 
-| Variable            | Default     | What it is                                                                                                     |
-| ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`      | _(unset)_   | Postgres. **Unset means the world is not persisted** and says so at startup.                                   |
-| `WORLD_ID`          | `world-0`   | Which world this process ticks. Also the advisory-lock key.                                                    |
-| `MAP_ID`            | `europe`    | Must be one of the maps built into the image (`WORLD_MAPS`).                                                   |
-| `PORT`              | `3000`      | `/ws` and `/health` share it.                                                                                  |
-| `WORLD_MAPS`        | `europe`    | Build argument. `resources/maps` is 511 MB across ~120 maps and an image hosts one world; only these are kept. |
-| `POSTGRES_PASSWORD` | `openfront` | Compose only. Change it for anything reachable.                                                                |
+| Variable            | Default     | What it is                                                                                                                                                                                                                                                        |
+| ------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`      | _(unset)_   | Postgres. **Unset means the world is not persisted** and says so at startup.                                                                                                                                                                                      |
+| `WORLD_ID`          | `world-0`   | Which world this process ticks. Also the advisory-lock key.                                                                                                                                                                                                       |
+| `MAP_ID`            | `europe`    | Must be one of the maps built into the image (`WORLD_MAPS`).                                                                                                                                                                                                      |
+| `PORT`              | `3000`      | `/ws` and `/health` share it.                                                                                                                                                                                                                                     |
+| `WORLD_MAPS`        | `europe`    | Build argument. `resources/maps` is 511 MB across ~120 maps and an image hosts one world; only these are kept.                                                                                                                                                    |
+| `POSTGRES_PASSWORD` | `openfront` | Compose only. Change it for anything reachable.                                                                                                                                                                                                                   |
+| `WORLD_SEASON`      | _(unset)_   | **Set to `open` on every real deployment.** Arms identity (accounts required, one nation per account, decision 0019) and hands every unclaimed nation to its regent. Unset, the world is a workbench where anybody is everybody — the exact state §8 warns about. |
+| `BACKUP_INTERVAL_S` | `86400`     | Backup sidecar: seconds between verified dumps.                                                                                                                                                                                                                   |
+| `BACKUP_KEEP`       | `14`        | Backup sidecar: how many verified dumps rotation keeps.                                                                                                                                                                                                           |
 
 ## What it needs
 
@@ -208,14 +211,37 @@ game time and real time are not the same clock and are not meant to be.
 
 ## Backups
 
-The world is in memory; the database is the only durable copy. Whatever you
-already run is fine, but two things are worth doing regardless:
+The world is in memory; the database is the only durable copy. The stack
+carries its own sidecar now (`backup` in `docker-compose.yml`,
+`docker/backup/backup.sh`): a `pg_dump -Fc` every `BACKUP_INTERVAL_S`
+seconds into the `world-backups` volume, `pg_restore --list` as a **hard
+abort** — a dump that fails verification is renamed `.bad` and the service
+exits non-zero, where the watchdog can see it — and rotation keeping the
+newest `BACKUP_KEEP` verified dumps.
 
-- Put the backup **inside the stack** as a sidecar rather than as a cron job on
-  the host. A stack that carries its own backup keeps working when it moves.
-- **Test a restore once**, before you need it. An untested backup is a belief,
-  not a backup. Restore into a scratch database, start a world from it, and
-  compare its state hash against the source.
+Take one on demand:
+
+```bash
+docker compose run --rm backup --once
+```
+
+**Test a restore once, before you need it** — an untested backup is a
+belief, not a backup. This exact sequence was run on 2026-09-01 and came
+back with every table intact:
+
+```bash
+docker compose run --rm --entrypoint sh backup -c '
+  latest=$(ls -1t /backups/world-*.dump | head -1)
+  dropdb --if-exists restore_check && createdb restore_check
+  pg_restore -d restore_check "$latest"
+  psql -d restore_check -tc "select count(*) from commands"
+  psql -d restore_check -tc "select count(*) from snapshots"
+  dropdb restore_check && echo RESTORE-OK'
+```
+
+For a real recovery, restore into a fresh `openfront` database the same way
+and start the world against it; it resumes at the newest snapshot in the
+dump plus the commands after it (decision 0005).
 
 ## Monitoring
 

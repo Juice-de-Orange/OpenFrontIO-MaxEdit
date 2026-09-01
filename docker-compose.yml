@@ -4,9 +4,10 @@
 # Postgres behind it. The client is not in here: it is served by Vite in
 # development, and its /ws proxy already points at port 3000.
 #
-# TLS, a public hostname and a backup sidecar are deliberately absent. They are
-# phase 11, and they belong to a host rather than to a checkout —
-# docs/deploy/README.md says what a real deployment needs in front of this.
+# TLS and a public hostname are deliberately absent — they belong to a host
+# rather than to a checkout; docs/deploy/README.md says what a real deployment
+# needs in front of this. The backup sidecar is *in* the stack (phase 12): a
+# stack that carries its own backup moves with you.
 
 services:
   db:
@@ -58,5 +59,28 @@ services:
     # anyone could look.
     restart: "no"
 
+  # Nightly pg_dump with a verification that hard-aborts, and rotation.
+  # In the stack on purpose (phase 12's first trap): whatever backup the host
+  # "already has" may not exist, and a backup nobody ever restored is a hope.
+  # `docker compose run --rm backup --once` takes one on demand.
+  backup:
+    image: postgres:17-alpine
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: openfront
+      PGPASSWORD: ${POSTGRES_PASSWORD:-openfront}
+      PGDATABASE: openfront
+      BACKUP_INTERVAL_S: ${BACKUP_INTERVAL_S:-86400}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - world-backups:/backups
+      - ./docker/backup/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    restart: unless-stopped
+
 volumes:
   world-db:
+  world-backups:

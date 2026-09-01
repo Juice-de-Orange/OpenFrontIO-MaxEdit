@@ -440,6 +440,14 @@ demo rather than a season.
 
 ### 6 · Phase 12 — deployment, properly
 
+**Partly done 2026-09-01**: the backup sidecar is in the stack and a restore
+was really tested (78 commands, 2,219 snapshots, 10 claims back intact — the
+sequence is in docs/deploy/README.md), and `WORLD_SEASON=open` is the
+deployment checklist's first line now. Still needing a host or Max: the DNS
+record/TLS, the systemd watchdog on the machine itself, the redeploy of
+geoffrey (which restarts that world — hash and protocol both moved), and the
+seven-day gate.
+
 Most of it is done and documented in `docs/deploy/README.md`, and the
 host-specific half is in the git-ignored `HOST.local.md`. What is left:
 
@@ -1494,10 +1502,13 @@ side of the assignment form, an invasion under way. Everything else in phases
 1–9 is proven by scripts; those four are not, and a gate cannot tell you the
 game is unplayable.
 
-**Then phase 12's deployment remainder**
-(plan §6 — DNS/TLS needs a Cloudflare token or a hand-created record, and the
-deployed demo on geoffrey still runs the pre-front build; a redeploy restarts
-that world, since both the state hash and the protocol moved).
+**Then phase 12's deployment remainder** (plan §6). The in-stack half is
+done — backup sidecar with a hard-abort verification, and a restore really
+tested. What remains needs the host or Max: a DNS record (Cloudflare token
+or a hand-created entry), TLS via the ACME vhost that is already in place,
+the systemd watchdog on the machine, and the redeploy of geoffrey — **with
+`WORLD_SEASON=open`**, which restarts that world (hash and protocol both
+moved) and turns it from a demo into a season.
 
 **Then the map's real borders** (plan §8) — the standing request, and it
 invalidates every running world, so plan it with a season boundary.
