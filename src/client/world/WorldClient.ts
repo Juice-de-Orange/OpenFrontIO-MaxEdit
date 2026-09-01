@@ -460,6 +460,7 @@ export async function startWorldClient(
               model.provinces = built.provinces;
               adapter.applyFullState(state.controllers, state.tick);
               adapter.applyFronts(state.fronts, model.controllers);
+              adapter.applyBuildings(model.buildings, model.controllers);
               uploadFrameData(view, adapter.frameData());
               hud.update(model);
             })
@@ -475,6 +476,7 @@ export async function startWorldClient(
         }
         adapter.applyFullState(state.controllers, state.tick);
         adapter.applyFronts(state.fronts, model.controllers);
+        adapter.applyBuildings(model.buildings, model.controllers);
         uploadFrameData(view, adapter.frameData());
         hud.update(model);
       },
@@ -511,6 +513,11 @@ export async function startWorldClient(
         // After the base ownership, so a repainted province gets its front
         // back — and a front that shrank or ended gets unwound.
         adapter.applyFronts(delta.fronts, model.controllers);
+        // Buildings only when something about them moved: a count, or the
+        // controller whose colour they wear. Most ticks move neither.
+        if (delta.buildings.length > 0 || delta.control.length > 0) {
+          adapter.applyBuildings(model.buildings, model.controllers);
+        }
         uploadFrameData(view, adapter.frameData());
         hud.update(model);
       },
@@ -685,6 +692,9 @@ async function buildFrom(
   // pointed at nothing in particular and has to hunt for their own territory.
   // A spectator still gets the whole map, which is what a spectator wants.
   const own = state.economy?.nation ?? null;
+  // Never set before, so `uLocalPlayerID` was 0 and the structure shader's
+  // own-buildings outline was inert for every nation.
+  if (own !== null) view.setLocalPlayerID(own);
   const home =
     own === null ? null : homeView(grid, state.controllers, own, canvas);
   const initialCamera = home ??

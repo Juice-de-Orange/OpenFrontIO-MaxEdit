@@ -18,8 +18,9 @@
  * in the same object, which is exactly why the trap is a trap.
  */
 
-import type { FrameData } from "src/client/render/types";
+import type { FrameData, UnitState } from "src/client/render/types";
 import type { ProvinceTileIndex } from "./ProvinceTileIndex";
+import { structuresOf } from "./StructureAdapter";
 
 /** Above this share of the map, a full upload beats a delta. */
 const FULL_UPLOAD_FRACTION = 0.25;
@@ -50,6 +51,12 @@ export class FrameAdapter {
   private tick = 0;
   /** null on the next frame() means "full upload". */
   private wantFullUpload = true;
+  /**
+   * An edge, consumed by `frameData()`. Left true it rebuilds every building
+   * instance a tick; left false it draws nothing after the first frame. Neither
+   * says anything, which is why it is private and set in exactly one place.
+   */
+  private structuresDirty = false;
 
   private readonly frame: FrameData;
 
@@ -99,6 +106,23 @@ export class FrameAdapter {
       attackRings: [],
       structuresDirty: false,
     };
+  }
+
+  /**
+   * Redraw the buildings from the current counts and controllers.
+   *
+   * Call on the full state, and on a delta that moved a building count or a
+   * controller (an occupied factory wears its occupier's colour). The map
+   * is replaced, not mutated: the renderer rebuilds its instance buffer from
+   * whatever it is handed while `structuresDirty` is set.
+   */
+  applyBuildings(
+    buildings: readonly number[],
+    controllers: readonly number[],
+  ): void {
+    (this.frame as { units: ReadonlyMap<number, UnitState> }).units =
+      structuresOf(buildings, controllers, this.index);
+    this.structuresDirty = true;
   }
 
   /** Paint every province from scratch; the next frame is a full upload. */
@@ -316,10 +340,13 @@ export class FrameAdapter {
     const f = this.frame as {
       tick: number;
       changedTiles: readonly number[] | null;
+      structuresDirty: boolean;
     };
     f.tick = this.tick;
     f.changedTiles = this.wantFullUpload ? null : this.changedTiles;
     this.wantFullUpload = false;
+    f.structuresDirty = this.structuresDirty;
+    this.structuresDirty = false;
     return this.frame;
   }
 }
