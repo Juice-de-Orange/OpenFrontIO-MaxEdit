@@ -356,15 +356,17 @@ async function legPublicSurface() {
     check(asset.ok, `the bundle it names is served (${bundle[1]})`);
   }
 
+  // GET, not POST. A POST here *registers an account*, and this gate had been
+  // quietly making one on every run — eight orphan accounts on the deployed
+  // world before anybody noticed, from the gate that exists to check the world
+  // is healthy. GET proves the same thing about the proxy and creates nothing.
   const register = await fetch(`${BASE_URL}/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: "{}",
+    headers: { accept: "application/json" },
     signal: AbortSignal.timeout(15000),
   });
   check(
     (register.headers.get("content-type") ?? "").includes("json"),
-    "POST /register reaches the world, not index.html",
+    "/register reaches the world, not index.html",
     "the proxy has no /register location, so try_files answers it",
   );
 
