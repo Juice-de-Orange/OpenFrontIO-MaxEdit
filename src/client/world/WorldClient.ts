@@ -517,7 +517,7 @@ export async function startWorldClient(
       onAck: (ack) => {
         showNotice(
           ack.accepted
-            ? t("hud.orderAccepted", { tick: ack.tick ?? 0 })
+            ? t("hud.orderAccepted")
             : t("hud.orderRefused", { reason: ack.reason ?? "" }),
         );
       },

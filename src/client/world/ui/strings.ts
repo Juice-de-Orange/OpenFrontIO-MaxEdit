@@ -25,7 +25,8 @@ const en = {
     "You are watching this world. Every panel here belongs to a nation, so " +
     "there is nothing in them until you have one.",
   "hud.notConnected": "Not connected to the world.",
-  "hud.orderAccepted": "Order accepted for tick {tick}.",
+  "hud.orderAccepted": "Order accepted.",
+  "hud.info": "What is this?",
   "hud.orderRefused": "Order refused: {reason}",
   "hud.clock": "Day {day} \u00b7 {hour}:00",
 
@@ -68,6 +69,7 @@ const en = {
   "economy.rubber": "Rubber",
   "economy.perDay": "{value}/day",
   "economy.stock": "{value}",
+  "economy.resources": "Resources",
 
   "province.title": "Province {id}",
   "province.terrain": "Terrain",
@@ -132,6 +134,9 @@ const en = {
   "air.flying": "zone {zone} \u00b7 {mission}",
   "air.bringHome": "Bring it home",
   "air.assign": "Send a wing",
+  "air.outOfReach": "out of reach",
+  "air.reachHint":
+    "A wing flies over its base's zone and the zones next to it.",
   "air.send": "Send",
   "air.raise": "{what} \u2014 {cost} manpower",
   "formation.fighter_wing": "Fighter wing",
@@ -151,7 +156,7 @@ const en = {
   "production.divisionAt": "Division {id} \u00b7 province {province}",
   "production.raise": "Raise a division \u2014 {cost} manpower",
   "production.divisionState": "{strength} kit \u00b7 {supply} supply",
-  "production.atSea": "Division {id} \u00b7 at sea, {ticks} ticks out",
+  "production.atSea": "Division {id} \u00b7 at sea, {days} days out",
 
   "building.civilian_factory": "Civilian factory",
   "building.military_factory": "Military factory",
@@ -172,6 +177,7 @@ const en = {
   "research.start": "Research",
   "research.known": "Known",
   "research.none": "Nothing researched yet.",
+  "research.available": "Available",
   "research.needs": "needs {techs}",
   "research.noSlot": "no free slot",
   "research.how":
@@ -236,6 +242,27 @@ const en = {
   "agreement.trade": "Trade",
   "agreement.alliance": "Alliance",
   "agreement.military_access": "Military access",
+  "help.economy.construction":
+    "Construction points a day, made by your civilian factories, after what trade takes or brings. They go into the front item of the construction queue, and they are the currency of every trade agreement.",
+  "help.economy.tradeShare":
+    "How much of that construction comes from standing trade agreements, or goes out to pay for imports. Negative means you are paying for resources with construction.",
+  "help.economy.industry":
+    "What your military factories and dockyards turn out a day across every production line, after efficiency and resource shortages.",
+  "help.economy.supplyRatio":
+    "How much of the resources your factories ask for they actually get. Below 100% every line runs slower in proportion. Nothing ever stops for want of steel; it only runs worse.",
+  "help.economy.resources":
+    "The stockpile, then its change a day: what your provinces extract, minus what your factories use, plus or minus trade. Refineries turn steel into oil or rubber; the world market sells anything, at bad rates.",
+  "help.research.slots":
+    "A slot works on one technology, an hour of progress a tick. It costs nothing but the slot. Two slots to begin with; the research bureau opens a third.",
+  "help.research.techs":
+    "Every technology is a flat modifier or a new equipment tier, shown under its name. A greyed one names the prerequisite it is missing.",
+  "help.air.zones":
+    "A zone is a group of provinces. You assign a wing or a fleet to a zone with a mission; the world resolves the fight there every tick. You never fly an aircraft yourself.",
+  "help.air.base":
+    "A wing is raised where an air base stands and a fleet where a naval base stands. The button appears in that province's panel and nowhere else. Build the base first.",
+  "help.air.reach":
+    "A wing flies over its base's own zone and the zones bordering it. Farther zones are listed greyed and cannot be chosen. A base nearer the front is the answer.",
+
   "start.eyebrow": "A world that keeps running",
   "start.title": "Choose your nation",
   "start.ledeSeason":
@@ -278,7 +305,8 @@ const de: Record<StringKey, string> = {
     "Du schaust dieser Welt zu. Jedes Panel hier gehört einer Nation — " +
     "solange du keine hast, steht nichts darin.",
   "hud.notConnected": "Keine Verbindung zur Welt.",
-  "hud.orderAccepted": "Befehl angenommen für Tick {tick}.",
+  "hud.orderAccepted": "Befehl angenommen.",
+  "hud.info": "Was ist das?",
   "hud.orderRefused": "Befehl abgelehnt: {reason}",
   "hud.clock": "Tag {day} \u00b7 {hour}:00",
 
@@ -321,6 +349,7 @@ const de: Record<StringKey, string> = {
   "economy.rubber": "Gummi",
   "economy.perDay": "{value}/Tag",
   "economy.stock": "{value}",
+  "economy.resources": "Rohstoffe",
 
   "province.title": "Provinz {id}",
   "province.terrain": "Gelände",
@@ -385,6 +414,9 @@ const de: Record<StringKey, string> = {
   "air.flying": "Zone {zone} \u00b7 {mission}",
   "air.bringHome": "Zurückholen",
   "air.assign": "Staffel entsenden",
+  "air.outOfReach": "au\u00dfer Reichweite",
+  "air.reachHint":
+    "Eine Staffel fliegt \u00fcber die Zone ihrer Basis und die Nachbarzonen.",
   "air.send": "Entsenden",
   "air.raise": "{what} \u2014 {cost} Menschenreserve",
   "formation.fighter_wing": "Jagdstaffel",
@@ -404,7 +436,7 @@ const de: Record<StringKey, string> = {
   "production.divisionAt": "Division {id} \u00b7 Provinz {province}",
   "production.raise": "Division aufstellen \u2014 {cost} Menschenreserve",
   "production.divisionState": "{strength} Ausrüstung \u00b7 {supply} Nachschub",
-  "production.atSea": "Division {id} \u00b7 auf See, noch {ticks} Ticks",
+  "production.atSea": "Division {id} \u00b7 auf See, noch {days} Tage",
 
   "building.civilian_factory": "Zivile Fabrik",
   "building.military_factory": "Militärfabrik",
@@ -425,6 +457,7 @@ const de: Record<StringKey, string> = {
   "research.start": "Erforschen",
   "research.known": "Bekannt",
   "research.none": "Noch nichts erforscht.",
+  "research.available": "Verf\u00fcgbar",
   "research.needs": "braucht {techs}",
   "research.noSlot": "kein freier Slot",
   "research.how":
@@ -489,6 +522,27 @@ const de: Record<StringKey, string> = {
   "agreement.trade": "Handel",
   "agreement.alliance": "Bündnis",
   "agreement.military_access": "Durchmarschrecht",
+  "help.economy.construction":
+    "Bauleistung pro Tag aus deinen Zivilfabriken, nach dem, was der Handel nimmt oder bringt. Sie fließt in das vorderste Vorhaben der Bauschlange und ist die Währung jedes Handelsabkommens.",
+  "help.economy.tradeShare":
+    "Wie viel dieser Bauleistung aus laufenden Handelsabkommen kommt oder als Bezahlung für Importe abgeht. Negativ heißt: du bezahlst Rohstoffe mit Bauleistung.",
+  "help.economy.industry":
+    "Was deine Militärfabriken und Werften pro Tag über alle Produktionslinien ausstoßen, nach Effizienz und Rohstoffmangel.",
+  "help.economy.supplyRatio":
+    "Wie viel der Rohstoffe, die deine Fabriken anfordern, sie tatsächlich bekommen. Unter 100 % läuft jede Linie anteilig langsamer. Nichts steht je still, weil Stahl fehlt; es läuft nur schlechter.",
+  "help.economy.resources":
+    "Der Vorrat, dann seine Änderung pro Tag: was deine Provinzen fördern, minus was deine Fabriken verbrauchen, plus oder minus Handel. Raffinerien machen aus Stahl Öl oder Gummi; der Weltmarkt verkauft alles, zu schlechten Kursen.",
+  "help.research.slots":
+    "Ein Slot arbeitet an einer Technologie, eine Stunde Fortschritt pro Tick. Er kostet nichts außer dem Slot. Zwei Slots zu Beginn; das Forschungsbüro öffnet einen dritten.",
+  "help.research.techs":
+    "Jede Technologie ist ein fester Modifikator oder eine neue Ausrüstungsstufe, unter ihrem Namen angezeigt. Eine ausgegraute nennt die Voraussetzung, die ihr fehlt.",
+  "help.air.zones":
+    "Eine Zone ist eine Gruppe von Provinzen. Du weist einer Zone eine Staffel oder Flotte mit einer Mission zu; die Welt entscheidet den Kampf dort jeden Tick. Du fliegst nie selbst ein Flugzeug.",
+  "help.air.base":
+    "Eine Staffel wird aufgestellt, wo eine Luftwaffenbasis steht, eine Flotte, wo eine Marinebasis steht. Der Knopf erscheint im Panel dieser Provinz und nirgends sonst. Erst die Basis bauen.",
+  "help.air.reach":
+    "Eine Staffel fliegt über die Zone ihrer Basis und die angrenzenden Zonen. Weiter entfernte Zonen stehen ausgegraut in der Liste und lassen sich nicht wählen. Eine Basis näher an der Front ist die Antwort.",
+
   "start.eyebrow": "Eine Welt, die weiterläuft",
   "start.title": "Wähle deine Nation",
   "start.ledeSeason":
@@ -537,12 +591,31 @@ function language(): string {
 
 const catalogue = CATALOGUES[language()];
 
-/** `{name}` placeholders, substituted positionally by name. */
+/** The keys behind the HUD's ⓘ buttons: prose, not labels. */
+export type HelpKey = Extract<StringKey, `help.${string}`>;
+
+const warned = new Set<string>();
+
+/**
+ * `{name}` placeholders, substituted positionally by name.
+ *
+ * **A missing key renders as the key**, once warned about, rather than
+ * throwing. Thirty-odd keys reach this through `as StringKey`, and a typo in
+ * one used to take the whole `update()` down with a TypeError — every panel
+ * blank for one wrong string. The key on screen is ugly and honest.
+ */
 export function t(
   key: StringKey,
   params: Record<string, string | number> = {},
 ): string {
-  const template = catalogue[key];
+  const template: string | undefined = catalogue[key];
+  if (template === undefined) {
+    if (!warned.has(key)) {
+      warned.add(key);
+      console.warn(`[hud] no string for "${key}"`);
+    }
+    return key;
+  }
   return template.replace(/\{(\w+)\}/g, (whole, name: string) =>
     name in params ? String(params[name]) : whole,
   );

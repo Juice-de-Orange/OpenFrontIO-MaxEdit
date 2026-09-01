@@ -60,6 +60,7 @@ import {
 } from "src/shared/economy/Formations";
 import type { Province } from "src/shared/map/Province";
 import { TerrainType } from "src/shared/map/Terrain";
+import { zoneInReach } from "src/shared/map/Zones";
 import type {
   AgreementView,
   NationEconomyView,
@@ -76,7 +77,7 @@ import {
   perDay,
   share,
 } from "./Format";
-import { t, type StringKey } from "./strings";
+import { t, type HelpKey, type StringKey } from "./strings";
 
 const STYLE = `
 #world-hud, #world-hud * { box-sizing: border-box; }
@@ -209,6 +210,23 @@ const STYLE = `
 #world-hud .hint {
   display: block; margin: .15rem 0 .1rem; font-size: 12px; line-height: 1.4;
   color: #8d97a8;
+}
+/* The circled i, and the explanation it opens inline. Inline in the panel,
+   never a popover: the HUD root is pointer-events:none and the canvas sits
+   after it in the body, so anything appended to <body> is unreachable. */
+#world-hud button.info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.05rem; height: 1.05rem; margin: 0 0 0 .35rem; padding: 0;
+  vertical-align: text-bottom; border-radius: 50%; font-size: 10px;
+  font-weight: 700; font-style: italic; line-height: 1;
+  color: #aab4c4; background: transparent; border: 1px solid #6f7a8b;
+}
+#world-hud button.info:hover:enabled { color: #fff; border-color: #aab4c4; background: transparent; }
+#world-hud button.info[aria-expanded="true"] { color: #fff; border-color: #6ea8fe; background: rgba(110,168,254,.26); }
+#world-hud .help {
+  margin: .2rem 0 .5rem; padding: .45rem .6rem; font-size: 12px; line-height: 1.45;
+  color: #c7cfdb; background: rgba(110,168,254,.10);
+  border-left: 2px solid rgba(110,168,254,.55); border-radius: 0 4px 4px 0;
 }
 #world-hud .line { margin-bottom: .55rem; padding-bottom: .45rem;
   border-bottom: 1px solid rgba(255,255,255,.08); }
@@ -384,6 +402,13 @@ export class Hud {
   /** The last model seen, so a menu click can redraw without waiting a tick. */
   private lastModel: HudModel | null = null;
   private readonly menuButtons = new Map<PanelId, HTMLButtonElement>();
+  /**
+   * Which explanations are open. On the instance, not in the DOM: panels are
+   * rebuilt by `replaceChildren` every tick, and a DOM-held open state
+   * closes itself every five seconds — the same reason the diplomacy, air
+   * and regent forms are built once.
+   */
+  private readonly openHelp = new Set<HelpKey>();
   /** The bar's right-hand side, built with the bar. */
   private identity: HTMLElement | null = null;
   /** The in-game day and hour, beside the identity. */
@@ -475,6 +500,40 @@ export class Hud {
     bar.append(this.identity);
 
     this.root.appendChild(bar);
+  }
+
+  /**
+   * A row or heading with a circled i on it, and its explanation under it
+   * while open.
+   *
+   * The whole point is that it is *inline*: the player who could not work out
+   * what "Resources covered 60%" meant needs the answer next to the number,
+   * in the panel, not in a tooltip that needs a hover or a doc that needs a
+   * tab. A click redraws from the last model at once, like the menu does.
+   */
+  private explained(key: HelpKey, element: HTMLElement): Node[] {
+    const open = this.openHelp.has(key);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "info";
+    button.textContent = "i";
+    button.title = t("hud.info");
+    button.setAttribute("aria-label", t("hud.info"));
+    button.setAttribute("aria-expanded", String(open));
+    button.dataset.help = key;
+    button.addEventListener("click", () => {
+      if (this.openHelp.has(key)) this.openHelp.delete(key);
+      else this.openHelp.add(key);
+      if (this.lastModel !== null) this.update(this.lastModel);
+    });
+    // A row keeps its value flush right, so the i goes on the label span;
+    // a heading takes it at the end.
+    (element.querySelector(".muted") ?? element).append(button);
+    if (!open) return [element];
+    const help = document.createElement("div");
+    help.className = "help";
+    help.textContent = t(key);
+    return [element, help];
   }
 
   /** Day and hour, from the tick alone (§4: one tick is one in-game hour). */
@@ -607,13 +666,29 @@ export class Hud {
           : nationName(model, model.nation),
       ),
       ...victoryLine(model),
-      row(t("economy.construction"), perDay(netConstruction)),
+      ...this.explained(
+        "help.economy.construction",
+        row(t("economy.construction"), perDay(netConstruction)),
+      ),
       ...(Math.abs(traded) > 1e-9
-        ? [row(t("economy.tradeShare"), perDay(traded))]
+        ? this.explained(
+            "help.economy.tradeShare",
+            row(t("economy.tradeShare"), perDay(traded)),
+          )
         : []),
-      row(t("economy.industry"), perDay(economy.industryPerTick)),
-      row(t("economy.supplyRatio"), share(economy.sufficiency)),
+      ...this.explained(
+        "help.economy.industry",
+        row(t("economy.industry"), perDay(economy.industryPerTick)),
+      ),
+      ...this.explained(
+        "help.economy.supplyRatio",
+        row(t("economy.supplyRatio"), share(economy.sufficiency)),
+      ),
       spacer(),
+      ...this.explained(
+        "help.economy.resources",
+        heading(t("economy.resources")),
+      ),
       ...(["steel", "oil", "aluminium", "rubber"] as const).map((resource) =>
         row(
           t(`economy.${resource}` as StringKey),
@@ -1192,7 +1267,8 @@ export class Hud {
           transit !== undefined
             ? t("production.atSea", {
                 id: division.id,
-                ticks: transit.ticksLeft,
+                // Invariant 9: days, never ticks. Rounded up like the queue.
+                days: daysRemaining(transit.ticksLeft, 1),
               })
             : t("production.divisionAt", {
                 id: division.id,
@@ -1229,7 +1305,7 @@ export class Hud {
     // The sentence this panel was missing. A list of slots and a list of
     // techs does not say that one goes into the other, or that it is free.
     const children: Node[] = [
-      heading(t("research.title")),
+      ...this.explained("help.research.slots", heading(t("research.title"))),
       hint(t("research.how")),
     ];
     const known = new Set<TechId>(economy.unlockedTechs);
@@ -1282,6 +1358,13 @@ export class Hud {
         .filter((id) => id !== null),
     );
     const offered = TECH_IDS.filter((id) => !known.has(id) && !busy.has(id));
+    children.push(
+      spacer(),
+      ...this.explained(
+        "help.research.techs",
+        heading(t("research.available")),
+      ),
+    );
     for (const id of offered) {
       const ready = isAvailable(id, economy.unlockedTechs);
       const button = document.createElement("button");
@@ -1546,7 +1629,9 @@ export class Hud {
       this.airPanel.append(this.airList);
     }
 
-    const children: Node[] = [heading(t("air.title"))];
+    const children: Node[] = [
+      ...this.explained("help.air.zones", heading(t("air.title"))),
+    ];
 
     if (economy.zones.length === 0) {
       children.push(muted(t("air.noZones")));
@@ -1565,7 +1650,14 @@ export class Hud {
       );
     }
 
-    children.push(spacer(), heading(t("air.formations")));
+    children.push(
+      spacer(),
+      ...this.explained("help.air.base", heading(t("air.formations"))),
+      // The airfield rule, said rather than discovered. The server has
+      // enforced it since phase 8; the dropdown below greys the zones it
+      // would refuse.
+      ...this.explained("help.air.reach", hint(t("air.reachHint"))),
+    );
     if (economy.formations.length === 0) {
       children.push(muted(t("air.noFormations")));
     }
@@ -1630,23 +1722,34 @@ export class Hud {
     // is derived from the chosen formation's template, and the zone and
     // mission lists follow it. A fleet is offered sea zones and sea
     // missions, a wing the sky's — one form, two theatres (invariant 5).
-    const template = economy.formations.find(
+    const chosenFormation = economy.formations.find(
       (formation) => String(formation.id) === which.value,
-    )?.template;
+    );
+    const template = chosenFormation?.template;
     const kind = template === undefined ? "air" : FORMATIONS[template].kind;
 
     // Every zone of the right kind the nation can see. Out-of-reach ones are
-    // left in and refused by the server, which is the one whose answer
-    // counts (§7) — and a zone that vanished mid-click would be worse.
+    // left in but greyed, with the same `zoneInReach` the server applies —
+    // so the rule is visible before the refusal, and a zone that vanished
+    // mid-click would be worse than one that says it cannot be chosen. The
+    // server still answers, and its answer is the one that counts (§7).
     const zoneChosen = zone.value;
     const zones = economy.zones
       .filter((view) => view.kind === kind)
-      .map((view) => ({
-        value: String(view.zone),
-        label: t(kind === "air" ? "air.zone" : "air.seaZone", {
+      .map((view) => {
+        const label = t(kind === "air" ? "air.zone" : "air.seaZone", {
           zone: view.zone,
-        }),
-      }));
+        });
+        const reachable =
+          chosenFormation === undefined ||
+          model.provinces.length === 0 ||
+          zoneInReach(model, chosenFormation.baseProvinceId, view.zone, kind);
+        return {
+          value: String(view.zone),
+          label: reachable ? label : `${label} — ${t("air.outOfReach")}`,
+          disabled: !reachable,
+        };
+      });
     syncOptions(zone, zones);
     if (zones.some((option) => option.value === zoneChosen)) {
       zone.value = zoneChosen;
@@ -1945,7 +2048,7 @@ function depositLine(province: Province): string | null {
  */
 function syncOptions(
   select: HTMLSelectElement,
-  wanted: { value: string; label: string }[],
+  wanted: { value: string; label: string; disabled?: boolean }[],
 ): void {
   const have = new Map<string, HTMLOptionElement>();
   for (const option of Array.from(select.options))
@@ -1960,9 +2063,12 @@ function syncOptions(
       const option = document.createElement("option");
       option.value = entry.value;
       option.textContent = entry.label;
+      option.disabled = entry.disabled === true;
       select.append(option);
-    } else if (existing.textContent !== entry.label) {
-      existing.textContent = entry.label;
+    } else {
+      if (existing.textContent !== entry.label)
+        existing.textContent = entry.label;
+      existing.disabled = entry.disabled === true;
     }
   }
 }

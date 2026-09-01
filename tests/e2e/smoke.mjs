@@ -182,7 +182,8 @@ const economy = await page
   .$eval("#world-economy", (p) => (p.hidden ? null : p.textContent))
   .catch(() => null);
 ok(
-  economy !== null && /Construction\s*[\d.]+\/day/.test(economy),
+  // The label carries a circled "i" (the info button) between it and the number.
+  economy !== null && /Construction\s*i?\s*[\d.]+\/day/.test(economy),
   "the economy panel is open and shows construction per day",
 );
 ok(

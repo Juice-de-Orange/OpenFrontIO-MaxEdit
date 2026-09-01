@@ -29,70 +29,18 @@ import {
   type Mission,
   type ZoneKind,
 } from "src/shared/economy/Formations";
-import type { ProvinceMap } from "src/shared/map/ProvinceMap";
+import { zoneInReach, zoneNeighbours, zoneOf } from "src/shared/map/Zones";
 import {
   formationStrength,
   type Formation,
   type WorldState,
 } from "../world/WorldState";
 
-/** The zone of this kind a province belongs to, or null if it has none. */
-export function zoneOf(
-  map: ProvinceMap,
-  province: number,
-  kind: ZoneKind,
-): number | null {
-  const it = map.provinces[province];
-  if (it === undefined) return null;
-  return kind === "air" ? it.airZone : it.seaZone;
-}
-
-/**
- * Which zones border which, derived from the province graph.
- *
- * Static map data in everything but storage: two zones are neighbours when any
- * province in one borders any province in the other. It is what gives
- * `ZONE_REACH` something to mean, and it is why where a player puts an air
- * base is a decision rather than a formality.
- */
-export function zoneNeighbours(
-  map: ProvinceMap,
-  kind: ZoneKind,
-): Map<number, Set<number>> {
-  const neighbours = new Map<number, Set<number>>();
-  const add = (a: number, b: number): void => {
-    let set = neighbours.get(a);
-    if (set === undefined) {
-      set = new Set<number>();
-      neighbours.set(a, set);
-    }
-    set.add(b);
-  };
-  for (const province of map.provinces) {
-    const here = kind === "air" ? province.airZone : province.seaZone;
-    if (here === null) continue;
-    add(here, here);
-    for (const id of province.neighbours) {
-      const there = zoneOf(map, id, kind);
-      if (there === null) continue;
-      add(here, there);
-    }
-  }
-  return neighbours;
-}
-
-/** Whether a formation based here may be sent to that zone (`ZONE_REACH`). */
-export function zoneInReach(
-  map: ProvinceMap,
-  base: number,
-  zone: number,
-  kind: ZoneKind,
-): boolean {
-  const home = zoneOf(map, base, kind);
-  if (home === null) return false;
-  if (home === zone) return true;
-  return zoneNeighbours(map, kind).get(home)?.has(zone) === true;
-}
+// The zone geometry — `zoneOf`, `zoneNeighbours`, `zoneInReach` — lives in
+// `src/shared/map/Zones.ts` since the client learned to grey out a zone a
+// formation cannot reach. Re-exported so the world and the tests keep
+// reading it from the zone machine.
+export { zoneInReach, zoneNeighbours, zoneOf };
 
 /**
  * What one formation is worth on the mission it was actually given.
