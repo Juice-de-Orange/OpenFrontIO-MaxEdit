@@ -1509,13 +1509,16 @@ rather than details:
   `?nation=` and be that nation — read its treaty terms, cancel its
   agreements. §8 puts deployment after phase 11 for exactly that reason, and
   deploying before it was a deliberate call to get a live test.
-- **It still has no TLS**, because it has no DNS record, because the zone is
-  on Cloudflare and **there is no API token on any machine** — looked for
-  again on 2026-09-01 and not found, and certbot on the host has only the
-  `standalone` and `webroot` plugins. This is the one part of phase 12 that
-  cannot be done from a machine: it needs somebody with access to the zone.
-  The ACME vhost is in place, so the certificate is one command behind the
-  record.
+- **It has TLS**, since the same afternoon. The player created the `A` record
+  by hand — there is still no Cloudflare API token anywhere, so that step was
+  never going to come from a machine — and the rest followed: a webroot
+  challenge, a Let's Encrypt certificate, and a TLS listener on a private port
+  that the host's SNI router forwards to by name, because port 443 there
+  belongs to a `stream` block and an http vhost cannot have it. Verified from
+  outside: HTTPS, a valid chain, and **101 over TLS** on the socket. The claim
+  in the old notes that the ACME vhost "was already in place" turned out to be
+  false — the host's `default_server` was answering for the name and returning
+  404 — which is the kind of thing only a real certificate request finds.
 - **The seven-day clock is running.** `scripts/phase12-gate.mjs --start` set
   its mark on 2026-09-01. Every other leg of that gate passed on the day, and
   all five of its counter-proofs failed at exactly the leg they aim at. What
@@ -1643,12 +1646,19 @@ something can read and copy them, `/register` was added to the proxy, and
 ways on purpose. Every leg of that gate passes except the seven days, whose
 clock started the same afternoon.
 
-What is left: **a DNS record**, and the TLS certificate behind it. There is no
-Cloudflare API token on any machine — looked for again that day and not found
-— so this needs somebody with access to the zone, adding an `A` record with
-the grey cloud (the orange one terminates TLS and breaks the host's SNI
-passthrough). `docs/deploy/HOST.local.md` has the exact certbot command that
-follows. Nothing else in the phase is blocked, and nothing else is undone.
+**What is left is the waiting.** TLS landed the same afternoon: the player
+created the `A` record by hand, and the certificate, the private TLS port and
+the SNI entry followed. `certbot renew --dry-run` was run for the first time on
+that host and passed for both certificates.
+
+So phase 12 has one open leg and it is a clock. Re-run the gate on or after
+2026-09-08 — `docs/deploy/HOST.local.md` has the command — and if the world
+kept ticking, the thirteenth gate closes and the build phases are done.
+
+Two things worth improving rather than blocking on: the backups live on the
+same disk as the database they protect, and the watchdog alerts through a
+public ntfy rather than the self-hosted one that already exists behind the
+host's router.
 
 **The map's real borders are done** (plan §8, decision 0021) — built after
 phase 11 instead of last, at the player's call. The partition hash moved, so

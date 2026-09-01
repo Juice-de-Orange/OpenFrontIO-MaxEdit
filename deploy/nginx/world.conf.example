@@ -13,11 +13,12 @@
 #   <WWW_ROOT>       where the built client bundle was rsynced
 #
 # ---------------------------------------------------------------------------
-# THIS FILE HAS NEVER BEEN LOADED BY AN NGINX.
-#
-# It was written on a Windows machine that has no nginx to check it with, from
-# the prose in docs/deploy/README.md. Treat `nginx -t` on the host as the first
-# real test, and read the two traps below before believing a successful reload.
+# This shape has been loaded by an nginx, on 2026-09-01: certificate, private
+# TLS port, SNI entry, WebSocket upgrade over TLS, all verified from outside.
+# What ran there was adapted from this file, not this file itself, so treat
+# `nginx -t` on your host as the first real test — and read the traps below
+# before believing a successful reload, because it was one of them that made
+# this file necessary.
 # ---------------------------------------------------------------------------
 #
 # **`nginx -t` is not proof.** A `listen 443` in http context passes the syntax
@@ -42,6 +43,11 @@ map $http_upgrade $connection_upgrade {
 }
 
 # Plain HTTP: the ACME challenge, and nothing else worth serving.
+#
+# Its own server block per site, named. A host with a `default_server` on port
+# 80 answers every unmatched name, so without this the challenge for <DOMAIN>
+# lands in somebody else's document root and certbot fails with a 404 it cannot
+# explain.
 server {
     listen 80;
     listen [::]:80;
@@ -62,8 +68,11 @@ server {
     # If 443 is free, this is `listen 443 ssl;`. If it is not, this is the
     # private port the SNI router forwards to — add `proxy_protocol` here and
     # keep the two real_ip lines below.
-    listen 127.0.0.1:<VHOST_PORT> ssl proxy_protocol;
-    http2 on;
+    # `listen … ssl http2`, not the standalone `http2 on;` directive: nginx
+    # only grew that in 1.25, and 1.24 is still what a current Ubuntu ships.
+    # The standalone form fails the config test outright, which is the good
+    # case — unlike everything else on this page.
+    listen 127.0.0.1:<VHOST_PORT> ssl http2 proxy_protocol;
     server_name <DOMAIN>;
 
     # Only meaningful behind a proxy_protocol listener. Harmless otherwise, but
@@ -93,13 +102,9 @@ server {
         try_files $uri =404;
     }
 
-    # The province artefact is content-hashed in the client's check. Serving a
-    # stale one from an HTTP cache is the documented cause of a blank map, so
-    # it is deliberately not cached hard.
-    location = /provinces.bin {
-        add_header Cache-Control "no-cache";
-        try_files $uri =404;
-    }
+    # The province artefact needs no rule of its own: it ships as
+    # `_assets/maps/<map>/provinces.<hash>.bin`, so the hashed-asset rule above
+    # already covers it and a changed partition is a changed filename.
 
     location / {
         try_files $uri $uri/ /index.html;
