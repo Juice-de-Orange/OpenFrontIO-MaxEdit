@@ -39,7 +39,9 @@ end to end" and all gated:
   *deep* the same front grinds in a fixed window with and without bombers,
   fought twice over the same provinces since cancel-resets-progress makes
   that fair.
-- **Phase 9's systems, built and unit-tested — the gate is still owed.**
+- **Phase 9, gated on 2026-09-01.** `scripts/phase9-gate.mjs` passes on a
+  fresh world (transcript under "Phase 9 — naval zones and convoys" below)
+  and `--break=moored` fails at the checks it aims at. The systems:
   No `provinces.bin` bump: the sea routes over the sea-zone graph derived at
   load (decision 0017), which deleted the plan's riskiest step. What runs:
   the three ship types as `FORMATIONS` rows; `systems/naval.ts` on the same
@@ -55,8 +57,7 @@ end to end" and all gated:
   turned back by a garrison raised during the crossing. The wire went
   12 → 13. STATE_HASH_VERSION is 3. `tests/server/Naval.test.ts` (12),
   `tests/shared/SeaGraph.test.ts` (4) and the two-island fixture hold it
-  all; **`scripts/phase9-gate.mjs` does not exist yet**, so phase 9 is not
-  gated — the gate section below says exactly what it must prove.
+  all.
 - **A menu instead of six open panels** (plan item 2): an icon bar top-left,
   one panel at a time, forms keep their identity across switches, the
   province panel stays on the right. `tests/client/world/HudMenu.test.ts`
@@ -280,8 +281,9 @@ in phase 8 and this is where it shows.
 6. **Client**: the air panel's assignment form takes a zone _kind_, so it
    serves both. That is the invariant-5 test in the UI.
 
-**Gate** (`scripts/phase9-gate.mjs`) — **still owed; everything below it is
-built.** What it must prove, concretely, against the code as committed:
+**Gate** (`scripts/phase9-gate.mjs`) — **passed 2026-09-01**, transcript
+under "The gates, run rather than described". The staging notes below are
+kept because they are what the gate had to learn:
 
 1. Stage two coastal nations with no land route between their measured parts
    (or use an overseas beachhead: control a far coastal province, port both
@@ -456,7 +458,7 @@ three phases among them. A gate cannot tell you the game is unplayable.
 
 ## The whole plan, and how far along it is
 
-Nine of thirteen gates passed. **The gate is the unit of progress here, not the
+Ten of thirteen gates passed. **The gate is the unit of progress here, not the
 code:** a phase is done when its gate has been demonstrated, not when it
 compiles.
 
@@ -471,7 +473,7 @@ compiles.
 | 6 · Supply                     | An overextended offensive stalls from supply alone; full recompute under 50 ms      | ✅ passed                                                          |
 | 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ✅ passed                                                          |
 | 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ✅ passed                                                          |
-| 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ⬜                                                                 |
+| 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ✅ passed                                                          |
 | 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜                                                                 |
 | 11 · Accounts and identity     | A session claiming a nation it does not hold is refused and told nothing about it   | ⬜                                                                 |
 | 12 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜                                                                 |
@@ -500,7 +502,104 @@ a timeout.
 a tick, so nothing can raise a division for the first couple of thousand ticks.
 Give a new world two minutes at 50 ms before running phase 4 or 6.
 
-### Phase 8 — air zones
+### Phase 9 — naval zones and convoys
+
+```
+phase-9 gate
+  world world-0 at tick 5918, 50 ms a tick
+  nation 17 (an island) faces nation 7's coast at province 56, over sea zone 11 — enemy, trade partner and raider in one, as a war across a strait tends to make you
+  island: 3 dockyard(s) queued against 35 coastal province(s)
+  defender: 3 dockyard(s) queued against 16 coastal province(s)
+  making 40 convoys and 20 submarines...
+  ok    the island holds 135 convoys and the defender 20 submarines — all of it dockyard time (§6.3)
+  the defender sells aluminium; the island has room for it
+  ok    a trade across open water is offerable now (accepted)
+  ok    the sea trade moves: 0.500 aluminium a tick arrives on the island's convoys
+  flotillas over shared sea zone(s) 11: the island's convoys are being hunted (trade-window)
+  ok    raiding the route cut the trade income: 0.500 -> 0.460 aluminium a tick, with no land engagement
+  ok    the convoys themselves are being sunk: 1.70 lost under the raid against 0.16 to wear alone in the same window, with the yards silent
+  ok    the invasion put to sea (accepted)
+  ok    the crossing is on the wire for everyone — a spectator can watch it coming, which is the §6.8 defence
+  ok    the crossing took 11 tick(s) — an operation, not a teleport (12 a zone)
+  ok    the beach at province 56 is the island's beachhead now
+  ok    the beachhead is supplied over the sea: 100.0% — above the no-convoy floor of 25%, so the convoys are carrying it
+  flotillas over shared sea zone(s) 11: the island's convoys are being hunted (supply-window)
+  ok    raiding the route starved the beachhead: supply 100.0% -> 92.0%
+  ok    and never to nothing — a cut convoy line is a worse one, not a severed one (invariant 2)
+  ok    and the beachhead held through all of it
+  ok    the world stayed healthy throughout (0 ms behind at tick 8268)
+PASS
+```
+
+**The order inside the gate is the finding.** The trade half is measured
+*before* the landing, deliberately: a beachhead joins the two landmasses, the
+route resolver then rightly calls the pair a land route, and a land trade
+needs no convoys and fears no submarine. Three runs paid for that sentence —
+the flow sat at exactly 0.500 under a full raid until the windows were
+reordered. The raiders also go home for the crossing, because §6.8 gates an
+invasion on sea control and the gate demonstrates the rule by obeying it, and
+come back out for the starvation window.
+
+**The sinking check found a real bug before it was sharp.** Its first version
+passed whenever the convoy stock fell at all — and the stock always falls,
+because wear thins it with no enemy anywhere. Under `--break=moored` it went
+green on wear alone, which exposed two things at once: the check could not
+tell wear from war, and `naval.ts` priced a trade route's exposure at
+`zones × rate` — zero for a route inside one shared zone, so the raiders had
+in fact sunk nothing. The pricing now matches the trade system's
+(`CONVOYS_PER_TRADE_FLOW_ZONE × rate × max(1, zones)`,
+`tests/server/Naval.test.ts` holds the regression), and the check measures a
+quiet window first and demands the raid empty the warehouse at better than
+twice the wear rate: 1.70 lost under the raid against 0.16 to wear.
+
+**What the earlier runs taught, each on a fresh world:**
+
+- The first candidate island had one coastal province, already full — the
+  stage search requires three now, and takes the biggest shore on offer.
+- Submarines drink oil, and a defender picked for its coastline may pump
+  none: nation 7 sat at sufficiency 0.000 with a full steel store. The gate
+  buys the oil on the world market — §6.5's answer for exactly this nation —
+  and stops the order the moment the boats are built, because the standing
+  order was eating the construction budget the raiders' harbour needed.
+- The trade resource is chosen at run time, one the seller holds and the
+  buyer has room for: on a world a few hours old, steel sits at RESOURCE_CAP
+  and the intake scale is zero (the phase-7 trap, paid for again).
+- **Every rerun needs a fresh world** (`docker compose down -v`): the
+  previous run's beachhead joins the island to the mainland, `findStage`
+  then finds no "across", and the trade route resolver reads land.
+
+**And it was checked against itself being broken**, on its own fresh world —
+failing at the three checks that measure the raid and at none before them:
+
+```
+phase-9 gate
+  world world-0 at tick 5956, 50 ms a tick
+  running with --break=moored: this must FAIL
+  nation 17 (an island) faces nation 7's coast at province 56, over sea zone 11 — enemy, trade partner and raider in one, as a war across a strait tends to make you
+  island: 3 dockyard(s) queued against 35 coastal province(s)
+  defender: 3 dockyard(s) queued against 16 coastal province(s)
+  making 40 convoys and 20 submarines...
+  ok    the island holds 134 convoys and the defender 20 submarines — all of it dockyard time (§6.3)
+  the defender sells aluminium; the island has room for it
+  ok    a trade across open water is offerable now (accepted)
+  ok    the sea trade moves: 0.500 aluminium a tick arrives on the island's convoys
+  --break=moored: the flotillas stay in harbour (trade-window)
+  FAIL  raiding the route cut the trade income: 0.500 -> 0.500 aluminium a tick, with no land engagement
+  FAIL  the convoys themselves are being sunk: 0.16 lost under the raid against 0.16 to wear alone in the same window, with the yards silent
+  ok    the invasion put to sea (accepted)
+  ok    the crossing is on the wire for everyone — a spectator can watch it coming, which is the §6.8 defence
+  ok    the crossing took 11 tick(s) — an operation, not a teleport (12 a zone)
+  ok    the beach at province 56 is the island's beachhead now
+  ok    the beachhead is supplied over the sea: 100.0% — above the no-convoy floor of 25%, so the convoys are carrying it
+  --break=moored: the flotillas stay in harbour (supply-window)
+  FAIL  raiding the route starved the beachhead: supply 100.0% -> 100.0%
+  ok    and never to nothing — a cut convoy line is a worse one, not a severed one (invariant 2)
+  ok    and the beachhead held through all of it
+  ok    the world stayed healthy throughout (0 ms behind at tick 8304)
+FAIL
+```
+
+### Phase 8 — air zones### Phase 8 — air zones
 
 ```
 phase-8 gate

@@ -31,6 +31,7 @@
 
 import {
   CONVOY_RAID_LOSS,
+  CONVOYS_PER_TRADE_FLOW_ZONE,
   INVASION_LANDING_FACTOR,
   NAVAL_LOSS,
   NAVAL_LOSS_SWING,
@@ -193,7 +194,15 @@ export const navalSystem: System = {
         if (agreement.terms === null) continue;
         const route = context.routes.get(agreement.id);
         if (route === undefined || route.kind !== "sea") continue;
-        wanted += route.zones * agreement.terms.resourcePerTick;
+        // The same pricing the trade system uses, `max(1, zones)` included:
+        // a route inside a single zone crosses nothing but its ships are on
+        // that water all the same, and the first gate run proved it — the
+        // raiders sank exactly zero because this line priced the exposure
+        // at `zones × rate` and zones was 0.
+        wanted +=
+          CONVOYS_PER_TRADE_FLOW_ZONE *
+          agreement.terms.resourcePerTick *
+          Math.max(1, route.zones);
         for (const zone of route.path) {
           raid = Math.max(raid, netRaidOver(state, nation, zone));
         }

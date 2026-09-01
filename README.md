@@ -60,7 +60,7 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Phase 8 of 13 built.** A world server ticks every five seconds, persists to
+**Phase 9 of 13 built.** A world server ticks every five seconds, persists to
 Postgres, accepts commands and comes back where it was after being killed. On
 top of that runs an economy: provinces extract from their deposits, civilian
 factories make construction points, military factories and dockyards draw the
@@ -72,13 +72,18 @@ for in construction points, that cost trust to break and survive a restart
 because nobody has to renew them. A shortage anywhere scales every consumer
 down together; nothing ever stops.
 
-On top of that sits a war. An attack is a standing order that grinds every
-tick against equipment, supply, terrain and combat width, and an air force
-flies from bases into zones with missions — fighting for the sky, supporting
-the ground, cutting an enemy's supply or bombing their industry. Every one of
-those effects is bounded and none of them can reach zero. Nothing takes a
-province unless somebody ordered it: a world with nobody online is quiet until
-the regent arrives in phase 10. The inherited renderer draws all of it.
+On top of that sits a war. An attack is a standing order whose front grinds
+in tile by tile — a progress the whole map can watch — against equipment,
+supply, terrain and combat width. An air force flies from bases into zones
+with missions: fighting for the sky, supporting the ground, cutting an
+enemy's supply or bombing their industry. The sea runs on the same zone
+machine: fleets hold or raid it, sea supply and seaborne trade move on
+convoys that submarines can sink and escorts can save, and an invasion
+crosses visibly for half a day a zone toward a beach a watching defender can
+still garrison. Every one of those effects is bounded and none of them can
+reach zero. Nothing takes a province unless somebody ordered it: a world
+with nobody online is quiet until the regent arrives in phase 10. The
+inherited renderer draws all of it.
 
 The build order and the gate each phase has to pass are in
 [CLAUDE.md § 8](CLAUDE.md). For the current state of the work — what is done,

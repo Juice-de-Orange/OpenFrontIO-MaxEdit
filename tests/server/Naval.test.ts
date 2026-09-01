@@ -395,6 +395,45 @@ describe("the sea half of phase 9", () => {
     expect(state.provinceController[beachhead]).toBe(2);
   });
 
+  test("a sea trade's traffic alone is exposure enough for the raiders", () => {
+    // No beachhead, no sea supply route — the only ships on the water are
+    // the trade's. The exposure has to be priced like the trade system
+    // prices the route (CONVOYS_PER_TRADE_FLOW_ZONE × rate × zones-or-one):
+    // the first gate run priced it at `zones × rate` with zones 0, and the
+    // raiders sank exactly nothing while the check credited wear as war.
+    state.provinceController[beachhead] = 2;
+    setBuilding(state, beachhead, "naval_base", 0);
+    state.agreements.push({
+      id: 1,
+      type: "trade",
+      parties: [2, 1],
+      terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
+      accepted: true,
+      noticeAt: null,
+      noticeBy: null,
+    });
+    state.nations[2].resources.steel = 100;
+    const capital = state.map.provinces.find(
+      (p) => p.capital && state.provinceController[p.id] === 1,
+    ) as { id: number };
+    setBuilding(state, capital.id, "civilian_factory", 4);
+
+    const zone = state.map.provinces[beachhead].seaZone as number;
+    fleet(state, 2, coastalOf(state, 2), "submarine_flotilla", zone, "convoy_raiding");
+
+    const sunk = navalSystem
+      .run(state, 1)
+      .filter(
+        (event) => event.kind === "stockpile_changed" && event.nation === 1,
+      );
+    expect(sunk.length).toBe(1);
+    const [index, delta] = (sunk[0] as { delta: [number, number][] }).delta[0];
+    expect(index).toBe(equipmentIndex("convoy"));
+    // The magnitude is the regression: under the zones-times-rate pricing
+    // this read about -0.003 a tick and drowned in the wear.
+    expect(delta).toBeLessThan(-0.01);
+  });
+
   test("a seaborne trade moves on convoys, and without them it does not", () => {
     state.provinceController[beachhead] = 2;
     // Nation 2 sells steel to nation 1 over the strait; nation 1, the
