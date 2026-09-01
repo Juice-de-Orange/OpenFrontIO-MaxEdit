@@ -50,7 +50,10 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
  *
  * Hues are spread by the golden angle so that consecutive ids are far apart in
  * colour — with 52 nations, a plain even split puts neighbours-by-id at 7
- * degrees, which is indistinguishable on screen.
+ * degrees, which is indistinguishable on screen. Hue alone still folds up
+ * over 52 nations, so saturation steps through three levels and lightness
+ * through two on their own strides: six variants per hue region, and two
+ * nations that land on similar hues almost never land on the same variant.
  */
 export function buildPalette(count: number): Float32Array {
   if (count >= PALETTE_SIZE) {
@@ -60,8 +63,10 @@ export function buildPalette(count: number): Float32Array {
   for (let i = 0; i < count; i++) {
     const smallID = i + 1;
     const hue = (i * 137.508) % 360;
+    const saturation = 0.45 + 0.15 * ((i * 7) % 3);
+    const lightness = 0.42 + 0.14 * ((i * 5) % 2);
 
-    const [fr, fg, fb] = hslToRgb(hue, 0.55, 0.5);
+    const [fr, fg, fb] = hslToRgb(hue, saturation, lightness);
     const fillOff = smallID * 4;
     palette[fillOff] = fr;
     palette[fillOff + 1] = fg;
@@ -69,7 +74,7 @@ export function buildPalette(count: number): Float32Array {
     palette[fillOff + 3] = 150 / 255;
 
     // Row 1: border, a darker shade of the same hue, fully opaque.
-    const [br, bg, bb] = hslToRgb(hue, 0.7, 0.3);
+    const [br, bg, bb] = hslToRgb(hue, Math.min(1, saturation + 0.15), 0.28);
     const borderOff = PALETTE_SIZE * 4 + smallID * 4;
     palette[borderOff] = br;
     palette[borderOff + 1] = bg;
