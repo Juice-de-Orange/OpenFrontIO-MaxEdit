@@ -117,8 +117,14 @@ persistence design rests on.
   the nation's capitals and supply hubs over ground it controls, falling with
   distance and rising with the infrastructure on the way; coverage is the
   nation's total source throughput against its total demand. An under-supplied
-  division loses equipment in proportion to how short it is. Land only: the
-  sea path waits for convoys in phase 9.
+  division loses equipment in proportion to how short it is. Since phase 9
+  the sea carries the rest: a controlled port with no land way home is
+  reached from a source port over the sea-zone graph — §6.6's "port on both
+  ends" — at a reach that falls with zones crossed, scales with how much of
+  the wanted convoy tonnage the nation holds (floored at
+  `SEA_SUPPLY_FLOOR`: no convoys is badly supplied, never cut off), and is
+  cut, never severed, by raiders the nation's own escorts partly cover
+  (`netRaidOver`). Sea supply wears the convoys that carry it.
 - **combat** — the front. Every standing attack order is asked the same
   question each tick — how does the force that can reach this border compare
   to what is holding it, with this roll — and the answer moves a **progress**
@@ -132,7 +138,7 @@ persistence design rests on.
   combat width that keeps a twentieth division from adding anything — and the
   roll is seeded from `(worldSeed, tick, province)`, varying the rate rather
   than flipping a coin, so the tick stays reproducible from the log. A
-  *battle* costs both sides equipment every tick, win or lose; a march costs
+  _battle_ costs both sides equipment every tick, win or lose; a march costs
   nothing, which the one-tick flip used to hide. An even fight therefore goes
   nowhere on the map and is decided by the warehouses. Divisions refill from
   the stockpile, and the factories that refill it are the ones the player has
@@ -154,11 +160,23 @@ each side, bounded so that air shifts a fight it never decides alone.
   ground combat through the multiplier above, supply through `supplyReach`,
   factory output through the economy's per-province figure. A pure function of
   the state is cheaper to trust than a number this system would have to store.
-- **naval** — phase 9, and deliberately not a second copy of the above. The
-  resolver lives in `systems/zones.ts` and knows about zones, formations and
-  missions rather than about aircraft; what separates a fighter wing from a
+- **naval** — the sea war, and deliberately not a second copy of the above.
+  The resolver lives in `systems/zones.ts` and knows about zones, formations
+  and missions rather than about ships; what separates a fighter wing from a
   submarine flotilla is a row in `shared/economy/Formations.ts`
   ([decision 0015](../decisions/0015-one-formation-and-one-zone-machine.md)).
+  The thin half this system owns: attrition in contested seas, fleets sent
+  home when their harbour falls, convoys sunk where a nation's sea routes —
+  supply and trade alike — cross a raided zone (exposure priced exactly as
+  the consumers price the routes, escorts covering `ESCORT_COVER` of it),
+  and the crossings: each `naval_invade` transit spends its ticks here and
+  lands on its last one — onto an open beach, taking the province, or into
+  a garrison raised while everyone watched it coming, and turns back. It
+  runs _after_ supply on purpose: supply computes the demand, naval sinks
+  the ships carrying it, and the shortfall lands next tick (§6's one-tick
+  lag, by design). Routing runs over the sea-zone graph derived at load
+  ([decision 0017](../decisions/0017-the-sea-graph-is-the-zone-graph.md));
+  trade routes are resolved every tick in `systems/routes.ts`.
 
 One **sufficiency** figure per nation, the worst of the per-resource ratios,
 scales every consumer down together. That is invariant 2 — _everything
@@ -174,18 +192,18 @@ disagree.
 
 ## The tree, and where it came from
 
-| Path                        | Origin   | State                                                                                                                                                                                                                                                                      |
-| --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                                                                             |
-| `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                                                               |
-| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                                                      |
-| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                                                                    |
-| `src/server/`               | new      | The world server: `world/` (World, WorldState and its reducer, TickLoop, WorldRunner), `systems/` (economy, construction, production, research, supply, combat, and the five still empty), `db/` (store interface, memory and Postgres store), `net/` (socket and health). |
-| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `economy/` (the building catalogue), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`.  |
-| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                                                      |
-| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                                                                     |
-| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                                                                                 |
-| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                                                                      |
+| Path                        | Origin   | State                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                                                                                                               |
+| `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                                                                                                 |
+| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                                                                                        |
+| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                                                                                                      |
+| `src/server/`               | new      | The world server: `world/` (World, WorldState and its reducer, TickLoop, WorldRunner), `systems/` (economy, construction, production, research, trade, supply, air, naval, combat, routes — regent and victory still empty), `db/` (store interface, memory and Postgres store), `net/` (socket and health). |
+| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `economy/` (the building catalogue), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`.                                    |
+| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                                                                                        |
+| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                                                                                                       |
+| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                                                                                                                   |
+| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                                                                                                        |
 
 What was rescued from `src/core` before it went: `GameMap`, `TileSet`,
 `EventBus`, `PseudoRandom`, `DebugSpan`, `Maps.gen`, and 19 of 23 pathfinding
@@ -350,7 +368,11 @@ coal in the same mountains. Every number the derivation uses is in
 
 Sea zones are cut from the **ocean**, not from water in general — an inland
 lake is not a theatre, and zoning it gave landlocked provinces a navy. Water
-provinces as such are phase 9; the format has a version field for it.
+provinces as such do not exist and phase 9 decided they never need to: the
+sea's adjacency, distance and paths are derived from the per-tile zones at
+load, in `src/shared/map/SeaGraph.ts`
+([decision 0017](../decisions/0017-the-sea-graph-is-the-zone-graph.md)). The
+format keeps its version field for whatever finally does need one.
 
 ## Time, and what a restart costs
 

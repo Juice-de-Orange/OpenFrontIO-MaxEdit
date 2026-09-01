@@ -14,9 +14,9 @@ traps have already been paid for.
 
 ## Where we are
 
-**Between phases 8 and 9, after a night shift on 2026-08-31/09-01.** Three
-pieces landed since the paragraph below was written, all planned in "The plan,
-end to end" and all gated:
+**Phase 9 of 13 — the sea is gated (2026-09-01).** Ten of thirteen gates.
+Four pieces landed in the night and morning of 2026-08-31/09-01, all planned
+in "The plan, end to end" and all gated:
 
 - **The state-hash check holds within a hash version** (decision 0016, Max's
   call answering the open question below): `STATE_HASH_VERSION` rides in every
@@ -36,7 +36,7 @@ end to end" and all gated:
   `progress × tileCount` of them. The phase-4 gate now proves the course
   ("progress seen strictly between 0 and 1, largest one-tick step ≤ the march
   rate") with a `--break=lump` counter-proof; the phase-8 gate measures how
-  *deep* the same front grinds in a fixed window with and without bombers,
+  _deep_ the same front grinds in a fixed window with and without bombers,
   fought twice over the same provinces since cancel-resets-progress makes
   that fair.
 - **Phase 9, gated on 2026-09-01.** `scripts/phase9-gate.mjs` passes on a
@@ -61,7 +61,7 @@ end to end" and all gated:
 - **A menu instead of six open panels** (plan item 2): an icon bar top-left,
   one panel at a time, forms keep their identity across switches, the
   province panel stays on the right. `tests/client/world/HudMenu.test.ts`
-  holds the rules; how it *looks* is the morning checklist's first item.
+  holds the rules; how it _looks_ is the morning checklist's first item.
 
 The paragraphs below describe the state as of phase 8's gate and are still
 accurate about everything they cover.
@@ -176,6 +176,15 @@ Then phases 9 to 12 in CLAUDE.md's own order, then the map's borders.
 
 ### 1 · The front, tile by tile
 
+**Done 2026-09-01 (commit `8ef82a66`), exactly as planned below** — with two
+deviations worth knowing: the march into empty ground is `1/8` a tick (binary
+exact, so eight additions reach 1.0 with no float residue), and the client
+paints through `FrameAdapter`'s `tileState` rather than a map layer, because
+`MapLayerPass` uploads its texture once and draws _under_ the territory fill.
+A march costs no equipment; only a battle does. The phase-4 gate carries the
+gradual-front checks and `--break=lump`; the phase-8 gate now measures front
+_depth_ in a fixed window (20.9% without air, 27.1% with bombers).
+
 **What it is.** A standing attack gets a _progress_ value. Each tick it grows
 by an amount derived from the same strength comparison `combat.ts` already
 makes, and shrinks when the attacker is losing. The province changes hands when
@@ -226,6 +235,10 @@ off, or calling off and re-ordering becomes a way to bank progress for free.
 
 ### 2 · A menu instead of six open panels
 
+**Done 2026-09-01 (commit `671c71e7`)** — icon bar, one panel at a time,
+forms keep their identity across switches. Nobody has seen it in a browser
+yet; that is item 0a of the morning checklist.
+
 **What it is.** An icon bar at the top left — economy, construction,
 production, research, diplomacy, air — opening one panel at a time. The
 province panel stays where it is, because it is a response to a click on the
@@ -255,11 +268,13 @@ in phase 8 and this is where it shows.
 
 **Steps.**
 
-1. **Water provinces.** Phase 2 partitions the ocean into sea zones and stores
-   them in the spare bit of the tile array; phase 9 needs water _provinces_ to
-   move and fight over. This is a `provinces.bin` format bump, and the format
-   has a version field for it. Regenerate the artefact with
-   `scripts/genProvinces.ts`.
+1. **Water provinces.** ~~A `provinces.bin` format bump~~ — **not built, and
+   deliberately** ([decision 0017](docs/decisions/0017-the-sea-graph-is-the-zone-graph.md)):
+   everything the sea's consumers ask for — zone adjacency, distance, a path —
+   is a property of the sea zones the artefact already stores per tile, so
+   `src/shared/map/SeaGraph.ts` derives the graph at load the way
+   `borderTiles` is derived, and the format stays at 1. This deleted the
+   phase's riskiest step.
 2. **The ship types**, as three rows in `FORMATIONS`: `submarine_flotilla`,
    `escort_group`, `battle_fleet`, all `kind: "naval"`, `base: "naval_base"`,
    with the weight table §6.8 describes in words — submarines strong at
@@ -436,7 +451,7 @@ hash. Plan it together with a season boundary.
 Before calling anything done:
 
 ```bash
-npm run test                          # 568 at the end of phase 8
+npm run test                          # 597 at the end of phase 9
 TEST_DATABASE_URL=... npm run test:db # skipped silently without it
 npx tsc --noEmit -p tsconfig.strict.json
 npm run lint
@@ -532,7 +547,7 @@ PASS
 ```
 
 **The order inside the gate is the finding.** The trade half is measured
-*before* the landing, deliberately: a beachhead joins the two landmasses, the
+_before_ the landing, deliberately: a beachhead joins the two landmasses, the
 route resolver then rightly calls the pair a land route, and a land trade
 needs no convoys and fears no submarine. Three runs paid for that sentence —
 the flow sat at exactly 0.500 under a full raid until the windows were
@@ -1112,6 +1127,17 @@ not be split into commits that each build:
 | `985c5936` | **Research and supply**, their gates, and decisions 0009 and 0010        |
 | `ba05c98b` | The research screen, and supply shown beside equipment on every division |
 
+The night and morning of 2026-08-31/09-01 (all six pushed to `origin/main`):
+
+| Commit     | What                                                                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `f4ba4047` | **The state-hash check holds within a hash version** (decision 0016) — a season survives a deploy that touches the state                     |
+| `8ef82a66` | **The front is a rate, painted tile by tile** — progress on every attack, public `fronts` on the wire, gates 4 and 8 rebuilt around the rate |
+| `671c71e7` | A menu instead of six open panels                                                                                                            |
+| `3e0e9035` | **The sea: phase 9's systems** — SeaGraph (decision 0017), ships, convoys in supply and trade, `naval_invade`, wire 13, hash version 3       |
+| `e563d053` | The handover for the night, and the gate specification phase 9 then had to satisfy                                                           |
+| `98b44426` | **The phase-9 gate passes** — and its counter-proof caught naval.ts pricing a one-zone route's raid exposure at zero                         |
+
 Phase 7:
 
 | Commit     | What                                                                                                                                                                                                                                                                                                             |
@@ -1249,18 +1275,18 @@ Then open `http://localhost:9000/?nation=17` (or any nation number) and check
 — **the first four are this night's work and nobody has ever seen them**:
 
 0a. **The menu bar**: six glyph buttons top-left, one panel at a time, the
-    map visible behind. Panel switches keep a half-typed trade rate alive.
+map visible behind. Panel switches keep a half-typed trade rate alive.
 0b. **A front fills tile by tile**: order an attack on a garrisoned province
-    (two browsers help); the province should fill with your colour from your
-    border inward as `progress` climbs, while its controller stays theirs
-    until it completes. Call it off: the tiles fall back.
+(two browsers help); the province should fill with your colour from your
+border inward as `progress` climbs, while its controller stays theirs
+until it completes. Call it off: the tiles fall back.
 0c. **The fleet**: a coastal province with a naval base offers the three
-    ship types on its raise buttons; the assignment form offers sea zones
-    and sea missions the moment a fleet is selected (one form, two
-    theatres).
+ship types on its raise buttons; the assignment form offers sea zones
+and sea missions the moment a fleet is selected (one form, two
+theatres).
 0d. **An invasion**: with a division on your coast, a hostile coastal
-    province's panel offers "Invade from the sea". The division shows "at
-    sea" in the production panel while it crosses.
+province's panel offers "Invade from the sea". The division shows "at
+sea" in the production panel while it crosses.
 
 Then the standing list:
 
@@ -1317,49 +1343,34 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**Finish the phase-8 gate.** The code is built and green
-([decision 0015](docs/decisions/0015-one-formation-and-one-zone-machine.md));
-what is missing is `scripts/phase8-gate.mjs`. Two of its three checks pass
-against a live world — interdiction cuts a garrison's supply by about a tenth
-and stops at the cap, bombing cuts the construction the zone's factories make.
-The third is §8's own sentence, and its difficulty is not the mechanic but the
-staging: see "What the phase-8 gate kept getting wrong" above for the three
-ways it has already measured its own set-up instead of the sky. The most
-recent version splits the front in two, fights the halves in turn with the
-same army rebuilt to the same strength, and stands production down for each
-window.
+**First: open the browser.** Items 0a–0d of the checklist below have never
+been seen by a person — the front filling tile by tile, the menu, the fleet
+side of the assignment form, an invasion under way. Everything else in phases
+1–9 is proven by scripts; those four are not, and a gate cannot tell you the
+game is unplayable.
 
-**Then two things the player asked for, in this order.**
+**Then phase 10 — the regent**, exactly as "The plan, end to end" §4 lays it
+out: `systems/regent.ts` replacing `planned("regent")` in
+`server/systems/index.ts`, every 12 ticks, rule-based, never touching an
+existing production line's equipment type, its one economic lever the world
+market (`set_market_order` exists and works — the phase-9 gate already used
+it the way the regent will). Its gate is 2,000 ticks against an active
+opponent with the capital held, the queue non-empty and no line reset — at
+50 ms a tick that is under two minutes of watching plus the staging.
+`RegentConfig` exists nowhere yet, not even as a type; it needs a place in
+`NationState`, the snapshot and the hash (bump `STATE_HASH_VERSION`).
 
-_The front, tile by tile._ Taking a province is currently the one **lump sum**
-in the game: `combat.ts` rolls once a tick and the province flips or does not.
-Invariant 1 forbids exactly that — _everything is a rate… a player who watches
-any number should see it move_ — and the visible consequence is that a war
-looks like nothing at all until it is over. The fix is a front progress per
-standing attack, growing per tick out of the strength ratio and falling on a
-setback, with the client painting it as a tile spread from the attacking
-border. Invariant 8 stays intact: the player still orders provinces, and tiles
-stay rendering. It makes combat _simpler_ than what is there now, not more
-complex. **It touches `combat.ts` at its core, so the phase-4 and phase-8
-gates both need revisiting after it** — which is an argument for doing it
-before writing more gate.
+**Then phase 11 — accounts** (plan §5, decision 0013): greenfield, no auth
+code and no tables exist. The insertion point for the credential check is
+`WsServer.ts`'s hello block; the `hello` schema's own comment names the job.
 
-_A menu instead of seven open panels._ Six panels plus the province panel
-cover half the map. What is wanted is an icon bar at the top left — production,
-industry, research, diplomacy, air — opening one panel at a time.
+**Then the victory system** (plan §7) and **phase 12's deployment remainder**
+(plan §6 — DNS/TLS needs a Cloudflare token or a hand-created record, and the
+deployed demo on geoffrey still runs the pre-front build; a redeploy restarts
+that world, since both the state hash and the protocol moved).
 
-**Then phase 9: naval zones and convoys.** `systems/zones.ts` is built to take
-it: add rows to `FORMATIONS` for the ship types, give them the naval missions
-already listed in `shared/economy/Formations.ts`, and write the thin half that
-knows a contest at sea is fought by ships. If you find yourself writing a
-second resolver, the mistake was made in phase 8 and this is where it shows.
-
-Two things phase 9 will want that are not there yet: **water provinces** (phase
-2 partitions the ocean into sea zones and stores them in the spare bit of the
-tile array; a `provinces.bin` format bump, and the format has a version field
-for it) and **the four pathfinding files that did not survive phase 0**
-(`PathFinder.ts`, `.Air`, `.Station`, `spatial/SpatialQuery`), whose real
-consumer is naval movement.
+**Then the map's real borders** (plan §8) — the standing request, and it
+invalidates every running world, so plan it with a season boundary.
 
 **What phase 7 actually built**, for anyone reading §6.5 against the code:
 
@@ -1378,28 +1389,30 @@ consumer is naval movement.
 - The dead-partner rule, reading `lastSeenTick`, which every accepted command
   sets — including the `nation_present` one the socket layer writes on
   connect. Decision 0011 is about that one command and why it exists.
-- Land routes only: a trade needs a land path over the province graph, checked
-  when proposed and again when accepted. The sea route is phase 9, because a
-  sea route has to consume convoys and a free one would be the wrong answer.
+- ~~Land routes only~~ — **phase 9 delivered the sea route**: the route is
+  resolved every tick now (`systems/routes.ts` — land moves free, sea moves
+  on the importer's convoys and under raiders, none at all moves nothing this
+  tick while the agreement stands), and the propose/accept refusals ask for
+  _some_ route rather than a land one.
 
 Still worth doing, and still deferred:
 
-- **The four pathfinding files that did not survive phase 0** (`PathFinder.ts`,
-  `.Air`, `.Station`, `spatial/SpatialQuery`). Phase 6 did **not** need them —
-  supply is a search over the province graph, not over tiles — so their real
-  consumer is now phase 9's naval movement.
-- **Water provinces.** Phase 2 partitions the ocean into sea zones and stores
-  them in the spare bit of the tile array. Phase 9 will want water _provinces_
-  as well; that is a `provinces.bin` format bump, and the format has a version
-  field for it.
 - **A language picker.** The HUD has its own English/German catalogue in
   `client/world/ui/strings.ts` and reads `navigator.language`.
-- **Supply's remaining half.** §6.6 wants consumption proportional to a unit's
-  equipment and type; it is currently flat per division. And the sea path is
-  stubbed until phase 9 gives it convoys to consume.
-- **Deployment to a real host** (now phase 12) and **accounts** (now phase 11,
-  see below). The nation still
-  comes from `?nation=` in the URL.
+- **Supply's per-type half.** §6.6 wants consumption proportional to a unit's
+  equipment and type; it is still flat per division. (The sea path itself is
+  no longer deferred — phase 9 built it.)
+- **Rendering an invasion on the map.** The crossing is public on the wire
+  (`invasions`) and shown in the owner's division list; nothing marks it on
+  the map itself yet.
+- **Deployment to a real host** (phase 12) and **accounts** (phase 11, see
+  below). The nation still comes from `?nation=` in the URL.
+
+Two long-standing deferrals **closed by phase 9, the other way than planned**:
+the water provinces became decision 0017 (no format bump — the sea-zone graph
+is derived at load), and upstream's four deleted pathfinding wrappers found no
+consumer after all — invasion transit routes over the zone graph, and the
+surviving `shared/pathfinding/AStar.Water*` algorithms stay unused.
 
 ---
 
@@ -1577,16 +1590,17 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**553 passed, 8 skipped, in one run — no tolerated failures.** The eight
+**597 passed, 8 skipped, in one run — no tolerated failures.** The eight
 skipped are the Postgres integration tests, which run under `npm run test:db`
 against `docker compose up -d db`. **They are a suite that rots when nobody
 runs it**, so `npm run test:db` belongs in every phase's closing checks; it
-passed 8/8 at the end of phase 7.
+passed 8/8 at the end of phase 9.
 
-The count moved from 533 at the end of phase 7's build (the phase-7 review
-added eleven more), from 506 at the end of phase 6's build, from 472 at the end of phase
-4's build, from 462 at the end of phase 3, from 437 at the end of phase 2 and
-from 412 at the end of phase 1.
+The count moved from 567 at the end of phase 8, from 533 at the end of
+phase 7's build (the phase-7 review added eleven more), from 506 at the end
+of phase 6's build, from 472 at the end of phase 4's build, from 462 at the
+end of phase 3, from 437 at the end of phase 2 and from 412 at the end of
+phase 1.
 Roughly 300 test files test code that no longer exists and live in
 `tests/_legacy/`, excluded from the run.
 
