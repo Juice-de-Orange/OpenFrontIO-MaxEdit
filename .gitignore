@@ -44,6 +44,7 @@ map-generator/map-generator.exe
 *.local.json
 *.local.yml
 *.local.yaml
+*.local.txt
 .local/
 
 # Secrets and credentials. `.env*` is covered above, these are the rest.

@@ -72,6 +72,23 @@ jobs:
       - run: npm ci
       - run: npx prettier --check .
 
+  docs:
+    name: 📎 Docs and privacy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run check:doc-links
+      # The counter-proof first: a guard that has stopped biting must fail
+      # here, not go quietly green over a repository it no longer reads.
+      - run: npm run check:privacy:self-test
+      - run: npm run check:privacy
+
   gen-maps:
     name: 🗺️ Generated maps up to date
     runs-on: ubuntu-latest
