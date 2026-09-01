@@ -1,6 +1,6 @@
 # Handover — state of the work
 
-**Written 2026-08-31.** Read this first if you are picking the project up
+**Written 2026-08-31, last updated 2026-09-01 (real borders).** Read this first if you are picking the project up
 without context. It says where the work stands, what to do next, and which
 traps have already been paid for.
 
@@ -14,7 +14,15 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 11 of 13 gated, and the victory system built (2026-09-01).** Twelve
+**Phase 11 of 13 gated, the victory system built, and the map wears its
+real borders (2026-09-01).** Natural Earth outlines replaced the
+capital-Voronoi territories and the palette got saturation/lightness steps —
+the player's three complaints about the political map (outlines, colours,
+sizes), all answered; see plan §8 below and decision 0021. The partition
+hash moved with it, so the local world was rebuilt fresh and the geoffrey
+redeploy is a season boundary twice over.
+
+Before that: Twelve
 of thirteen §8 gates, and §6's system list is complete: `systems/victory.ts`
 replaced the last `planned()` slot the same afternoon. Blocs are transitive
 over live alliances (decision 0020), the 40%/seven-day clock resets when the
