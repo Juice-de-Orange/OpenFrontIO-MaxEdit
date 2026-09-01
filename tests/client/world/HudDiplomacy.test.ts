@@ -121,6 +121,7 @@ function actions(): HudActions {
     raiseFormation: vi.fn(),
     assignFormation: vi.fn(),
     disbandFormation: vi.fn(),
+    chooseNation: vi.fn(),
   };
 }
 

@@ -263,6 +263,23 @@ export class PgStore implements WorldStore {
     return rows[0]?.accountId ?? null;
   }
 
+  async nationOfAccount(
+    worldId: string,
+    accountId: string,
+  ): Promise<number | null> {
+    const rows = await this.db
+      .select({ nationId: nationClaims.nationId })
+      .from(nationClaims)
+      .where(
+        and(
+          eq(nationClaims.worldId, worldId),
+          eq(nationClaims.accountId, accountId),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.nationId ?? null;
+  }
+
   async claimedNations(worldId: string): Promise<number[]> {
     const rows = await this.db
       .select({ nationId: nationClaims.nationId })

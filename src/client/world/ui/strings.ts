@@ -17,7 +17,13 @@
  */
 
 const en = {
-  "hud.watching": "Watching. Add ?nation=<n> to the URL to play one.",
+  "hud.brand": "OpenFront",
+  "hud.brandSub": "a world that keeps running",
+  "hud.watching": "Watching. Choose a nation to play one.",
+  "hud.chooseNation": "Choose a nation",
+  "hud.spectator":
+    "You are watching this world. Every panel here belongs to a nation, so " +
+    "there is nothing in them until you have one.",
   "hud.notConnected": "Not connected to the world.",
   "hud.orderAccepted": "Order accepted for tick {tick}.",
   "hud.orderRefused": "Order refused: {reason}",
@@ -33,7 +39,21 @@ const en = {
   "regent.focus.military": "Focus: military",
   "regent.focus.defence": "Focus: defence",
   "regent.focus.expansion": "Focus: expansion",
+  "regent.focus": "Focus",
+  "regent.focusHint":
+    "Where it puts your construction and production while it plays. It never " +
+    "changes a production line that is already running — switching one throws " +
+    "away the efficiency it has earned.",
   "regent.budget": "Market budget a day",
+  "regent.budgetHint":
+    "The most construction it may spend a day buying resources on the world " +
+    "market, and only to replace an import that stopped. Zero means it never " +
+    "buys.",
+  "regent.what":
+    "Plays your nation while you are away: keeps units supplied, pulls back " +
+    "ones that are collapsing, keeps the build queue and the research slots " +
+    "full. It never signs or breaks an agreement, never declares war and " +
+    "never gives up your capital.",
   "regent.apply": "Set the regent",
   "economy.construction": "Construction",
   "economy.industry": "Industry",
@@ -197,13 +217,47 @@ const en = {
   "agreement.trade": "Trade",
   "agreement.alliance": "Alliance",
   "agreement.military_access": "Military access",
+  "start.eyebrow": "A world that keeps running",
+  "start.title": "Choose your nation",
+  "start.ledeSeason":
+    "This world does not wait for you. Pick a nation and it is yours for the " +
+    "season — one nation, one account, no swapping. While you are away your " +
+    "regent keeps it supplied and building.",
+  "start.ledeOpen":
+    "This is a workbench world: nothing is claimed and nothing is kept. Take " +
+    "any nation, come back as another, break whatever you like.",
+  "start.filter": "Search a nation",
+  "start.taken": "taken",
+  "start.yours": "yours",
+  "start.yoursTitle": "{name} is yours — go back in",
+  "start.noNations": "This world has no nations to choose from.",
+  "start.lockedTitle": "This browser cannot keep an account",
+  "start.noStorage":
+    "This browser is not letting the page store anything, so an account " +
+    "cannot be kept: the nation would be lost on the next reload and stay " +
+    "claimed for the rest of the season. Allow site data for this page, or " +
+    "watch instead.",
+  "start.takenTitle": "{name} is already being played",
+  "start.playTitle": "Play {name}",
+  "start.noMatch": "No nation by that name.",
+  "start.watch": "Just watch",
+  "start.regentNote":
+    "Watching needs no account, and you can choose a nation later.",
+  "start.refused": "That nation could not be claimed: {reason}",
+  "start.offline":
+    "The world did not answer, so there is nothing to choose from yet.",
 } as const;
 
 export type StringKey = keyof typeof en;
 
 const de: Record<StringKey, string> = {
-  "hud.watching":
-    "Nur Zuschauer. ?nation=<n> an die URL hängen, um zu spielen.",
+  "hud.brand": "OpenFront",
+  "hud.brandSub": "eine Welt, die weiterläuft",
+  "hud.watching": "Nur Zuschauer. Wähle eine Nation, um zu spielen.",
+  "hud.chooseNation": "Nation wählen",
+  "hud.spectator":
+    "Du schaust dieser Welt zu. Jedes Panel hier gehört einer Nation — " +
+    "solange du keine hast, steht nichts darin.",
   "hud.notConnected": "Keine Verbindung zur Welt.",
   "hud.orderAccepted": "Befehl angenommen für Tick {tick}.",
   "hud.orderRefused": "Befehl abgelehnt: {reason}",
@@ -219,7 +273,21 @@ const de: Record<StringKey, string> = {
   "regent.focus.military": "Fokus: Militär",
   "regent.focus.defence": "Fokus: Verteidigung",
   "regent.focus.expansion": "Fokus: Expansion",
+  "regent.focus": "Schwerpunkt",
+  "regent.focusHint":
+    "Wohin er deine Bauleistung und Produktion lenkt, während er spielt. Eine " +
+    "laufende Produktionslinie stellt er nie um — ein Wechsel wirft die " +
+    "Effizienz weg, die sie sich erarbeitet hat.",
   "regent.budget": "Marktbudget pro Tag",
+  "regent.budgetHint":
+    "Höchstens so viel Bauleistung darf er am Tag ausgeben, um Rohstoffe am " +
+    "Weltmarkt zu kaufen — und nur, um einen weggebrochenen Import zu " +
+    "ersetzen. Null heißt: er kauft nie.",
+  "regent.what":
+    "Spielt deine Nation, während du weg bist: hält Einheiten versorgt, zieht " +
+    "zusammenbrechende zurück, hält Bauschlange und Forschungsplätze voll. Er " +
+    "schließt und bricht nie ein Abkommen, erklärt keinen Krieg und gibt deine " +
+    "Hauptstadt nicht auf.",
   "regent.apply": "Regent einstellen",
   "economy.construction": "Bau",
   "economy.industry": "Industrie",
@@ -383,6 +451,36 @@ const de: Record<StringKey, string> = {
   "agreement.trade": "Handel",
   "agreement.alliance": "Bündnis",
   "agreement.military_access": "Durchmarschrecht",
+  "start.eyebrow": "Eine Welt, die weiterläuft",
+  "start.title": "Wähle deine Nation",
+  "start.ledeSeason":
+    "Diese Welt wartet nicht auf dich. Nimm eine Nation, und sie gehört dir " +
+    "für die Saison — eine Nation, ein Konto, kein Wechseln. Während du weg " +
+    "bist, hält dein Regent sie versorgt und baut weiter.",
+  "start.ledeOpen":
+    "Das ist eine Werkbank-Welt: nichts ist vergeben und nichts wird " +
+    "behalten. Nimm irgendeine Nation, komm als eine andere wieder, mach " +
+    "kaputt was du willst.",
+  "start.filter": "Nation suchen",
+  "start.taken": "vergeben",
+  "start.yours": "deine",
+  "start.yoursTitle": "{name} gehört dir — zurück hinein",
+  "start.noNations": "Diese Welt hat keine Nationen zur Auswahl.",
+  "start.lockedTitle": "Dieser Browser kann kein Konto behalten",
+  "start.noStorage":
+    "Dieser Browser lässt die Seite nichts speichern, also lässt sich kein " +
+    "Konto behalten: die Nation wäre nach dem Neuladen verloren und bliebe " +
+    "für den Rest der Saison vergeben. Erlaube Website-Daten für diese " +
+    "Seite, oder schau nur zu.",
+  "start.takenTitle": "{name} wird schon gespielt",
+  "start.playTitle": "{name} spielen",
+  "start.noMatch": "Keine Nation dieses Namens.",
+  "start.watch": "Nur zuschauen",
+  "start.regentNote":
+    "Zuschauen braucht kein Konto, und du kannst später eine Nation wählen.",
+  "start.refused": "Diese Nation war nicht zu bekommen: {reason}",
+  "start.offline":
+    "Die Welt hat nicht geantwortet, es gibt also noch nichts zu wählen.",
 };
 
 const CATALOGUES: Record<string, Record<StringKey, string>> = { en, de };

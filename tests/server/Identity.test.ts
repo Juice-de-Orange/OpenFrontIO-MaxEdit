@@ -36,6 +36,41 @@ describe("identity", () => {
     expect(await store.accountByTokenHash(hashToken(token))).not.toBeNull();
   });
 
+  /**
+   * What a chooser needs, and what it must not have.
+   *
+   * The nation used to come from `?nation=` in the URL and nowhere else, so
+   * arriving at the world without a number meant watching for ever. A chooser
+   * needs to know which nations are dead ends — and nothing more than that:
+   * *who* holds one is an account, and accounts are nobody else's business.
+   */
+  test("the claimed nations are listable, and say nothing about who", async () => {
+    const { identity } = service();
+    expect(await identity.claimedNations()).toEqual([]);
+
+    const alice = (await identity.register("Alice")).account;
+    const bob = (await identity.register("Bob")).account;
+    expect(await identity.claim(7, alice.id)).toBe("ok");
+    expect(await identity.claim(3, bob.id)).toBe("ok");
+
+    const claimed = await identity.claimedNations();
+    expect([...claimed].sort((a, b) => a - b)).toEqual([3, 7]);
+    // Numbers, not accounts. A list that leaked the holder would make the
+    // chooser a directory of who is playing what.
+    expect(claimed.every((id) => typeof id === "number")).toBe(true);
+  });
+
+  test("a claim in another world does not show up in this one", async () => {
+    const store = new MemoryStore();
+    const here = new IdentityService(store, WORLD_ID);
+    const elsewhere = new IdentityService(store, "some-other-world");
+    const account = (await here.register("Max")).account;
+
+    expect(await elsewhere.claim(9, account.id)).toBe("ok");
+    expect(await here.claimedNations()).toEqual([]);
+    expect(await elsewhere.claimedNations()).toEqual([9]);
+  });
+
   test("one nation per account, one account per nation, idempotently", async () => {
     const { identity } = service();
     const alice = (await identity.register("Alice")).account;

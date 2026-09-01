@@ -157,6 +157,18 @@ export class WorldSocketServer {
       void this.onRegister(request, response);
       return;
     }
+    /**
+     * What there is to claim, before claiming any of it.
+     *
+     * On the same path as the registration itself rather than a new one: a
+     * reverse proxy has to be told about every path it forwards, and a
+     * chooser that works locally and 404s behind nginx is worse than no
+     * chooser. GET asks what can be had, POST has it.
+     */
+    if (request.url === "/register" && request.method === "GET") {
+      void this.onNationList(request, response);
+      return;
+    }
     if (request.url !== "/health") {
       response.writeHead(404, { "content-type": "text/plain" });
       response.end("not found\n");
@@ -193,6 +205,79 @@ export class WorldSocketServer {
     );
     response.writeHead(healthy ? 200 : 503, {
       "content-type": "application/json",
+    });
+    response.end(body + "\n");
+  }
+
+  /**
+   * The nations, and which of them are spoken for.
+   *
+   * This is what a player needs before anything else, and until it existed
+   * there was no way to get it: the nation came from `?nation=` in the URL, so
+   * arriving at the world meant either knowing a number already or watching
+   * forever. A chooser needs the list, and it needs to know which entries are
+   * dead ends.
+   *
+   * `season` says whether a claim is even a thing here — on a workbench world
+   * every nation is free to everybody, always, and a chooser that implied
+   * otherwise would be lying.
+   *
+   * Names and claim state only. *Who* holds a nation is an account, and
+   * accounts are nobody else's business.
+   */
+  private async onNationList(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
+    const season = this.identity?.season === true;
+    let claimed: ReadonlySet<number> = new Set();
+    /**
+     * The nation the *asker* already holds, if they sent a credential.
+     *
+     * Without this a browser that has a token but does not know its nation —
+     * `?nation=` is deliberately never remembered, so this is one URL away —
+     * sees its own nation greyed out as taken and every other one refused as
+     * "you already hold a different nation". Locked out of a world by its own
+     * account, with the chooser looping.
+     *
+     * Only ever told to the holder of the token. Nobody learns anybody else's.
+     */
+    let yours: number | null = null;
+
+    if (this.identity !== null && season) {
+      try {
+        claimed = new Set(await this.identity.service.claimedNations());
+        const bearer = /^Bearer\s+(\S+)$/i.exec(
+          request.headers.authorization ?? "",
+        );
+        if (bearer !== null) {
+          const account = await this.identity.service.authenticate(bearer[1]);
+          if (account !== null) {
+            yours = await this.identity.service.nationOf(account.id);
+          }
+        }
+      } catch (error) {
+        // A chooser with no claim data is still a chooser; one that 500s is
+        // a blank page. The refusal on the socket stays the real guard.
+        console.error("[world] could not read claims", error);
+      }
+    }
+
+    const body = JSON.stringify({
+      worldId: this.worldId,
+      season,
+      yours,
+      nations: this.world.nations.map((nation) => ({
+        id: nation.smallID,
+        name: nation.name,
+        claimed: claimed.has(nation.smallID),
+      })),
+    });
+    response.writeHead(200, {
+      "content-type": "application/json",
+      // Who holds what changes as people arrive. A cached list hands a new
+      // player a nation that was taken ten minutes ago.
+      "cache-control": "no-store",
     });
     response.end(body + "\n");
   }

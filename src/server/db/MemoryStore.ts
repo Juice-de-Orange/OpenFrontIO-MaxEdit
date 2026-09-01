@@ -144,6 +144,13 @@ export class MemoryStore implements WorldStore {
     return this.claims.get(`${worldId}:${nationId}`) ?? null;
   }
 
+  async nationOfAccount(
+    worldId: string,
+    accountId: string,
+  ): Promise<number | null> {
+    return this.holdings.get(`${worldId}:${accountId}`) ?? null;
+  }
+
   async claimedNations(worldId: string): Promise<number[]> {
     const nations: number[] = [];
     for (const key of this.claims.keys()) {

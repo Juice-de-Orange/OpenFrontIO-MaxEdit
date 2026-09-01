@@ -40,8 +40,14 @@ export interface WorldSocketHandlers {
   onDelta(delta: Delta): void;
   /** The world's answer to one command, matched by the id sendCommand returned. */
   onAck(ack: ServerAck): void;
-  /** Terminal: the connection will not be retried. */
-  onFatal(message: string): void;
+  /**
+   * Terminal: the connection will not be retried.
+   *
+   * `refused` separates "this nation is not yours" from everything else. It
+   * is the only fatal a player can act on — by choosing another nation — and
+   * the only one where the client should forget what it remembered.
+   */
+  onFatal(message: string, refused?: boolean): void;
 }
 
 export class WorldSocket {
@@ -123,7 +129,12 @@ export class WorldSocket {
           break;
 
         case "reject":
-          this.fatal(`The world refused the connection: ${message.detail}`);
+          // Only an *unauthorised* reject is something the player can act on.
+          // The reason is on the wire for exactly this, and treating all four
+          // alike turned a protocol mismatch into "that nation could not be
+          // claimed" with a button that cleared the nation and reloaded
+          // straight back into the same mismatch.
+          this.fatal(message.detail, message.reason === "unauthorised");
           socket.close();
           break;
 
@@ -170,7 +181,22 @@ export class WorldSocket {
       ) {
         // The server already said why, and it will say the same thing next
         // time. Retrying only hides it.
+        //
+        // **Saying nothing hides it too.** This used to stop here, so a
+        // session refused its nation, or superseded by another browser, went
+        // quiet with a map on screen and no explanation anywhere — which is
+        // indistinguishable from the world having died.
         this.stopped = true;
+        const why =
+          event.code === CloseCode.Unauthorised
+            ? "The world will not let this session play that nation."
+            : event.code === CloseCode.Superseded
+              ? "Another browser signed in with this account and took the " +
+                "nation over. Only one session at a time."
+              : event.code === CloseCode.ProtocolVersion
+                ? "This page is older than the world. Reload it."
+                : `The world closed the connection (${event.code}).`;
+        this.handlers.onFatal(why, event.code === CloseCode.Unauthorised);
         return;
       }
       this.scheduleReconnect();
@@ -200,9 +226,9 @@ export class WorldSocket {
     this.outstanding.clear();
   }
 
-  private fatal(message: string): void {
+  private fatal(message: string, refused = false): void {
     this.stopped = true;
-    this.handlers.onFatal(message);
+    this.handlers.onFatal(message, refused);
   }
 
   close(): void {

@@ -97,6 +97,7 @@ function actions(): HudActions {
     raiseFormation: vi.fn(),
     assignFormation: vi.fn(),
     disbandFormation: vi.fn(),
+    chooseNation: vi.fn(),
   };
 }
 
@@ -127,11 +128,15 @@ function button(label: string): HTMLButtonElement {
 
 describe("the menu bar", () => {
   let hud: Hud;
+  // Kept, not just passed: the spectator panel's way out is an action, and an
+  // action nobody can see called is an action nobody can prove is wired.
+  let wired: HudActions;
 
   beforeEach(() => {
     document.body.replaceChildren();
     document.head.replaceChildren();
-    hud = new Hud(actions());
+    wired = actions();
+    hud = new Hud(wired);
   });
 
   test("at most one menu panel is ever shown", () => {
@@ -159,16 +164,55 @@ describe("the menu bar", () => {
     expect(research.getAttribute("aria-pressed")).toBe("false");
   });
 
-  test("a watching session gets the bar but every panel stays hidden", () => {
+  /**
+   * This used to assert the opposite — that a watching session's panels all
+   * stayed hidden — and that was the bug rather than the contract. Every panel
+   * hiding itself without a nation meant a spectator pressing a menu button
+   * got no panel, no message and no reason, which is what a broken button
+   * looks like. It was reported as "I cannot click any of the menu items".
+   */
+  test("a watching session gets an answer, not an empty screen", () => {
     hud.update(model({ nation: null, economy: null }));
-    for (const b of [
+    const buttons = [
       ...(
         document.getElementById("world-menu") as HTMLElement
       ).querySelectorAll("button"),
-    ]) {
+    ];
+    expect(buttons.length).toBe(6);
+
+    for (const b of buttons) {
+      // A click on the open panel closes it — that is the toggle working, not
+      // the spectator case. Make sure this one ends up open.
+      if (b.getAttribute("aria-pressed") === "true") b.click();
       b.click();
-      expect(shown()).toEqual([]);
+      expect(b.getAttribute("aria-pressed")).toBe("true");
+      // Exactly one panel, and it explains itself rather than being blank.
+      expect(shown().length).toBe(1);
+      const panel = document.getElementById(shown()[0]) as HTMLElement;
+      expect(panel.textContent).toContain("Watching");
+      expect(panel.querySelector("button")).not.toBeNull();
     }
+  });
+
+  test("the spectator panel offers the chooser, and it is wired", () => {
+    hud.update(model({ nation: null, economy: null }));
+    button("Economy").click();
+    const panel = document.getElementById("world-economy") as HTMLElement;
+    const choose = panel.querySelector("button") as HTMLButtonElement;
+    expect(choose.textContent).toBe("Choose a nation");
+    choose.click();
+    expect(wired.chooseNation).toHaveBeenCalledTimes(1);
+  });
+
+  test("the bar says which nation you are", () => {
+    hud.update(model());
+    const who = document.querySelector("#world-menu .who") as HTMLElement;
+    expect(who.textContent).not.toBe("");
+    expect(who.querySelector(".swatch")).not.toBeNull();
+
+    hud.update(model({ nation: null, economy: null }));
+    expect(who.textContent).toContain("Watching");
+    expect(who.querySelector(".swatch")).toBeNull();
   });
 
   test("the diplomacy form keeps its identity across panel switches", () => {

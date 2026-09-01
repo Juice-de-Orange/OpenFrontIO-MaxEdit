@@ -58,4 +58,22 @@ export class IdentityService {
   ): Promise<"ok" | "taken" | "elsewhere"> {
     return this.store.claimNation(this.worldId, nationId, accountId);
   }
+
+  /**
+   * Which nations are already spoken for.
+   *
+   * Public on purpose, and it gives nothing away: a nation being played
+   * rather than regent-run is visible from its behaviour within an hour, and
+   * a chooser that cannot show it makes the player discover it by being
+   * refused. Who holds one stays private — that is an account, and accounts
+   * are nobody else's business.
+   */
+  async claimedNations(): Promise<number[]> {
+    return this.store.claimedNations(this.worldId);
+  }
+
+  /** The nation this account already holds here, or null. */
+  async nationOf(accountId: string): Promise<number | null> {
+    return this.store.nationOfAccount(this.worldId, accountId);
+  }
 }

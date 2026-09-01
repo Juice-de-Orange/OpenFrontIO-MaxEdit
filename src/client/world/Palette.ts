@@ -55,6 +55,35 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
  * through two on their own strides: six variants per hue region, and two
  * nations that land on similar hues almost never land on the same variant.
  */
+/**
+ * The hue, saturation and lightness one nation is drawn in.
+ *
+ * Split out of `buildPalette` so the HUD can put a nation's own colour beside
+ * its name without restating the formula. A chooser whose swatches disagree
+ * with the map is worse than one with no swatches: the player picks by colour
+ * and then cannot find themselves.
+ */
+export function nationHsl(smallID: number): {
+  hue: number;
+  saturation: number;
+  lightness: number;
+} {
+  const i = smallID - 1;
+  return {
+    hue: (i * 137.508) % 360,
+    saturation: 0.45 + 0.15 * ((i * 7) % 3),
+    lightness: 0.42 + 0.14 * ((i * 5) % 2),
+  };
+}
+
+/** The same colour as a CSS string, for anything drawn in the DOM. */
+export function nationCss(smallID: number): string {
+  const { hue, saturation, lightness } = nationHsl(smallID);
+  return `hsl(${hue.toFixed(1)} ${(saturation * 100).toFixed(0)}% ${(
+    lightness * 100
+  ).toFixed(0)}%)`;
+}
+
 export function buildPalette(count: number): Float32Array {
   if (count >= PALETTE_SIZE) {
     throw new Error(`${count} nations exceeds the palette's ${PALETTE_SIZE}`);
@@ -62,9 +91,7 @@ export function buildPalette(count: number): Float32Array {
   const palette = new Float32Array(PALETTE_SIZE * 2 * 4);
   for (let i = 0; i < count; i++) {
     const smallID = i + 1;
-    const hue = (i * 137.508) % 360;
-    const saturation = 0.45 + 0.15 * ((i * 7) % 3);
-    const lightness = 0.42 + 0.14 * ((i * 5) % 2);
+    const { hue, saturation, lightness } = nationHsl(smallID);
 
     const [fr, fg, fb] = hslToRgb(hue, saturation, lightness);
     const fillOff = smallID * 4;

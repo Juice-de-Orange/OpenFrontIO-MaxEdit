@@ -29,8 +29,8 @@ import {
   type AgreementType,
 } from "src/shared/config/diplomacy";
 import { RESOURCES, type Resource } from "src/shared/config/provinces";
-import { REGENT_FOCI, type RegentFocus } from "src/shared/config/regent";
 import { DIVISION_MANPOWER } from "src/shared/config/rates";
+import { REGENT_FOCI, type RegentFocus } from "src/shared/config/regent";
 import {
   isAvailable,
   TECH_IDS,
@@ -66,6 +66,7 @@ import type {
   TradeTermsView,
   VictoryView,
 } from "src/shared/protocol/Wire";
+import { nationCss } from "../Palette";
 import { amount, daysRemaining, fraction, perDay, share } from "./Format";
 import { t, type StringKey } from "./strings";
 
@@ -82,47 +83,101 @@ const STYLE = `
      viewport and must not swallow the drags that pan the map, so only .panel
      takes them back. */
   z-index: 10;
-  font: 13px/1.45 system-ui, sans-serif; color: #eee;
+  font: 15px/1.5 system-ui, sans-serif; color: #e8ecf3;
 }
 #world-hud .panel {
   position: absolute; pointer-events: auto;
-  background: rgba(18,18,20,.88); border: 1px solid rgba(255,255,255,.12);
-  border-radius: 6px; padding: .6rem .75rem; backdrop-filter: blur(3px);
-  max-height: calc(100vh - 2rem); overflow-y: auto;
+  background: rgba(20,23,30,.92); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px; padding: .85rem 1rem; backdrop-filter: blur(6px);
+  box-shadow: 0 12px 32px rgba(0,0,0,.38);
+  max-height: calc(100vh - 5.5rem); overflow-y: auto;
 }
 #world-hud h2 {
-  margin: 0 0 .4rem; font-size: 11px; font-weight: 600;
-  letter-spacing: .08em; text-transform: uppercase; color: #9aa4b2;
+  margin: 0 0 .55rem; font-size: 12px; font-weight: 650;
+  letter-spacing: .09em; text-transform: uppercase; color: #8d97a8;
 }
 #world-hud .row { display: flex; justify-content: space-between; gap: 1rem; }
 #world-hud .row span:last-child { color: #fff; font-variant-numeric: tabular-nums; }
 #world-hud .muted { color: #9aa4b2; }
 /* One panel at a time, all anchored under the menu bar. The province panel
    is the exception: it answers a click on the map and lives on the right. */
-#world-economy { top: 3.4rem; left: 1rem; width: 15rem; }
-#world-queue { top: 3.4rem; left: 1rem; width: 16rem; }
-#world-province { top: 1rem; right: 1rem; width: 17rem; }
-#world-production { top: 3.4rem; left: 1rem; width: 20rem; max-height: 75vh; }
-#world-research { top: 3.4rem; left: 1rem; width: 18rem; max-height: 75vh; }
-#world-diplomacy { top: 3.4rem; left: 1rem; width: 21rem; max-height: 75vh; }
-#world-air { top: 3.4rem; left: 1rem; width: 19rem; max-height: 75vh; }
+/* All under the bar, which is 3.25rem tall. */
+#world-economy { top: 4.25rem; left: 1rem; width: 17rem; }
+#world-queue { top: 4.25rem; left: 1rem; width: 18rem; }
+#world-province { top: 4.25rem; right: 1rem; width: 19rem; }
+#world-production { top: 4.25rem; left: 1rem; width: 22rem; max-height: 78vh; }
+#world-research { top: 4.25rem; left: 1rem; width: 20rem; max-height: 78vh; }
+#world-diplomacy { top: 4.25rem; left: 1rem; width: 23rem; max-height: 78vh; }
+#world-air { top: 4.25rem; left: 1rem; width: 21rem; max-height: 78vh; }
+
+/* The bar. It spans the window rather than floating as six loose buttons:
+   six unanchored glyphs over a map read as decoration, and there was nothing
+   on screen telling a new player that the top-left corner was the controls. */
 #world-menu {
-  position: absolute; top: 1rem; left: 1rem; display: flex; gap: .25rem;
+  position: absolute; top: 0; left: 0; right: 0; height: 3.25rem;
+  display: flex; align-items: center; gap: .3rem; padding: 0 .75rem;
+  /* A flex row of nowrap children cannot shrink below its text, and the
+     overflow of a fixed ancestor is unreachable — no scrollbar, no way to the
+     last buttons. At 1024px, or a 1366px laptop at 125%, that put the nation
+     badge off the right edge and clipped the last button. Scroll it. */
+  overflow-x: auto; scrollbar-width: thin;
+  background: linear-gradient(180deg, rgba(16,18,24,.96), rgba(16,18,24,.82));
+  border-bottom: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  backdrop-filter: blur(8px);
   /* The HUD root is pointer-events:none so the map still pans; the bar, like
-     .panel, takes them back. */
+     .panel, takes them back.
+
+     It takes the whole strip, not just the buttons, and that is deliberate:
+     the bar is opaque, so there is no map to see underneath it, and a solid
+     toolbar that lets a drag through to something invisible is stranger than
+     one that does not. The cost is real and small — 3.25rem of map at the top,
+     and a pan cannot begin there. */
   pointer-events: auto;
 }
+#world-menu .brand {
+  display: flex; align-items: baseline; gap: .5rem;
+  margin-right: .9rem; padding-right: .9rem;
+  border-right: 1px solid rgba(255,255,255,.10);
+  white-space: nowrap;
+}
+#world-menu .brand b { font-size: 15px; font-weight: 650; letter-spacing: .01em; }
+#world-menu .brand span { font-size: 12px; color: #8d97a8; }
 #world-menu button {
-  display: block; width: 2.1rem; margin-top: 0; padding: .3rem 0;
-  text-align: center; font-size: 15px; line-height: 1.2; cursor: pointer;
-  background: rgba(18,18,20,.88); color: #eee;
-  border: 1px solid rgba(255,255,255,.12); border-radius: 6px;
-  backdrop-filter: blur(3px);
+  display: inline-flex; align-items: center; gap: .45rem;
+  width: auto; margin-top: 0; padding: .42rem .7rem;
+  text-align: left; font: inherit; font-size: 14px; line-height: 1.2;
+  cursor: pointer; white-space: nowrap;
+  background: rgba(255,255,255,.05); color: #d8dee8;
+  border: 1px solid rgba(255,255,255,.10); border-radius: 8px;
 }
-#world-menu button:hover:enabled { background: rgba(255,255,255,.14); }
+#world-menu button .glyph { font-size: 15px; line-height: 1; }
+#world-menu button:hover:enabled {
+  background: rgba(255,255,255,.13); color: #fff;
+  border-color: rgba(255,255,255,.2);
+}
 #world-menu button[aria-pressed="true"] {
-  background: rgba(110,168,254,.28); border-color: rgba(110,168,254,.6);
+  background: rgba(110,168,254,.26); color: #fff;
+  border-color: rgba(110,168,254,.65);
 }
+#world-menu .who {
+  margin-left: auto; display: flex; align-items: center; gap: .5rem;
+  font-size: 13px; color: #aab4c4; white-space: nowrap;
+  /* Shrinkable, so a long spectator line yields before the buttons do. */
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+#world-menu .who .swatch {
+  width: .8rem; height: .8rem; border-radius: 3px;
+  border: 1px solid rgba(0,0,0,.5);
+}
+/* Narrow windows drop the labels rather than the buttons. 78rem, not 60:
+   with all six labels the bar needs about 1140px, so a 1024px window was
+   overflowing while still being told it was wide enough. */
+@media (max-width: 78rem) {
+  #world-menu button .label { display: none; }
+  #world-menu .brand span { display: none; }
+}
+#world-hud .spectator { color: #aab4c4; margin: 0 0 .6rem; }
 #world-hud input[type=number] {
   width: 100%; margin-top: .25rem; padding: .25rem;
   background: rgba(255,255,255,.06); color: #eee; font: inherit;
@@ -131,6 +186,14 @@ const STYLE = `
 #world-hud .pair { display: flex; gap: .25rem; }
 #world-hud .pair > * { flex: 1 1 0; min-width: 0; }
 #world-hud .warn { color: #f0a; }
+#world-hud .field { display: block; margin-top: .6rem; }
+#world-hud .caption {
+  display: block; font-size: 13px; font-weight: 600; color: #dbe2ec;
+}
+#world-hud .hint {
+  display: block; margin: .15rem 0 .1rem; font-size: 12px; line-height: 1.4;
+  color: #8d97a8;
+}
 #world-hud .line { margin-bottom: .55rem; padding-bottom: .45rem;
   border-bottom: 1px solid rgba(255,255,255,.08); }
 #world-hud .controls { display: flex; gap: .25rem; margin-top: .25rem; }
@@ -185,6 +248,14 @@ export interface HudModel {
 }
 
 export interface HudActions {
+  /**
+   * Open the nation chooser again.
+   *
+   * A spectator needs it, and so does anyone whose claim was refused. It is
+   * an action rather than something the HUD does itself because choosing
+   * restarts the connection, which is the client's business, not a panel's.
+   */
+  chooseNation(): void;
   claim(province: number): void;
   build(province: number, building: BuildingType): void;
   /** By order id, not by position — the queue shifts underneath a position. */
@@ -282,6 +353,10 @@ export class Hud {
   /** The last model seen, so a menu click can redraw without waiting a tick. */
   private lastModel: HudModel | null = null;
   private readonly menuButtons = new Map<PanelId, HTMLButtonElement>();
+  /** The bar's right-hand side, built with the bar. */
+  private identity: HTMLElement | null = null;
+  /** The spectator's answer, built once and moved between panels. */
+  private spectatorNote: HTMLElement | null = null;
 
   constructor(private readonly actions: HudActions) {
     const style = document.createElement("style");
@@ -313,6 +388,18 @@ export class Hud {
   private buildMenu(): void {
     const bar = document.createElement("nav");
     bar.id = "world-menu";
+
+    // Something that says what this is. Six glyphs floating over a map do not
+    // read as an interface, and there was nothing on screen naming the world.
+    const brand = document.createElement("div");
+    brand.className = "brand";
+    const mark = document.createElement("b");
+    mark.textContent = t("hud.brand");
+    const sub = document.createElement("span");
+    sub.textContent = t("hud.brandSub");
+    brand.append(mark, sub);
+    bar.append(brand);
+
     const entries: readonly [PanelId, string, StringKey][] = [
       ["economy", "📊", "economy.title"],
       ["queue", "🏗️", "queue.title"],
@@ -324,7 +411,16 @@ export class Hud {
     for (const [id, glyph, label] of entries) {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = glyph;
+      // Glyph *and* word. The glyph alone was a guessing game — 🏗️ and 🏭 are
+      // the same picture at 15 pixels — and a button whose meaning has to be
+      // hovered for is a button that gets pressed by accident or not at all.
+      const icon = document.createElement("span");
+      icon.className = "glyph";
+      icon.textContent = glyph;
+      const word = document.createElement("span");
+      word.className = "label";
+      word.textContent = t(label);
+      button.append(icon, word);
       button.title = t(label);
       button.setAttribute("aria-label", t(label));
       button.setAttribute("aria-pressed", String(this.open === id));
@@ -332,7 +428,72 @@ export class Hud {
       this.menuButtons.set(id, button);
       bar.appendChild(button);
     }
+
+    // Who you are, on the right. Reading the URL used to be the only way.
+    this.identity = document.createElement("div");
+    this.identity.className = "who";
+    bar.append(this.identity);
+
     this.root.appendChild(bar);
+  }
+
+  /** The bar's right-hand side: this nation, in its own colour, or watching. */
+  private renderIdentity(model: HudModel): void {
+    const box = this.identity;
+    if (box === null) return;
+    if (model.nation === null) {
+      const note = document.createElement("span");
+      note.textContent = t("hud.watching");
+      box.replaceChildren(note);
+      return;
+    }
+    const swatch = document.createElement("span");
+    swatch.className = "swatch";
+    swatch.style.background = nationCss(model.nation);
+    const name = document.createElement("span");
+    name.textContent = nationName(model, model.nation);
+    box.replaceChildren(swatch, name);
+  }
+
+  /**
+   * What an open panel says when there is no nation to fill it.
+   *
+   * Every panel hid itself without one, so a spectator pressing a menu button
+   * got no panel, no message and no reason — a button indistinguishable from a
+   * broken one. This is the smallest honest answer: what you are, why the
+   * panel is empty, and the way out.
+   */
+  private renderSpectator(model: HudModel): void {
+    if (model.nation !== null || this.open === null) return;
+    const panels: Record<PanelId, HTMLElement> = {
+      economy: this.economyPanel,
+      queue: this.queuePanel,
+      production: this.productionPanel,
+      research: this.researchPanel,
+      diplomacy: this.diplomacyPanel,
+      air: this.airPanel,
+    };
+    const panel = panels[this.open];
+    // Built once and moved, not rebuilt. `update` runs on every delta, and a
+    // button destroyed and recreated once a second loses keyboard focus every
+    // second and drops a click that lands during the swap — the same reason
+    // the diplomacy form is built once.
+    if (this.spectatorNote === null) {
+      const note = document.createElement("p");
+      note.className = "spectator";
+      note.textContent = t("hud.spectator");
+      const choose = document.createElement("button");
+      choose.type = "button";
+      choose.textContent = t("hud.chooseNation");
+      choose.addEventListener("click", () => this.actions.chooseNation());
+      const box = document.createElement("div");
+      box.append(heading(t("hud.watching")), note, choose);
+      this.spectatorNote = box;
+    }
+    if (this.spectatorNote.parentElement !== panel) {
+      panel.replaceChildren(this.spectatorNote);
+    }
+    panel.hidden = false;
   }
 
   /** Open a panel, or close it again if it was the open one. */
@@ -343,6 +504,11 @@ export class Hud {
     }
     // Redraw from the last model rather than waiting for the next tick: five
     // seconds between click and panel would read as a broken button.
+    //
+    // `lastModel` is seeded by the client before the first state arrives, so
+    // this holds even while the world is unreachable — otherwise the six
+    // buttons set aria-pressed and did nothing at all, which is the exact
+    // failure this panel rotation was built to avoid.
     if (this.lastModel !== null) this.update(this.lastModel);
   }
 
@@ -355,6 +521,9 @@ export class Hud {
     this.renderResearch(model);
     this.renderDiplomacy(model);
     this.renderAir(model);
+    this.renderIdentity(model);
+    // Last, because it overrides a panel the renderers above just hid.
+    this.renderSpectator(model);
   }
 
   // -------------------------------------------------------------------------
@@ -442,7 +611,29 @@ export class Hud {
     budget.type = "number";
     budget.min = "0";
     budget.step = "1";
-    budget.placeholder = t("regent.budget");
+    // **A label, not a placeholder.** It was a placeholder, and a placeholder
+    // is gone the moment the field has a value — which this one always does,
+    // because it is filled from the world every tick. So the number sat there
+    // unexplained, and the player's report was "I have no idea what this means
+    // or does". A caption that disappears exactly when there is something to
+    // caption is not a caption.
+    const budgetLabel = document.createElement("label");
+    budgetLabel.className = "field";
+    budgetLabel.append(
+      captionFor(t("regent.budget"), t("regent.budgetHint")),
+      budget,
+    );
+
+    const focusLabel = document.createElement("label");
+    focusLabel.className = "field";
+    focusLabel.append(
+      captionFor(t("regent.focus"), t("regent.focusHint")),
+      focus,
+    );
+
+    const what = document.createElement("p");
+    what.className = "hint";
+    what.textContent = t("regent.what");
 
     const apply = document.createElement("button");
     apply.textContent = t("regent.apply");
@@ -457,9 +648,10 @@ export class Hud {
     form.append(
       spacer(),
       heading(t("regent.title")),
+      what,
       enabledRow,
-      focus,
-      budget,
+      focusLabel,
+      budgetLabel,
       apply,
     );
     this.regentForm = form;
@@ -1600,7 +1792,10 @@ function victoryLine(model: HudModel): Node[] {
     ];
   }
   if (victory.holders !== null) {
-    return [warn(t("victory.holding", { bloc: names(victory.holders) })), spacer()];
+    return [
+      warn(t("victory.holding", { bloc: names(victory.holders) })),
+      spacer(),
+    ];
   }
   return [];
 }
@@ -1650,6 +1845,25 @@ function syncOptions(
       existing.textContent = entry.label;
     }
   }
+}
+
+/**
+ * A field's caption: what it is, and one line on what it does.
+ *
+ * Above the control, never inside it. The hint is the part that was missing
+ * everywhere in this form — the names alone ("Focus", "Market budget a day")
+ * name the setting without saying what changes when you touch it.
+ */
+function captionFor(label: string, hint: string): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  const name = document.createElement("span");
+  name.className = "caption";
+  name.textContent = label;
+  const note = document.createElement("span");
+  note.className = "hint";
+  note.textContent = hint;
+  fragment.append(name, note);
+  return fragment;
 }
 
 function heading(text: string): HTMLElement {

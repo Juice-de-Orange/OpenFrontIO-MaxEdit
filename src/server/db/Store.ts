@@ -104,5 +104,16 @@ export interface WorldStore {
   /** Every claimed nation of this world, for the season opening. */
   claimedNations(worldId: string): Promise<number[]>;
 
+  /**
+   * The nation this account holds here, or null while it holds none.
+   *
+   * The chooser needs it. A browser can hold a token and not know which
+   * nation it bought — `?nation=` is deliberately never remembered — and
+   * without this the player sees their own nation greyed out as "taken" and
+   * every other one refused as "you already hold a different nation". Locked
+   * out of a world by their own account.
+   */
+  nationOfAccount(worldId: string, accountId: string): Promise<number | null>;
+
   close(): Promise<void>;
 }
