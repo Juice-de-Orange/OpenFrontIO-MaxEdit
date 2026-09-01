@@ -29,6 +29,7 @@ import {
   type AgreementType,
 } from "src/shared/config/diplomacy";
 import { RESOURCES, type Resource } from "src/shared/config/provinces";
+import { REGENT_FOCI, type RegentFocus } from "src/shared/config/regent";
 import { DIVISION_MANPOWER } from "src/shared/config/rates";
 import {
   isAvailable,
@@ -201,6 +202,12 @@ export interface HudActions {
   cancelAttack(province: number): void;
   /** Send a division across the sea at a hostile coast (§6.8). */
   navalInvade(divisionId: number, province: number): void;
+  /** Set how the world plays this nation when nobody is (§6.10). */
+  configureRegent(
+    enabled: boolean,
+    focus: RegentFocus,
+    marketBudget: number,
+  ): void;
   /** Terms for a trade, null for everything else. Rates are per tick. */
   propose(to: number, type: AgreementType, terms: TradeTermsView | null): void;
   acceptAgreement(agreementId: number): void;
@@ -254,6 +261,13 @@ export class Hud {
   private airWhich: HTMLSelectElement | null = null;
   private airZone: HTMLSelectElement | null = null;
   private airMission: HTMLSelectElement | null = null;
+  /** The economy panel's rebuilt half, so the regent form below survives. */
+  private economyList: HTMLElement | null = null;
+  /** The regent form, built once — it holds what the player is choosing. */
+  private regentForm: HTMLElement | null = null;
+  private regentEnabled: HTMLInputElement | null = null;
+  private regentFocus: HTMLSelectElement | null = null;
+  private regentBudget: HTMLInputElement | null = null;
 
   /**
    * Which of the menu's panels is open. One at a time: six always-open panels
@@ -356,7 +370,11 @@ export class Hud {
     const netConstruction = constructionNet(economy);
     const traded = economy.tradePointsIn - economy.tradePointsOut;
 
-    this.economyPanel.replaceChildren(
+    if (this.economyList === null) {
+      this.economyList = document.createElement("div");
+      this.economyPanel.append(this.economyList);
+    }
+    this.economyList.replaceChildren(
       // **Whose economy this is, before what is in it.** A player who
       // cannot tell which nation they are looking at cannot use any other
       // number on the screen, and until this said so the only way to find out
@@ -389,6 +407,80 @@ export class Hud {
         ),
       ),
     );
+    this.buildRegentForm();
+    this.syncRegentForm(model);
+  }
+
+  /**
+   * The regent's controls, built once — a select mid-choice must not be
+   * rebuilt under the player every five seconds (the diplomacy form's rule).
+   * The budget is entered per in-game day (invariant 9) and sent per tick.
+   */
+  private buildRegentForm(): void {
+    if (this.regentForm !== null) return;
+    const form = document.createElement("div");
+
+    const enabledRow = document.createElement("label");
+    enabledRow.className = "row";
+    const enabled = document.createElement("input");
+    enabled.type = "checkbox";
+    enabledRow.append(document.createTextNode(t("regent.enabled")), enabled);
+
+    const focus = document.createElement("select");
+    for (const id of REGENT_FOCI) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = t(`regent.focus.${id}` as StringKey);
+      focus.append(option);
+    }
+
+    const budget = document.createElement("input");
+    budget.type = "number";
+    budget.min = "0";
+    budget.step = "1";
+    budget.placeholder = t("regent.budget");
+
+    const apply = document.createElement("button");
+    apply.textContent = t("regent.apply");
+    apply.addEventListener("click", () => {
+      this.actions.configureRegent(
+        enabled.checked,
+        focus.value as RegentFocus,
+        Number(budget.value || "0") / TICKS_PER_DAY,
+      );
+    });
+
+    form.append(
+      spacer(),
+      heading(t("regent.title")),
+      enabledRow,
+      focus,
+      budget,
+      apply,
+    );
+    this.regentForm = form;
+    this.regentEnabled = enabled;
+    this.regentFocus = focus;
+    this.regentBudget = budget;
+    this.economyPanel.append(form);
+  }
+
+  /** Show the server's answer — except in the field the player is using. */
+  private syncRegentForm(model: HudModel): void {
+    const regent = model.economy?.regent;
+    if (regent === undefined) return;
+    const active = document.activeElement;
+    if (this.regentEnabled !== null && active !== this.regentEnabled) {
+      this.regentEnabled.checked = regent.enabled;
+    }
+    if (this.regentFocus !== null && active !== this.regentFocus) {
+      this.regentFocus.value = regent.focus;
+    }
+    if (this.regentBudget !== null && active !== this.regentBudget) {
+      this.regentBudget.value = String(
+        Math.round(regent.marketBudget * TICKS_PER_DAY),
+      );
+    }
   }
 
   private renderQueue(model: HudModel): void {

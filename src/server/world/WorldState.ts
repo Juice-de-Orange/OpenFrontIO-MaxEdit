@@ -32,6 +32,10 @@ import {
   TRUST_START,
 } from "src/shared/config/diplomacy";
 import type { Resource } from "src/shared/config/provinces";
+import {
+  DEFAULT_REGENT,
+  type RegentConfig,
+} from "src/shared/config/regent";
 import { RESOURCES } from "src/shared/config/provinces";
 import {
   DOCKYARD_OUTPUT,
@@ -270,6 +274,8 @@ export interface NationState {
   nextTransitId: number;
   /** Divisions at sea (§6.8). The division's own `province` reads AT_SEA. */
   seaTransits: SeaTransit[];
+  /** How the world plays this nation when nobody else is (§6.10). */
+  regent: RegentConfig;
   researchSlots: ResearchSlot[];
   /** Finished techs, in the order they finished. Order is not significant. */
   unlockedTechs: TechId[];
@@ -640,6 +646,7 @@ export function createWorldState(
       attacks: [],
       seaTransits: [],
       nextTransitId: 1,
+      regent: { ...DEFAULT_REGENT },
     });
   }
 
@@ -787,6 +794,8 @@ export type WorldEvent =
       /** Positive buys, negative sells, zero clears the order. */
       perTick: number;
     }
+  /** The player set how the world plays their nation when they are not. */
+  | { kind: "regent_configured"; nation: number; config: RegentConfig }
   /**
    * An invasion put to sea. The reducer assigns the id, exactly as it does
    * for divisions, so a replay hands out the same ones.
@@ -1139,6 +1148,11 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
     case "market_order_set":
       state.nations[event.nation].market[event.resource] = event.perTick;
       return;
+
+    case "regent_configured": {
+      state.nations[event.nation].regent = { ...event.config };
+      return;
+    }
 
     case "invasion_started": {
       const nation = state.nations[event.nation];

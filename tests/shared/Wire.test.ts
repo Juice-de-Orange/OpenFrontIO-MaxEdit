@@ -134,6 +134,7 @@ describe("the wire protocol", () => {
             { province: 11, progress: 0.25 },
             { province: 12, progress: 0 },
           ],
+          regent: { enabled: true, focus: "defence", marketBudget: 1.5 },
           seaTransits: [
             { id: 1, divisionId: 2, from: 3, to: 9, ticksLeft: 12 },
           ],
@@ -259,6 +260,10 @@ describe("the wire protocol", () => {
     // view carries the nation's own transits, and `invasions` rides on every
     // full state and delta — the crossing being visible to everyone is what
     // makes garrisoning the beach a real answer to it.
-    expect(PROTOCOL_VERSION).toBe(13);
+    //
+    // 14 is the regent (§6.10): `configure_regent` joins the commands and
+    // the economy view says how the nation is played when nobody is — a v13
+    // client could neither see nor stop a steward spending its budget.
+    expect(PROTOCOL_VERSION).toBe(14);
   });
 });

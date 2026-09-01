@@ -20,6 +20,7 @@
 import { z } from "zod";
 import { AGREEMENT_TYPES } from "../config/diplomacy";
 import { RESOURCES } from "../config/provinces";
+import { REGENT_FOCI } from "../config/regent";
 import { TECH_IDS } from "../config/techs";
 import { BUILDING_TYPES } from "../economy/Buildings";
 import { EQUIPMENT_TYPES } from "../economy/Equipment";
@@ -34,7 +35,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -116,6 +117,19 @@ export const NavalInvadeSchema = z.object({
   kind: z.literal("naval_invade"),
   divisionId: z.number().int().positive(),
   provinceId: z.number().int().nonnegative(),
+});
+
+/**
+ * Set how the world plays this nation when nobody is (§6.10).
+ *
+ * The whole config at once, absolute — the same reason `assign_factories`
+ * is: a partial update applied twice means something different from once.
+ */
+export const ConfigureRegentSchema = z.object({
+  kind: z.literal("configure_regent"),
+  enabled: z.boolean(),
+  focus: z.enum(REGENT_FOCI),
+  marketBudget: z.number().nonnegative(),
 });
 
 export const QueueConstructionSchema = z.object({
@@ -350,6 +364,7 @@ export const CommandBodySchema = z.discriminatedUnion("kind", [
   ClaimProvinceSchema,
   CancelAttackSchema,
   NavalInvadeSchema,
+  ConfigureRegentSchema,
   QueueConstructionSchema,
   CancelConstructionSchema,
   CreateProductionLineSchema,
@@ -602,6 +617,12 @@ export const NationEconomySchema = z.object({
       progress: z.number().min(0).max(1),
     }),
   ),
+  /** How the world plays this nation when nobody is (§6.10). Own eyes only. */
+  regent: z.object({
+    enabled: z.boolean(),
+    focus: z.enum(REGENT_FOCI),
+    marketBudget: z.number().nonnegative(),
+  }),
   /** This nation's own divisions at sea, with the whole crossing visible. */
   seaTransits: z.array(
     z.object({

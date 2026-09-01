@@ -185,6 +185,8 @@ export async function startWorldClient(
       send({ kind: "cancel_attack", provinceId: province }),
     navalInvade: (divisionId, province) =>
       send({ kind: "naval_invade", divisionId, provinceId: province }),
+    configureRegent: (enabled, focus, marketBudget) =>
+      send({ kind: "configure_regent", enabled, focus, marketBudget }),
     propose: (to, type, terms) =>
       send({ kind: "propose_agreement", to, type, terms }),
     acceptAgreement: (agreementId) =>

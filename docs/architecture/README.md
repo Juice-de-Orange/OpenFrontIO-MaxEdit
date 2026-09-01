@@ -178,6 +178,17 @@ each side, bounded so that air shifts a fight it never decides alone.
   ([decision 0017](../decisions/0017-the-sea-graph-is-the-zone-graph.md));
   trade routes are resolved every tick in `systems/routes.ts`.
 
+- **regent** — the world playing a nation nobody is (§6.10). Every twelve
+  ticks, rule-based, emitting the same events a player's commands would — a
+  pure function of the state, so a replay reaches the same conclusions. It
+  garrisons the capital, keeps the queue non-empty (a starving division's
+  supply hub first), runs rifles _and_ guns because strength is the worst
+  template ratio, fills research, and buys the scarcest resource at the
+  market inside its budget — its only economic reaction (invariant 7). It
+  never touches an existing line's equipment type, and it is **opt-in until
+  phase 11** ([decision 0018](../decisions/0018-the-regent-is-opt-in-until-identity.md)):
+  the season opening is where regents switch on for unclaimed nations.
+
 One **sufficiency** figure per nation, the worst of the per-resource ratios,
 scales every consumer down together. That is invariant 2 — _everything
 degrades, never hard-blocks_ — and taking the worst ratio rather than one per
@@ -192,18 +203,18 @@ disagree.
 
 ## The tree, and where it came from
 
-| Path                        | Origin   | State                                                                                                                                                                                                                                                                                                        |
-| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                                                                                                               |
-| `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                                                                                                 |
-| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                                                                                        |
-| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                                                                                                      |
-| `src/server/`               | new      | The world server: `world/` (World, WorldState and its reducer, TickLoop, WorldRunner), `systems/` (economy, construction, production, research, trade, supply, air, naval, combat, routes — regent and victory still empty), `db/` (store interface, memory and Postgres store), `net/` (socket and health). |
-| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `economy/` (the building catalogue), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`.                                    |
-| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                                                                                        |
-| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                                                                                                       |
-| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                                                                                                                   |
-| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                                                                                                        |
+| Path                        | Origin   | State                                                                                                                                                                                                                                                                                                     |
+| --------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/client/render/`        | upstream | **Kept.** WebGL2 renderer, 100 modules. The most valuable inherited asset, and the reason the fork started from this codebase.                                                                                                                                                                            |
+| `src/client/world/`         | new      | The world client: entry point, map and artefact loading, palette, province tile index, frame adapter, province border layer, camera, socket.                                                                                                                                                              |
+| `src/client/util/`, `i18n/` | new      | Asset URL resolution and translation — the only two modules outside `render/` the renderer may reach.                                                                                                                                                                                                     |
+| `src/client/_legacy/`       | upstream | **Quarantined.** 259 files: the HUD, components, view and controllers. Excluded from the build and every tool. See its README for the revival list and the expiry date.                                                                                                                                   |
+| `src/server/`               | new      | The world server: `world/` (World, WorldState and its reducer, TickLoop, WorldRunner), `systems/` (economy, construction, production, research, trade, supply, air, naval, combat, regent, routes — victory still empty), `db/` (store interface, memory and Postgres store), `net/` (socket and health). |
+| `src/shared/`               | new      | Used by both sides, no I/O: `map/` (Terrain, TerrainBits, GameMap, TileSet, Maps.gen, Province, ProvincePartition, ProvinceAttributes, ProvinceMap, TerrainHash), `economy/` (the building catalogue), `pathfinding/` (19 files), `protocol/Wire.ts`, `config/`, `util/`.                                 |
+| `src/build/`                | new      | Build-time code. `PublicAssetManifest.ts`, which `vite.config.ts` needs, and `GenerateProvinceMap.ts` behind `npm run gen-provinces`.                                                                                                                                                                     |
+| `tests/_legacy/`            | upstream | **Quarantined.** ~336 files testing code that no longer exists. Kept because several are effectively the world server's specification.                                                                                                                                                                    |
+| `zbin/`                     | upstream | Kept as a library, unused by our protocol.                                                                                                                                                                                                                                                                |
+| `src/core/`                 | upstream | **Deleted.** The lockstep simulation.                                                                                                                                                                                                                                                                     |
 
 What was rescued from `src/core` before it went: `GameMap`, `TileSet`,
 `EventBus`, `PseudoRandom`, `DebugSpan`, `Maps.gen`, and 19 of 23 pathfinding

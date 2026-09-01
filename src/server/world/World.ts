@@ -90,6 +90,12 @@ import {
   INVASION_TICKS_PER_ZONE,
   SEA_SUPPLY_RANGE,
 } from "src/shared/config/naval";
+import {
+  DEFAULT_REGENT,
+  MAX_REGENT_MARKET_BUDGET,
+  REGENT_FOCI,
+  type RegentFocus,
+} from "src/shared/config/regent";
 import { seaPath } from "src/shared/map/SeaGraph";
 import { tradeRouteBetween } from "../systems/routes";
 import { isDeadPartner, nationTrade } from "../systems/trade";
@@ -198,7 +204,7 @@ export interface WorldChanges {
  * a changed function cannot tell corruption from its own history. That is
  * what lets a season survive a deploy (docs/decisions/0016).
  */
-export const STATE_HASH_VERSION = 3;
+export const STATE_HASH_VERSION = 4;
 
 /**
  * Everything needed to put the world back, and nothing that can be derived.
@@ -272,6 +278,8 @@ export interface WorldSnapshot {
       ticksLeft: number;
     }[];
     nextTransitId?: number;
+    /** Optional: a snapshot from before phase 10 has none. */
+    regent?: { enabled: boolean; focus: string; marketBudget: number };
     /** Optional: a snapshot taken before phase 8 has neither. */
     formations?: Formation[];
     nextFormationId?: number;
@@ -561,6 +569,11 @@ export class World {
       to: number;
       ticksLeft: number;
     }[];
+    regent: {
+      enabled: boolean;
+      focus: RegentFocus;
+      marketBudget: number;
+    };
     formations: FormationView[];
     zones: ZoneView[];
   } {
@@ -606,6 +619,7 @@ export class World {
         province: attack.province,
         progress: attack.progress,
       })),
+      regent: { ...state.regent },
       seaTransits: state.seaTransits.map((transit) => ({
         id: transit.id,
         divisionId: transit.divisionId,
@@ -691,6 +705,7 @@ export class World {
           path: [...transit.path],
         })),
         nextTransitId: nation.nextTransitId,
+        regent: { ...nation.regent },
         formations: nation.formations.map((formation) => ({
           ...formation,
           equipment: [...formation.equipment],
@@ -842,6 +857,18 @@ export class World {
         path: [...transit.path],
       }));
       live.nextTransitId = stored.nextTransitId ?? 1;
+      live.regent =
+        stored.regent === undefined
+          ? { ...DEFAULT_REGENT }
+          : {
+              enabled: stored.regent.enabled,
+              focus: (REGENT_FOCI as readonly string[]).includes(
+                stored.regent.focus,
+              )
+                ? (stored.regent.focus as RegentFocus)
+                : DEFAULT_REGENT.focus,
+              marketBudget: stored.regent.marketBudget,
+            };
     }
     // A world is its seed as much as its provinces: restoring the arrays and
     // leaving the seed behind would give a resumed world a different future
@@ -961,6 +988,9 @@ export class World {
         mix(attack.since);
         mixFloat(attack.progress);
       }
+      mix(nation.regent.enabled ? 1 : 0);
+      mix(REGENT_FOCI.indexOf(nation.regent.focus));
+      mixFloat(nation.regent.marketBudget);
       mix(nation.nextTransitId);
       mix(nation.seaTransits.length);
       for (const transit of nation.seaTransits) {
@@ -1055,6 +1085,19 @@ export class World {
           return (
             `you hold an agreement with nation ${defender}; cancel it first ` +
             `and it will lapse after the notice period`
+          );
+        }
+        return null;
+      }
+
+      case "configure_regent": {
+        if (
+          body.marketBudget < 0 ||
+          body.marketBudget > MAX_REGENT_MARKET_BUDGET
+        ) {
+          return (
+            `the regent's market budget has to be between 0 and ` +
+            `${MAX_REGENT_MARKET_BUDGET} construction a tick`
           );
         }
         return null;
@@ -1803,6 +1846,19 @@ export class World {
 
       case "cancel_attack":
         return [{ kind: "attack_ended", nation, province: body.provinceId }];
+
+      case "configure_regent":
+        return [
+          {
+            kind: "regent_configured",
+            nation,
+            config: {
+              enabled: body.enabled,
+              focus: body.focus,
+              marketBudget: body.marketBudget,
+            },
+          },
+        ];
 
       case "naval_invade": {
         // Validation has already checked the coasts, the peace and the sea

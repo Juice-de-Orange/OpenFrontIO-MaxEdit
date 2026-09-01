@@ -60,7 +60,7 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Phase 9 of 13 built.** A world server ticks every five seconds, persists to
+**Phase 10 of 13 built.** A world server ticks every five seconds, persists to
 Postgres, accepts commands and comes back where it was after being killed. On
 top of that runs an economy: provinces extract from their deposits, civilian
 factories make construction points, military factories and dockyards draw the
@@ -81,8 +81,12 @@ machine: fleets hold or raid it, sea supply and seaborne trade move on
 convoys that submarines can sink and escorts can save, and an invasion
 crosses visibly for half a day a zone toward a beach a watching defender can
 still garrison. Every one of those effects is bounded and none of them can
-reach zero. Nothing takes a province unless somebody ordered it: a world
-with nobody online is quiet until the regent arrives in phase 10. The
+reach zero. Nothing takes a province unless somebody ordered it — and a
+nation may hand its orders to the regent: a rule-based steward that
+garrisons the capital, keeps building, runs both production lines a
+division needs, and buys the scarcest resource at the world market, without
+ever touching what an existing production line makes. It stays opt-in until
+accounts exist (phase 11), so an unattended world is still quiet. The
 inherited renderer draws all of it.
 
 The build order and the gate each phase has to pass are in

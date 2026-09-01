@@ -14,7 +14,19 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 9 of 13 — the sea is gated (2026-09-01).** Ten of thirteen gates.
+**Phase 10 of 13 — the regent is gated (2026-09-01, afternoon).** Eleven of
+thirteen gates. Phase 10 landed after the morning's phase 9: `RegentConfig`
+in the state (hash version 4), `configure_regent` on the wire (protocol 14,
+with the regent's controls in the economy panel), and `systems/regent.ts` —
+every 12 ticks, rule-based, garrisoning the capital, keeping the queue
+non-empty, running rifles _and_ guns (the worst-ratio lesson), filling
+research, buying the scarcest resource at the market inside its budget, and
+never once touching an existing line's equipment type. **It is opt-in until
+phase 11** (decision 0018): until accounts exist, a default-on regent plays
+all fifty-two nations and every gate measures the regent instead of its
+subject. The gate transcript is under "Phase 10 — the regent" below; its
+counter-proof lost the same capital in 102 ticks that the regent held for
+2,000.
 Four pieces landed in the night and morning of 2026-08-31/09-01, all planned
 in "The plan, end to end" and all gated:
 
@@ -338,6 +350,11 @@ a province with no convoys is badly supplied, not cut off.
 
 ### 4 · Phase 10 — the regent
 
+**Done 2026-09-01, gated** — see the transcript above and decision 0018 for
+the two calls the specification left open (opt-in until phase 11; the
+baseline translated for divisions that cannot move). Everything below was
+the plan it was built to.
+
 **Load-bearing, not a convenience.** With a five-second tick, the regent plays
 most of a nation's ticks. If it cannot hold a front, players do not come back.
 
@@ -451,7 +468,7 @@ hash. Plan it together with a season boundary.
 Before calling anything done:
 
 ```bash
-npm run test                          # 597 at the end of phase 9
+npm run test                          # 609 at the end of phase 10
 TEST_DATABASE_URL=... npm run test:db # skipped silently without it
 npx tsc --noEmit -p tsconfig.strict.json
 npm run lint
@@ -473,7 +490,7 @@ three phases among them. A gate cannot tell you the game is unplayable.
 
 ## The whole plan, and how far along it is
 
-Ten of thirteen gates passed. **The gate is the unit of progress here, not the
+Eleven of thirteen gates passed. **The gate is the unit of progress here, not the
 code:** a phase is done when its gate has been demonstrated, not when it
 compiles.
 
@@ -489,7 +506,7 @@ compiles.
 | 7 · Diplomacy and trade        | A trade agreement survives a season restart with no renewal from either player      | ✅ passed                                                          |
 | 8 · Air zones                  | Air superiority in a zone measurably shifts a ground battle there                   | ✅ passed                                                          |
 | 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ✅ passed                                                          |
-| 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ⬜                                                                 |
+| 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ✅ passed                                                          |
 | 11 · Accounts and identity     | A session claiming a nation it does not hold is refused and told nothing about it   | ⬜                                                                 |
 | 12 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜                                                                 |
 
@@ -516,6 +533,50 @@ a timeout.
 **A fresh world starts with zero manpower**, which regrows at 0.02% of the cap
 a tick, so nothing can raise a division for the first couple of thousand ticks.
 Give a new world two minutes at 50 ms before running phase 4 or 6.
+
+### Phase 10 — the regent
+
+```
+phase-10 gate
+  world world-0 at tick 1988, 50 ms a tick
+  nation 7 is left to its regent; nation 43 marches on its capital in province 63, 5 hop(s) behind the border
+  the regent takes over: defence, half a point a tick for the market
+  ok    the opponent was active: 13 standing attacks ordered across the window
+  ok    the capital in province 63 is still the regent's after 2000 tick(s)
+  ok    the construction queue is non-empty now and was on 99 of 100 samples
+  ok    1 production line(s) ran and not one was reset — the ramp is the player's days of work, and the regent spent none of it
+  ok    the regent raised its garrison (1 division(s) on the roster)
+  ok    and put the research slots to work
+  ok    the world stayed healthy throughout (0 ms behind at tick 3992)
+PASS
+```
+
+**The opponent needs no army, and that is the measurement.** Since the front
+became a rate, `claim_province` marches into any undefended province — so a
+relentless attacker takes everything nobody is standing in, and the regent's
+one capital garrison is exactly what turns the march into a battle that
+nothing cannot win. The counter-proof is the same offensive against a
+sleeping steward:
+
+```
+phase-10 gate
+  world world-0 at tick 4445, 50 ms a tick
+  running with --break=asleep: this must FAIL
+  nation 15 is left to its regent; nation 44 marches on its capital in province 153, 5 hop(s) behind the border
+  --break=asleep: the regent never wakes
+  ok    the opponent was active: 10 standing attacks ordered across the window
+  FAIL  the capital in province 153 is still the regent's after 102 tick(s)
+  FAIL  the construction queue is non-empty now and was on 0 of 6 samples
+  FAIL  0 production line(s) ran and not one was reset — the ramp is the player's days of work, and the regent spent none of it
+  FAIL  the regent raised its garrison (0 division(s) on the roster)
+  FAIL  and put the research slots to work
+  ok    the world stayed healthy throughout (0 ms behind at tick 4548)
+FAIL
+```
+
+The capital fell in 102 ticks — five empty provinces at eight ticks a march —
+and every regent-shaped check went red behind it, with the active-opponent
+check before them still green.
 
 ### Phase 9 — naval zones and convoys
 
@@ -1349,19 +1410,11 @@ side of the assignment form, an invasion under way. Everything else in phases
 1–9 is proven by scripts; those four are not, and a gate cannot tell you the
 game is unplayable.
 
-**Then phase 10 — the regent**, exactly as "The plan, end to end" §4 lays it
-out: `systems/regent.ts` replacing `planned("regent")` in
-`server/systems/index.ts`, every 12 ticks, rule-based, never touching an
-existing production line's equipment type, its one economic lever the world
-market (`set_market_order` exists and works — the phase-9 gate already used
-it the way the regent will). Its gate is 2,000 ticks against an active
-opponent with the capital held, the queue non-empty and no line reset — at
-50 ms a tick that is under two minutes of watching plus the staging.
-`RegentConfig` exists nowhere yet, not even as a type; it needs a place in
-`NationState`, the snapshot and the hash (bump `STATE_HASH_VERSION`).
-
 **Then phase 11 — accounts** (plan §5, decision 0013): greenfield, no auth
-code and no tables exist. The insertion point for the credential check is
+code and no tables exist. **Phase 11 also owes the regent its season rule**
+(decision 0018): when accounts arrive, the season opening switches regents on
+for every nation no account holds — forget it, and §6.10's promise is
+silently unkept. The insertion point for the credential check is
 `WsServer.ts`'s hello block; the `hello` schema's own comment names the job.
 
 **Then the victory system** (plan §7) and **phase 12's deployment remainder**
@@ -1590,13 +1643,14 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**597 passed, 8 skipped, in one run — no tolerated failures.** The eight
+**609 passed, 8 skipped, in one run — no tolerated failures.** The eight
 skipped are the Postgres integration tests, which run under `npm run test:db`
 against `docker compose up -d db`. **They are a suite that rots when nobody
 runs it**, so `npm run test:db` belongs in every phase's closing checks; it
-passed 8/8 at the end of phase 9.
+passed 8/8 at the end of phase 10.
 
-The count moved from 567 at the end of phase 8, from 533 at the end of
+The count moved from 597 at the end of phase 9, from 567 at the end of
+phase 8, from 533 at the end of
 phase 7's build (the phase-7 review added eleven more), from 506 at the end
 of phase 6's build, from 472 at the end of phase 4's build, from 462 at the
 end of phase 3, from 437 at the end of phase 2 and from 412 at the end of
