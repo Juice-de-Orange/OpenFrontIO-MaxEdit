@@ -112,6 +112,22 @@ rsync -az --exclude='_assets/maps/*' static/ HOST:/srv/world/www/
 rsync -az static/_assets/maps/ HOST:/srv/world/www/_assets/maps/ < map > / < map > /
 ```
 
+## The files a host needs
+
+`deploy/` holds the four artefacts a deployment needs and a checkout does not.
+Three are templates with `<PLACEHOLDER>`s, because the concrete values are host
+specifics and this repository is public:
+
+| File                                            | Goes to                                             | What it is for                                              |
+| ----------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| `deploy/docker-compose.override.example.yml`    | the checkout root, as `docker-compose.override.yml` | loopback ports, a restart policy, `WORLD_SEASON=open`       |
+| `deploy/nginx/world.conf.example`               | `/etc/nginx/sites-available/`                       | the bundle, `/ws`, `/register`, `/health`                   |
+| `deploy/watchdog.sh`                            | `/usr/local/bin/world-watchdog`                     | alerts when the world stops ticking, or a backup goes stale |
+| `deploy/systemd/world-watchdog.{service,timer}` | `/etc/systemd/system/`                              | runs the watchdog every two minutes                         |
+
+The sections below say why each is shaped the way it is. Read them before
+copying: two of the four have a failure mode that looks like success.
+
 ## Bind the containers to loopback
 
 The compose file in this repository publishes Postgres on `0.0.0.0:5432` and

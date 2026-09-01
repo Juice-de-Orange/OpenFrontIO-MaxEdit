@@ -1,0 +1,32 @@
+# Every two minutes. This is the unit to enable.
+#
+#   systemctl enable --now world-watchdog.timer
+#   systemctl list-timers world-watchdog.timer
+#
+# Two minutes is short enough that a stall is noticed while somebody is still
+# awake, and long enough that a check comparing ticks has something to compare:
+# a tick is five seconds, so a healthy world moves ~24 ticks between runs. A
+# check every ten seconds would report a stall every time the interval jittered.
+
+[Unit]
+Description=Check the world every two minutes
+Documentation=https://github.com/Juice-de-Orange/OpenFrontIO-MaxEdit
+
+[Timer]
+# A first check a minute after boot, then every two minutes. Not
+# OnCalendar: this should follow uptime, not the wall clock.
+OnBootSec=1min
+OnUnitActiveSec=2min
+
+# The world is not less broken because the machine was asleep. Catch up once
+# rather than pretending the gap did not happen.
+Persistent=true
+
+# Every host with a timer this frequent gets a thundering herd at :00 without
+# it. The window is small enough not to blur a two-minute cadence.
+RandomizedDelaySec=10
+
+Unit=world-watchdog.service
+
+[Install]
+WantedBy=timers.target

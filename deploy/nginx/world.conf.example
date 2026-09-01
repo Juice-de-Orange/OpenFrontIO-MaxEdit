@@ -1,0 +1,149 @@
+# The world's vhost, as a template.
+#
+#   cp deploy/nginx/world.conf.example /etc/nginx/sites-available/world
+#   ln -s /etc/nginx/sites-available/world /etc/nginx/sites-enabled/
+#   nginx -t && systemctl reload nginx
+#
+# Replace every <PLACEHOLDER>. The real values belong in the host's own
+# git-ignored notes, not here: this repository is public.
+#
+#   <DOMAIN>         the hostname the world is served under
+#   <VHOST_PORT>     the port this vhost listens on (see "If 443 is taken")
+#   <WORLD_PORT>     the loopback port docker-compose.override.yml publishes
+#   <WWW_ROOT>       where the built client bundle was rsynced
+#
+# ---------------------------------------------------------------------------
+# THIS FILE HAS NEVER BEEN LOADED BY AN NGINX.
+#
+# It was written on a Windows machine that has no nginx to check it with, from
+# the prose in docs/deploy/README.md. Treat `nginx -t` on the host as the first
+# real test, and read the two traps below before believing a successful reload.
+# ---------------------------------------------------------------------------
+#
+# **`nginx -t` is not proof.** A `listen 443` in http context passes the syntax
+# check and then fails the *reload* with "still could not bind()" while systemd
+# reports success and the old configuration keeps serving. And a bound socket is
+# not proof it is yours: check `ss -tlnp 'sport = :<VHOST_PORT>'` and read the
+# process name — another service's docker-proxy holding the port looks exactly
+# like success.
+#
+# **If 443 is already taken** by an nginx `stream` block doing SNI passthrough,
+# an http vhost cannot bind it. Listen on a private loopback port instead and
+# register <DOMAIN> in that router's SNI map, pointing at 127.0.0.1:<VHOST_PORT>.
+# If the router sets `proxy_protocol on`, this listener must say `proxy_protocol`
+# too — and then the two real_ip lines below are not optional, or every client
+# appears to come from 127.0.0.1 and the logs become useless.
+
+# In http context, once per nginx — not per vhost. If another site already
+# defines it, delete this block rather than duplicating the map.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# Plain HTTP: the ACME challenge, and nothing else worth serving.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name <DOMAIN>;
+
+    # Do DNS *before* certbot. Without an A record the challenge fails with an
+    # error that reads like an nginx problem and is not one.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    # If 443 is free, this is `listen 443 ssl;`. If it is not, this is the
+    # private port the SNI router forwards to — add `proxy_protocol` here and
+    # keep the two real_ip lines below.
+    listen 127.0.0.1:<VHOST_PORT> ssl proxy_protocol;
+    http2 on;
+    server_name <DOMAIN>;
+
+    # Only meaningful behind a proxy_protocol listener. Harmless otherwise, but
+    # delete them if this vhost binds 443 directly.
+    set_real_ip_from 127.0.0.1;
+    real_ip_header proxy_protocol;
+
+    ssl_certificate     /etc/letsencrypt/live/<DOMAIN>/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/<DOMAIN>/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    access_log /var/log/nginx/world.access.log;
+    error_log  /var/log/nginx/world.error.log;
+
+    # The built client, rsynced from `npm run build-prod` plus
+    # `node scripts/render-index.mjs static/index.html`. Without that second
+    # step the page is blank with no useful error: vite leaves EJS placeholders
+    # in static/index.html that upstream filled from an Express process this
+    # fork does not have.
+    root <WWW_ROOT>;
+    index index.html;
+
+    # Hashed assets never change under their name.
+    location /_assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # The province artefact is content-hashed in the client's check. Serving a
+    # stale one from an HTTP cache is the documented cause of a blank map, so
+    # it is deliberately not cached hard.
+    location = /provinces.bin {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # A world connection is a WebSocket open for hours and mostly silent.
+    location /ws {
+        proxy_pass http://127.0.0.1:<WORLD_PORT>;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host       $host;
+        proxy_set_header X-Real-IP  $remote_addr;
+
+        # Longer than the server's own ping interval, or the proxy closes a
+        # healthy connection and the client reconnects for no reason.
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering    off;
+    }
+
+    # Registration (phase 11). Same origin as the socket, so the token the
+    # client stores is scoped to the world it belongs to.
+    location = /register {
+        proxy_pass http://127.0.0.1:<WORLD_PORT>;
+        proxy_set_header Host      $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Reachable on purpose: the watchdog reads it, and it tells nobody anything
+    # they could not learn by connecting. Restrict it if that changes.
+    location = /health {
+        proxy_pass http://127.0.0.1:<WORLD_PORT>;
+        access_log off;
+    }
+}
+
+# Verify the upgrade with a real handshake, never with a status code — a 200
+# means the upgrade was swallowed and the client will wait forever:
+#
+#   curl -i --max-time 5 \
+#     -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+#     -H 'Sec-WebSocket-Version: 13' \
+#     -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+#     https://<DOMAIN>/ws | head -1
+#   # want: HTTP/1.1 101 Switching Protocols

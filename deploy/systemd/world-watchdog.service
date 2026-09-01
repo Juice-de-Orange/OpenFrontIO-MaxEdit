@@ -1,0 +1,58 @@
+# One watchdog check. Driven by world-watchdog.timer, not enabled itself.
+#
+#   cp deploy/systemd/world-watchdog.* /etc/systemd/system/
+#   install -m 755 deploy/watchdog.sh /usr/local/bin/world-watchdog
+#   install -m 600 /dev/null /etc/world-watchdog.env   # then fill it in
+#   systemctl daemon-reload
+#   systemctl enable --now world-watchdog.timer
+#
+# Prove the alert path before trusting it — a watchdog whose notifications go
+# nowhere is worse than none, because it is believed:
+#
+#   systemctl start world-watchdog.service   # a real check, now
+#   sudo -u nobody world-watchdog --test     # a test alert
+#   journalctl -u world-watchdog.service -n 20
+#
+# NOT YET RUN ON A HOST: written on a machine with no systemd to verify it
+# with. `systemd-analyze verify world-watchdog.service` is the first real test.
+
+[Unit]
+Description=Check that the world is still ticking, and alert if it is not
+Documentation=https://github.com/Juice-de-Orange/OpenFrontIO-MaxEdit
+# Nothing to check before the network is up; failing then would be noise.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/world-watchdog
+
+# The topic, the health URL and the backup directory. Host-local, mode 600 —
+# an ntfy topic is a URL anybody who knows it can publish to.
+EnvironmentFile=/etc/world-watchdog.env
+
+# It reads one HTTP endpoint, one directory and one state file. Nothing else.
+User=nobody
+Group=nogroup
+StateDirectory=world-watchdog
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+# A check that hangs must not sit in the way of the next one.
+TimeoutStartSec=60
+
+# The script exits 1 on a problem it has already reported. That is the report,
+# not a crash, and systemd should not treat it as one — otherwise the unit ends
+# up "failed" and the timer's own state becomes the thing being watched.
+SuccessExitStatus=0 1

@@ -1,0 +1,60 @@
+# The override a host needs, as a template. Copy it into the checkout root:
+#
+#   cp deploy/docker-compose.override.example.yml docker-compose.override.yml
+#
+# Compose picks `docker-compose.override.yml` up automatically. It stays out of
+# git — the real ports and the host's own choices belong in the git-ignored
+# notes, not in a public repository — which is why this file is the example and
+# not the thing itself.
+#
+# It does two things the shipped compose file deliberately does not.
+#
+# **Both ports move to loopback.** docker-compose.yml publishes Postgres on
+# 0.0.0.0:5432 and the world on 0.0.0.0:3000, because tests and psql reach them
+# from the host in development. On a machine with a public address that is a
+# database on the internet. Note also that a published port is reachable
+# whether or not the firewall ever allowed it: Docker writes its own iptables
+# rules, so ufw is not the list of what is exposed.
+#
+# **`restart: unless-stopped`.** The shipped file has no restart policy on
+# purpose, because the phase-1 gate is to kill the world by hand and watch it
+# come back at the right tick. A host wants the opposite.
+#
+# Two things to get right, both of which have cost real time:
+#
+#   1. `!override` is not decoration. Compose *merges* sequences by default, so
+#      a plain `ports:` here ADDS a mapping and leaves 0.0.0.0:5432 published
+#      next to it. The tag replaces the list.
+#   2. Verify the result, not the intent:
+#
+#        docker compose config | grep -A3 ports
+#
+#      prints what will actually be published. Then, after `up -d`:
+#
+#        ss -tlnp 'sport = :<port>'
+#
+#      and read the *process name*. A port can be bound by somebody else's
+#      docker-proxy and look exactly like success.
+#
+# Replace both host ports with the ones this machine has free. 3000 and 5432
+# are frequently taken.
+
+services:
+  db:
+    ports: !override
+      - "127.0.0.1:5432:5432"
+    restart: unless-stopped
+
+  world:
+    ports: !override
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    environment:
+      # Arms identity: a nation needs a token, one account holds one nation,
+      # and a bare URL gets you a spectator (decision 0019). Without it the
+      # world is the workbench, where anybody is everybody — which is the exact
+      # state CLAUDE.md §8 puts deployment after phase 11 to avoid.
+      WORLD_SEASON: open
+
+  backup:
+    restart: unless-stopped
