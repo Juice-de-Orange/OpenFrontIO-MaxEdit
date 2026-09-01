@@ -29,7 +29,12 @@ import { LAND_BIT } from "./TerrainBits";
  */
 const TARGET_PROVINCE_TILES = 900;
 
-/** No nation gets fewer than one province or more than this many. */
+/**
+ * No nation's *mainland* is cut into more pieces than this. Detached islands
+ * become provinces of their own on top, so a nation with an archipelago can
+ * end slightly above the cap — better a few extra provinces than one that
+ * straddles open water.
+ */
 const MAX_PROVINCES_PER_NATION = 40;
 
 /** Lloyd relaxation passes over the subdivision seeds. */
@@ -307,10 +312,35 @@ function floodWithin(
     }
   }
 
-  // Anything the flood could not reach (a detached exclave of this nation)
-  // joins the nearest piece by id rather than becoming a hole.
+  // Anything the flood could not reach is a detached piece of this nation —
+  // an island the borders put under its flag, or an exclave. Each connected
+  // component becomes a piece of its own rather than a hole, or a tile set
+  // fused to a mainland province across open water.
+  let nextPiece = firstId + seeds.length;
   for (let i = 0; i < tiles.length; i++) {
-    if (out[tiles[i]] === -1) out[tiles[i]] = firstId;
+    const start = tiles[i];
+    if (out[start] !== -1) continue;
+    out[start] = nextPiece;
+    head = 0;
+    tail = 0;
+    queue[tail++] = start;
+    while (head < tail) {
+      const tile = queue[head++];
+      const x = tile % width;
+      const y = (tile / width) | 0;
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d];
+        const ny = y + DY[d];
+        if (nx < 0 || ny < 0 || nx >= width) continue;
+        const n = ny * width + nx;
+        if (n < 0 || n >= ownerOfTile.length) continue;
+        if (ownerOfTile[n] !== nation) continue;
+        if (out[n] !== -1) continue;
+        out[n] = nextPiece;
+        queue[tail++] = n;
+      }
+    }
+    nextPiece++;
   }
 }
 
@@ -338,14 +368,21 @@ export function computeProvincePartition(
   width: number,
   height: number,
   seeds: NationSeed[],
+  precomputedNations?: Int32Array,
 ): ProvincePartition {
   if (terrain.length !== width * height) {
     throw new Error(
       `terrain is ${terrain.length} bytes, expected ${width * height}`,
     );
   }
+  if (precomputedNations && precomputedNations.length !== terrain.length) {
+    throw new Error(
+      `nation assignment is ${precomputedNations.length} tiles, expected ${terrain.length}`,
+    );
+  }
 
-  const nationOfTile = growNations(terrain, width, height, seeds);
+  const nationOfTile =
+    precomputedNations ?? growNations(terrain, width, height, seeds);
 
   // Collect each nation's tiles once; every later pass works on these lists.
   const tilesByNation: number[][] = Array.from(

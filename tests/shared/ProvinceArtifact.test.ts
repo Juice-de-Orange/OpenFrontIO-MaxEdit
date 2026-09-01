@@ -4,8 +4,13 @@ import { beforeAll, describe, expect, test } from "vitest";
 import {
   generateProvinceMap,
   serialiseProvinceMeta,
+  type GeneratorBorders,
   type GeneratorManifest,
 } from "../../src/build/GenerateProvinceMap";
+import type {
+  BorderCollection,
+  BordersFit,
+} from "../../src/build/NationBorders";
 import type { Resource } from "../../src/shared/config/provinces";
 import {
   AIR_ZONE_MAX_PROVINCES,
@@ -34,6 +39,7 @@ function read(file: string): Buffer {
 describe("the checked-in province artefact", () => {
   let manifest: GeneratorManifest;
   let terrain: Uint8Array;
+  let borders: GeneratorBorders;
   let regenerated: ReturnType<typeof generateProvinceMap>;
   let loaded: ProvinceMap;
 
@@ -42,7 +48,13 @@ describe("the checked-in province artefact", () => {
       read("manifest.json").toString("utf-8"),
     ) as GeneratorManifest;
     terrain = new Uint8Array(read("map4x.bin"));
-    regenerated = generateProvinceMap(MAP_ID, manifest, terrain);
+    borders = {
+      fit: JSON.parse(read("borders-fit.json").toString("utf-8")) as BordersFit,
+      geometry: JSON.parse(
+        read("ne-borders.geojson").toString("utf-8"),
+      ) as BorderCollection,
+    };
+    regenerated = generateProvinceMap(MAP_ID, manifest, terrain, borders);
     loaded = decodeProvinceMap(
       new Uint8Array(read("provinces.bin")),
       JSON.parse(read("provinces.json").toString("utf-8")) as ProvinceMapMeta,
@@ -74,7 +86,7 @@ describe("the checked-in province artefact", () => {
   // which is exactly when a phase is being closed. A determinism test that
   // fails on load teaches the wrong lesson.
   test("generates identically twice over", { timeout: 30_000 }, () => {
-    const again = generateProvinceMap(MAP_ID, manifest, terrain);
+    const again = generateProvinceMap(MAP_ID, manifest, terrain, borders);
     expect(Buffer.from(again.bin).equals(Buffer.from(regenerated.bin))).toBe(
       true,
     );
@@ -163,12 +175,13 @@ describe("derived province attributes", () => {
   });
 
   /**
-   * Zones are grown by breadth-first search and merged only into an adjacent
-   * zone, so every one of them is connected by construction. Asserting it
-   * anyway is what catches a merge that hands provinces to a zone that is no
-   * longer there — which is exactly what the first version of the merge did.
+   * A zone is one theatre: a connected core plus, at most, the islands that
+   * joined it by distance because they were too small to be zones of their
+   * own. What must never happen is *mainland* in two pieces — that is a
+   * merge handing provinces to a zone that is no longer adjacent, which is
+   * exactly what the first version of the merge did.
    */
-  test("every air zone is one connected group of provinces", () => {
+  test("every air zone is a connected core plus at most small islands", () => {
     const byZone = new Map<number, number[]>();
     for (const province of loaded.provinces) {
       const list = byZone.get(province.airZone) ?? [];
@@ -178,16 +191,28 @@ describe("derived province attributes", () => {
 
     for (const [zone, members] of byZone) {
       const inZone = new Set(members);
-      const seen = new Set<number>([members[0]]);
-      const queue = [members[0]];
-      for (let head = 0; head < queue.length; head++) {
-        for (const neighbour of loaded.provinces[queue[head]].neighbours) {
-          if (!inZone.has(neighbour) || seen.has(neighbour)) continue;
-          seen.add(neighbour);
-          queue.push(neighbour);
+      const assigned = new Set<number>();
+      const pieces: number[] = [];
+      for (const start of members) {
+        if (assigned.has(start)) continue;
+        assigned.add(start);
+        const queue = [start];
+        for (let head = 0; head < queue.length; head++) {
+          for (const neighbour of loaded.provinces[queue[head]].neighbours) {
+            if (!inZone.has(neighbour) || assigned.has(neighbour)) continue;
+            assigned.add(neighbour);
+            queue.push(neighbour);
+          }
         }
+        pieces.push(queue.length);
       }
-      expect(seen.size, `air zone ${zone} is in pieces`).toBe(members.length);
+      pieces.sort((a, b) => b - a);
+      for (const piece of pieces.slice(1)) {
+        expect(
+          piece,
+          `air zone ${zone} has a detached piece too big to be an island`,
+        ).toBeLessThan(AIR_ZONE_MIN_PROVINCES);
+      }
     }
   });
 

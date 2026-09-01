@@ -10,6 +10,11 @@
  * writes files.
  */
 
+import {
+  computeNationOfTile,
+  type BorderCollection,
+  type BordersFit,
+} from "src/build/NationBorders";
 import { deriveProvinces } from "src/shared/map/ProvinceAttributes";
 import {
   encodeProvinceMap,
@@ -25,6 +30,17 @@ export interface GeneratorManifest {
   map: { width: number; height: number };
   map4x: { width: number; height: number };
   nations?: { name: string; coordinates: [number, number] }[];
+}
+
+/**
+ * Real borders, when the map has them: the fitted transform plus the
+ * filtered Natural Earth geometry, both checked in next to the manifest.
+ * Without them the partition falls back to growing nations from their
+ * capitals.
+ */
+export interface GeneratorBorders {
+  fit: BordersFit;
+  geometry: BorderCollection;
 }
 
 export interface GeneratedProvinceMap {
@@ -56,6 +72,7 @@ export function generateProvinceMap(
   mapId: string,
   manifest: GeneratorManifest,
   terrain: Uint8Array,
+  borders?: GeneratorBorders,
 ): GeneratedProvinceMap {
   const { width, height } = manifest.map4x;
   if (terrain.length !== width * height) {
@@ -65,7 +82,24 @@ export function generateProvinceMap(
   }
 
   const capitals = scaleCapitals(manifest);
-  const partition = computeProvincePartition(terrain, width, height, capitals);
+  const nationOfTile = borders
+    ? computeNationOfTile(
+        terrain,
+        width,
+        height,
+        capitals,
+        (manifest.nations ?? []).map((nation) => nation.name),
+        borders.fit,
+        borders.geometry,
+      )
+    : undefined;
+  const partition = computeProvincePartition(
+    terrain,
+    width,
+    height,
+    capitals,
+    nationOfTile,
+  );
   const terrainHash = terrainHashFnv1a(terrain);
   const derived = deriveProvinces({
     terrain,

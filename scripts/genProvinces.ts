@@ -16,8 +16,10 @@ import path from "path";
 import {
   generateProvinceMap,
   serialiseProvinceMeta,
+  type GeneratorBorders,
   type GeneratorManifest,
 } from "src/build/GenerateProvinceMap";
+import type { BorderCollection, BordersFit } from "src/build/NationBorders";
 
 /** Map directories to generate, as `<root>:<id>` pairs. */
 const TARGETS: { root: string; id: string }[] = [{ root: "resources/maps", id: "europe" }];
@@ -36,9 +38,10 @@ async function generateOne(root: string, id: string): Promise<void> {
   const terrain = new Uint8Array(
     await fs.readFile(path.join(dir, "map4x.bin")),
   );
+  const borders = await loadBorders(dir);
 
   const started = Date.now();
-  const { bin, meta } = generateProvinceMap(id, manifest, terrain);
+  const { bin, meta } = generateProvinceMap(id, manifest, terrain, borders);
   await fs.writeFile(path.join(dir, "provinces.bin"), bin);
   await fs.writeFile(
     path.join(dir, "provinces.json"),
@@ -50,6 +53,22 @@ async function generateOne(root: string, id: string): Promise<void> {
       `${meta.seaZoneCount} sea zones, partition ${meta.partitionHash.toString(16)}, ` +
       `${(bin.byteLength / 1024 / 1024).toFixed(2)} MB, ${Date.now() - started} ms`,
   );
+}
+
+/** Real borders, if the map carries them; undefined falls back to Voronoi. */
+async function loadBorders(dir: string): Promise<GeneratorBorders | undefined> {
+  try {
+    const [fit, geometry] = await Promise.all([
+      fs.readFile(path.join(dir, "borders-fit.json"), "utf-8"),
+      fs.readFile(path.join(dir, "ne-borders.geojson"), "utf-8"),
+    ]);
+    return {
+      fit: JSON.parse(fit) as BordersFit,
+      geometry: JSON.parse(geometry) as BorderCollection,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 async function main(): Promise<void> {

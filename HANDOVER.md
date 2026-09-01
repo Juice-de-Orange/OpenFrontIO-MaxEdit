@@ -484,6 +484,20 @@ in the world state, and an end-of-season archive path.
 
 ### 8 · Real country borders
 
+**Done 2026-09-01** — Natural Earth 1:50m map units, registered onto the tile
+grid by an offline-fitted transform (quadratic warp + 21×13 elastic field,
+coastline IoU 0.881, spawn points as anchors) and evaluated per tile at
+build time in `src/build/NationBorders.ts`. All 52 spawns sit in their own
+nation; 99.7% of drawn land is assigned; islands belong to nations now, so
+detached pieces become provinces of their own and small island components
+join the nearest air zone instead of being one-province theatres. Decision
+record 0021 carries the details, including the Sápmi 67.5°N line and the
+Belgium/Serbia unit assembly. Europe: 677 provinces, 31 air zones, 35 sea
+zones, partition `d75798a4` — **which is why every running world refuses its
+old snapshot**; ship at a season boundary, locally `down -v`.
+
+The original brief, kept for the reasoning:
+
 The player's standing request, and the reason is worth understanding before
 starting: `ProvincePartition.ts` grows each nation outward from its capital
 over land until the regions meet, then Lloyd relaxation evens the sizes. That
@@ -1440,6 +1454,15 @@ theatres).
 0d. **An invasion**: with a division on your coast, a hostile coastal
 province's panel offers "Invade from the sea". The division shows "at
 sea" in the production panel while it crosses.
+0e. **The real borders**: the political map should read as Europe — the UK
+in its four nations, Iberia split right, Italy wearing Sicily and
+Sardinia, the Baltics stacked, Sápmi cut along a visibly straight line
+(that one is by design). Monaco and Andorra are small disks around
+their capitals; city-states by decree.
+0f. **Wrong-looking borders are worth reporting**: the registration is a
+fit, not a projection, and its residual error lands at coasts. A border
+a few tiles off is the fit; a nation missing or a capital in the wrong
+country would be a bug.
 
 Then the standing list:
 
@@ -1510,8 +1533,9 @@ the systemd watchdog on the machine, and the redeploy of geoffrey — **with
 `WORLD_SEASON=open`**, which restarts that world (hash and protocol both
 moved) and turns it from a demo into a season.
 
-**Then the map's real borders** (plan §8) — the standing request, and it
-invalidates every running world, so plan it with a season boundary.
+**The map's real borders are done** (plan §8, decision 0021) — built after
+phase 11 instead of last, at the player's call. The partition hash moved, so
+the geoffrey redeploy above is now doubly a season boundary.
 
 **What phase 7 actually built**, for anyone reading §6.5 against the code:
 

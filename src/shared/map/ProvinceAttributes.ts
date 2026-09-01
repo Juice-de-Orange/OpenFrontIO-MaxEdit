@@ -15,6 +15,8 @@
  */
 
 import {
+  AIR_ZONE_MAX_PROVINCES,
+  AIR_ZONE_MIN_PROVINCES,
   AIR_ZONE_TARGET_PROVINCES,
   BUILDING_SLOTS_CAPITAL_BONUS,
   BUILDING_SLOTS_MAX,
@@ -78,7 +80,7 @@ export function deriveProvinces(input: DeriveInput): DerivedProvinces {
   );
 
   const seaZones = partitionSeaZones(terrain, width, height);
-  const airZone = partitionAirZones(count, neighbours);
+  const airZone = partitionAirZones(count, neighbours, partition.centres);
   const seaZoneOfProvince = assignCoastalSeaZones(
     terrain,
     width,
@@ -311,12 +313,32 @@ interface AirZones {
  * ties to the lowest id, and every frontier scanned in ascending neighbour
  * order.
  */
-function partitionAirZones(count: number, neighbours: number[][]): AirZones {
+function partitionAirZones(
+  count: number,
+  neighbours: number[][],
+  centres: { x: number; y: number }[],
+): AirZones {
   const zoneOf = new Int32Array(count).fill(-1);
   if (count === 0) return { zoneOfProvince: zoneOf, count: 0 };
 
+  // An island is not a theatre of its own: a component too small to be a
+  // zone joins the sky over the nearest zoned province instead of becoming
+  // a one-province zone. Only when *nothing* clears the minimum — a test
+  // fixture's toy map — does every component zone itself as before.
+  const components = connectedComponents(count, neighbours);
+  let mainland = components.filter(
+    (component) => component.length >= AIR_ZONE_MIN_PROVINCES,
+  );
+  let islands = components.filter(
+    (component) => component.length < AIR_ZONE_MIN_PROVINCES,
+  );
+  if (mainland.length === 0) {
+    mainland = components;
+    islands = [];
+  }
+
   let nextZone = 0;
-  for (const component of connectedComponents(count, neighbours)) {
+  for (const component of mainland) {
     const wanted = Math.max(
       1,
       Math.round(component.length / AIR_ZONE_TARGET_PROVINCES),
@@ -331,6 +353,73 @@ function partitionAirZones(count: number, neighbours: number[][]): AirZones {
     );
     growBalanced(component, neighbours, inComponent, seeds, zoneOf, nextZone);
     nextZone += seeds.length;
+  }
+
+  for (const component of islands) {
+    let best = -1;
+    let bestDistance = Infinity;
+    for (const province of component) {
+      for (let other = 0; other < count; other++) {
+        if (zoneOf[other] < 0) continue;
+        const dx = centres[province].x - centres[other].x;
+        const dy = centres[province].y - centres[other].y;
+        const distance = dx * dx + dy * dy;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = zoneOf[other];
+        }
+      }
+    }
+    for (const province of component) zoneOf[province] = best;
+  }
+
+  // The balanced growth keeps zones near quota, but a region reachable only
+  // through already-full zones — a long arm of the continent, say — lands in
+  // one neighbour wholesale and can push it past the maximum. Split any such
+  // zone in place, farthest-first over its own provinces, until every zone is
+  // the size the config promises. Bounded, because each pass only splits
+  // zones that are still too big and a split strictly shrinks them.
+  for (let pass = 0; pass < 8; pass++) {
+    let oversized = false;
+    for (let zone = 0; zone < nextZone; zone++) {
+      const members: number[] = [];
+      for (let province = 0; province < count; province++) {
+        if (zoneOf[province] === zone) members.push(province);
+      }
+      if (members.length <= AIR_ZONE_MAX_PROVINCES) continue;
+      oversized = true;
+      const inZone = new Set(members);
+      const seeds = pickZoneSeeds(
+        members,
+        neighbours,
+        inZone,
+        count,
+        Math.ceil(members.length / AIR_ZONE_TARGET_PROVINCES),
+      );
+      for (const province of members) zoneOf[province] = -1;
+      growBalanced(members, neighbours, inZone, seeds, zoneOf, nextZone);
+      // Islands joined this zone by distance, not by edge, so the regrowth
+      // cannot reach them; hand each to the nearest regrown piece the same
+      // way it joined in the first place.
+      for (const province of members) {
+        if (zoneOf[province] !== -1) continue;
+        let near = -1;
+        let nearDistance = Infinity;
+        for (const other of members) {
+          if (zoneOf[other] < 0) continue;
+          const dx = centres[province].x - centres[other].x;
+          const dy = centres[province].y - centres[other].y;
+          const distance = dx * dx + dy * dy;
+          if (distance < nearDistance) {
+            nearDistance = distance;
+            near = zoneOf[other];
+          }
+        }
+        zoneOf[province] = near;
+      }
+      nextZone += seeds.length;
+    }
+    if (!oversized) break;
   }
 
   return compactZones(zoneOf, nextZone);
