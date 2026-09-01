@@ -67,6 +67,21 @@ const REQUIRED_DAYS = 7;
  */
 const CONTINUITY_TOLERANCE = 0.01;
 
+/**
+ * And a floor under it, in ticks.
+ *
+ * A percentage over a short window is noise: seconds after `--start` the
+ * expected count is four ticks, three arrive because the boundaries do not
+ * line up, and the gate reports losing 25% of the world. This gate failed that
+ * way on its own mark, immediately.
+ *
+ * Sixty ticks is five minutes, which is the snapshot interval — by §4 that is
+ * the most a hard crash may cost, so anything under it is not a loss this gate
+ * has any business failing on. Over seven days the percentage is far the
+ * larger of the two and does the work.
+ */
+const CONTINUITY_SLACK_TICKS = 60;
+
 /** A dump older than this is not a backup, it is a souvenir. */
 const MAX_BACKUP_AGE_H = 30;
 
@@ -597,7 +612,6 @@ async function legContinuity() {
   const expectedTicks = elapsedMs / TICK_MS;
   const actualTicks = state.tick - mark.tick;
   const missing = expectedTicks - actualTicks;
-  const missingRatio = expectedTicks === 0 ? 0 : missing / expectedTicks;
 
   log(
     `          ${elapsedDays.toFixed(2)} days elapsed, ` +
@@ -605,10 +619,16 @@ async function legContinuity() {
       `(${missing > 0 ? "-" : "+"}${Math.abs(Math.round(missing))})`,
   );
 
+  const allowed = Math.max(
+    CONTINUITY_SLACK_TICKS,
+    CONTINUITY_TOLERANCE * expectedTicks,
+  );
   check(
-    missingRatio <= CONTINUITY_TOLERANCE,
-    `the world lost less than ${(CONTINUITY_TOLERANCE * 100).toFixed(0)}% of its ticks`,
-    `missing ${(missingRatio * 100).toFixed(2)}% — about ` +
+    missing <= allowed,
+    `the world lost no more than ${Math.round(allowed)} ticks ` +
+      `(${(CONTINUITY_TOLERANCE * 100).toFixed(0)}% or ${CONTINUITY_SLACK_TICKS}, ` +
+      `whichever is larger)`,
+    `missing ${Math.round(missing)} — about ` +
       `${((missing * TICK_MS) / 3_600_000).toFixed(1)} hours of world`,
   );
 
