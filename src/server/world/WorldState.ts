@@ -338,6 +338,19 @@ export interface WorldState {
    * give two nations two agreements a cancellation cannot tell apart.
    */
   nextAgreementId: number;
+  /**
+   * The bloc currently holding VICTORY_SHARE of all provinces, and since
+   * which tick — §10's held-for counter. Null while nobody does. Members are
+   * sorted: the hold survives only while the *same* bloc holds it, and a
+   * set compare needs a canonical order.
+   */
+  victoryHold: { members: number[]; since: number } | null;
+  /** The season's winner, once and for ever. Null while it is being played. */
+  winner: {
+    members: number[];
+    reason: "domination" | "score";
+    at: number;
+  } | null;
   /** Number of nations; ids run 1..nationCount, with 0 meaning unowned. */
   readonly nationCount: number;
 
@@ -608,6 +621,8 @@ export function createWorldState(
     buildings: new Uint8Array(owner.length * BUILDING_TYPES.length),
     agreements: [],
     nextAgreementId: 1,
+    victoryHold: null,
+    winner: null,
     worldSeed: starting.worldSeed ?? 0,
     nations: [],
   };
@@ -796,6 +811,18 @@ export type WorldEvent =
     }
   /** The player set how the world plays their nation when they are not. */
   | { kind: "regent_configured"; nation: number; config: RegentConfig }
+  /**
+   * The bloc on VICTORY_SHARE changed — took the lead, or lost it (null).
+   * `since` travels in the event so the reducer stays a pure application.
+   */
+  | { kind: "victory_hold_changed"; members: number[] | null; since: number }
+  /** The season is decided. Emitted once; the world goes on turning. */
+  | {
+      kind: "season_won";
+      members: number[];
+      reason: "domination" | "score";
+      at: number;
+    }
   /**
    * An invasion put to sea. The reducer assigns the id, exactly as it does
    * for divisions, so a replay hands out the same ones.
@@ -1148,6 +1175,25 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
     case "market_order_set":
       state.nations[event.nation].market[event.resource] = event.perTick;
       return;
+
+    case "victory_hold_changed": {
+      state.victoryHold =
+        event.members === null
+          ? null
+          : { members: [...event.members], since: event.since };
+      return;
+    }
+
+    case "season_won": {
+      // Once. A second winner would mean the victory system ran past its own
+      // conclusion, and the reducer is the last place that can refuse it.
+      state.winner ??= {
+        members: [...event.members],
+        reason: event.reason,
+        at: event.at,
+      };
+      return;
+    }
 
     case "regent_configured": {
       state.nations[event.nation].regent = { ...event.config };

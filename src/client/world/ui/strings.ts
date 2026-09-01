@@ -23,6 +23,10 @@ const en = {
   "hud.orderRefused": "Order refused: {reason}",
 
   "economy.title": "Economy",
+  "victory.holding": "{bloc} stand on the victory threshold",
+  "victory.won": "The season is decided: {bloc} — {how}",
+  "victory.domination": "by holding the map",
+  "victory.score": "on points, at the season's end",
   "regent.title": "Regent",
   "regent.enabled": "Let the regent play while you are away",
   "regent.focus.economy": "Focus: economy",
@@ -205,6 +209,10 @@ const de: Record<StringKey, string> = {
   "hud.orderRefused": "Befehl abgelehnt: {reason}",
 
   "economy.title": "Wirtschaft",
+  "victory.holding": "{bloc} stehen an der Siegschwelle",
+  "victory.won": "Die Season ist entschieden: {bloc} — {how}",
+  "victory.domination": "durch Halten der Karte",
+  "victory.score": "nach Punkten, am Ende der Season",
   "regent.title": "Regent",
   "regent.enabled": "Der Regent spielt, wenn du weg bist",
   "regent.focus.economy": "Fokus: Wirtschaft",

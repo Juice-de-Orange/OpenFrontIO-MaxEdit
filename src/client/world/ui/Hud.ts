@@ -64,6 +64,7 @@ import type {
   NationEconomyView,
   NationStatic,
   TradeTermsView,
+  VictoryView,
 } from "src/shared/protocol/Wire";
 import { amount, daysRemaining, fraction, perDay, share } from "./Format";
 import { t, type StringKey } from "./strings";
@@ -178,6 +179,8 @@ export interface HudModel {
   trust: number[];
   /** Agreements and offers this session may see. Terms only for its own. */
   agreements: AgreementView[];
+  /** Where the season stands. Public (§10). */
+  victory: VictoryView;
   selected: number | null;
 }
 
@@ -384,6 +387,7 @@ export class Hud {
           ? t("economy.title")
           : nationName(model, model.nation),
       ),
+      ...victoryLine(model),
       row(t("economy.construction"), perDay(netConstruction)),
       ...(Math.abs(traded) > 1e-9
         ? [row(t("economy.tradeShare"), perDay(traded))]
@@ -1576,6 +1580,31 @@ function constructionNet(economy: NationEconomyView): number {
   );
 }
 
+/**
+ * Where the season stands, in one line everyone shares (§10). Empty while
+ * nobody is near the threshold — most of a season, by design.
+ */
+function victoryLine(model: HudModel): Node[] {
+  const victory = model.victory;
+  const names = (members: number[]): string =>
+    members.map((member) => nationName(model, member)).join(", ");
+  if (victory.winner !== null) {
+    return [
+      warn(
+        t("victory.won", {
+          bloc: names(victory.winner.members),
+          how: t(`victory.${victory.winner.reason}` as StringKey),
+        }),
+      ),
+      spacer(),
+    ];
+  }
+  if (victory.holders !== null) {
+    return [warn(t("victory.holding", { bloc: names(victory.holders) })), spacer()];
+  }
+  return [];
+}
+
 function nationName(model: HudModel, nation: number): string {
   if (nation === 0) return t("province.unowned");
   return model.nations.find((n) => n.smallID === nation)?.name ?? `#${nation}`;
@@ -1638,6 +1667,13 @@ function row(label: string, value: string): HTMLElement {
   const right = document.createElement("span");
   right.textContent = value;
   element.append(left, right);
+  return element;
+}
+
+function warn(text: string): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "warn";
+  element.textContent = text;
   return element;
 }
 

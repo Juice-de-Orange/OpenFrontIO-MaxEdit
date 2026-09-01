@@ -85,7 +85,11 @@ reach zero. Nothing takes a province unless somebody ordered it — and a
 nation may hand its orders to the regent: a rule-based steward that
 garrisons the capital, keeps building, runs both production lines a
 division needs, and buys the scarcest resource at the world market, without
-ever touching what an existing production line makes. And the world knows who you are now: on a
+ever touching what an existing production line makes. A season can be won now: an
+alliance bloc that holds 40% of the map for seven in-game days takes it
+outright, and an unwon season ends after six weeks on points — provinces,
+industry, trust, scored per bloc, so an alliance is never self-defeating.
+And the world knows who you are now: on a
 season world (`WORLD_SEASON=open`) an account token is the key to exactly
 one nation, an impostor is refused before it is told anything, and every
 nation nobody claims is played by its regent. On a workbench world all of

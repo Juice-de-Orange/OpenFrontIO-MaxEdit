@@ -83,6 +83,11 @@ describe("the wire protocol", () => {
         ],
         fronts: [{ province: 11, attacker: 1, progress: 0.25 }],
         invasions: [{ attacker: 1, to: 9, ticksLeft: 12 }],
+        victory: {
+          holders: [1, 2],
+          heldSinceTick: 5,
+          winner: null,
+        },
         economy: {
           nation: 1,
           resources: { steel: 200, oil: 100, aluminium: 100, rubber: 50 },
@@ -170,6 +175,7 @@ describe("the wire protocol", () => {
         agreements: [],
         fronts: [],
         invasions: [],
+        victory: { holders: null, heldSinceTick: null, winner: null },
         economy: null,
       },
       {
@@ -182,6 +188,7 @@ describe("the wire protocol", () => {
         agreements: [],
         fronts: [],
         invasions: [],
+        victory: { holders: null, heldSinceTick: null, winner: null },
         economy: null,
       },
     ];
@@ -269,6 +276,10 @@ describe("the wire protocol", () => {
     // 15 is identity (phase 11): the hello carries an account token, and on
     // a season world playing a nation requires one. A v14 client's hello no
     // longer parses, which is the right failure — it cannot say who it is.
-    expect(PROTOCOL_VERSION).toBe(15);
+    //
+    // 16 is the season (§10): `victory` rides on every full state and delta
+    // — who stands on the threshold, since when, and once, who won. A v15
+    // client would play a season that had already been decided.
+    expect(PROTOCOL_VERSION).toBe(16);
   });
 });

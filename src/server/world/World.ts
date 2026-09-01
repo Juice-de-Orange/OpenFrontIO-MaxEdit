@@ -204,7 +204,7 @@ export interface WorldChanges {
  * a changed function cannot tell corruption from its own history. That is
  * what lets a season survive a deploy (docs/decisions/0016).
  */
-export const STATE_HASH_VERSION = 4;
+export const STATE_HASH_VERSION = 5;
 
 /**
  * Everything needed to put the world back, and nothing that can be derived.
@@ -284,6 +284,13 @@ export interface WorldSnapshot {
     formations?: Formation[];
     nextFormationId?: number;
   }[];
+  /** Optional: a snapshot from before the victory system has neither. */
+  victoryHold?: { members: number[]; since: number } | null;
+  winner?: {
+    members: number[];
+    reason: "domination" | "score";
+    at: number;
+  } | null;
 }
 
 /** One buffer, reused: `stateHash` mixes a double's two words exactly. */
@@ -475,6 +482,33 @@ export class World {
       }
     }
     return invasions;
+  }
+
+  /** Where the season stands (§10), shaped for the wire. Public. */
+  victoryView(): {
+    holders: number[] | null;
+    heldSinceTick: number | null;
+    winner: {
+      members: number[];
+      reason: "domination" | "score";
+      atTick: number;
+    } | null;
+  } {
+    return {
+      holders:
+        this.state.victoryHold === null
+          ? null
+          : [...this.state.victoryHold.members],
+      heldSinceTick: this.state.victoryHold?.since ?? null,
+      winner:
+        this.state.winner === null
+          ? null
+          : {
+              members: [...this.state.winner.members],
+              reason: this.state.winner.reason,
+              atTick: this.state.winner.at,
+            },
+    };
   }
 
   frontsView(): { province: number; attacker: number; progress: number }[] {
@@ -712,6 +746,17 @@ export class World {
         })),
         nextFormationId: nation.nextFormationId,
       })),
+      victoryHold:
+        this.state.victoryHold === null
+          ? null
+          : {
+              members: [...this.state.victoryHold.members],
+              since: this.state.victoryHold.since,
+            },
+      winner:
+        this.state.winner === null
+          ? null
+          : { ...this.state.winner, members: [...this.state.winner.members] },
     };
   }
 
@@ -882,6 +927,16 @@ export class World {
     this.state.nextAgreementId =
       snapshot.nextAgreementId ??
       this.state.agreements.reduce((next, a) => Math.max(next, a.id + 1), 1);
+    const storedHold = snapshot.victoryHold ?? null;
+    this.state.victoryHold =
+      storedHold === null
+        ? null
+        : { members: [...storedHold.members], since: storedHold.since };
+    const storedWinner = snapshot.winner ?? null;
+    this.state.winner =
+      storedWinner === null
+        ? null
+        : { ...storedWinner, members: [...storedWinner.members] };
     this.state.tick = snapshot.tick;
     this.pending.clear();
   }
@@ -1005,6 +1060,24 @@ export class World {
     }
     mix(this.state.worldSeed);
     mix(this.state.nextAgreementId);
+    // The season's verdict is state like any other: a restored world that
+    // had forgotten who was winning would be a different world.
+    if (this.state.victoryHold === null) {
+      mix(0);
+    } else {
+      mix(1);
+      mix(this.state.victoryHold.since);
+      mix(this.state.victoryHold.members.length);
+      for (const member of this.state.victoryHold.members) mix(member);
+    }
+    if (this.state.winner === null) {
+      mix(0);
+    } else {
+      mix(this.state.winner.reason === "domination" ? 1 : 2);
+      mix(this.state.winner.at);
+      mix(this.state.winner.members.length);
+      for (const member of this.state.winner.members) mix(member);
+    }
     mix(this.state.agreements.length);
     for (const agreement of this.state.agreements) {
       mix(agreement.id);

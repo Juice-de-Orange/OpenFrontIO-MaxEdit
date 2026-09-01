@@ -14,8 +14,16 @@ traps have already been paid for.
 
 ## Where we are
 
-**Phase 11 of 13 — identity is gated (2026-09-01, afternoon).** Twelve of
-thirteen gates. Phase 11 landed on the same afternoon as phase 10: two
+**Phase 11 of 13 gated, and the victory system built (2026-09-01).** Twelve
+of thirteen §8 gates, and §6's system list is complete: `systems/victory.ts`
+replaced the last `planned()` slot the same afternoon. Blocs are transitive
+over live alliances (decision 0020), the 40%/seven-day clock resets when the
+bloc slips or changes shape, an unwon season ends at `SEASON_TICKS` on
+points scored per bloc, and winning stops nothing — the wire's public
+`victory` view says who stands on the threshold and, once, who won.
+`tests/server/Victory.test.ts` demonstrates it; there is no gate because §8
+numbers no phase for it and the system is pure state arithmetic. Protocol
+16, hash version 5. Phase 11 landed on the same afternoon as phase 10: two
 Postgres tables (`accounts`, `nation_claims` — migration `0002`), an opaque
 token from `POST /register` stored only as its SHA-256, and the whole of the
 enforcement in `net/Identity.ts` and the socket's hello. **Identity lives
@@ -451,6 +459,9 @@ restore.
 
 ### 7 · The victory system
 
+**Done 2026-09-01** — decision 0020 answers the transitivity question this
+section asked, and everything below is as built.
+
 Currently `planned("victory")` in the system list. §10 now specifies it: an
 alliance bloc holding **40% of all provinces for 7 in-game days** wins
 outright; otherwise the season ends after **six weeks** and the highest score
@@ -488,7 +499,7 @@ hash. Plan it together with a season boundary.
 Before calling anything done:
 
 ```bash
-npm run test                          # 614 at the end of phase 11
+npm run test                          # 618 with the victory system
 TEST_DATABASE_URL=... npm run test:db # skipped silently without it
 npx tsc --noEmit -p tsconfig.strict.json
 npm run lint
@@ -1483,7 +1494,7 @@ side of the assignment form, an invasion under way. Everything else in phases
 1–9 is proven by scripts; those four are not, and a gate cannot tell you the
 game is unplayable.
 
-**Then the victory system** (plan §7) and **phase 12's deployment remainder**
+**Then phase 12's deployment remainder**
 (plan §6 — DNS/TLS needs a Cloudflare token or a hand-created record, and the
 deployed demo on geoffrey still runs the pre-front build; a redeploy restarts
 that world, since both the state hash and the protocol moved).
@@ -1709,7 +1720,7 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**614 passed, 9 skipped, in one run — no tolerated failures.** The ninth
+**618 passed, 9 skipped, in one run — no tolerated failures.** The ninth
 skip is the Postgres claims test, which runs under `npm run test:db`. (The
 count moves by one with every gate script: the protocol-version guard
 counts them by glob.) The eight

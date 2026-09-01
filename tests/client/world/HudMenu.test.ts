@@ -68,6 +68,7 @@ function model(over: Partial<HudModel> = {}): HudModel {
     economy: economy(),
     trust: [0, 100, 100],
     agreements: [],
+    victory: { holders: null, heldSinceTick: null, winner: null },
     selected: null,
     ...over,
   };

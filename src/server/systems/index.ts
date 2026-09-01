@@ -2,10 +2,11 @@
  * The systems, and the order they run in.
  *
  * CLAUDE.md §6 fixes the order, and the order encodes real dependencies rather
- * than taste. The whole list is here from the start, most of it empty: an
- * empty slot in the right place is worth more than a short list that has to be
- * reordered later, because reordering is how a dependency gets inverted
- * without anyone noticing.
+ * than taste. The list was here from the start, most of it as empty slots —
+ * an empty slot in the right place being worth more than a short list that
+ * has to be reordered later — and as of the victory system every slot is a
+ * real system. The `planned()` placeholder that held them is gone with its
+ * last tenant.
  *
  * ```
  * economy → construction → production → research → trade → supply →
@@ -26,6 +27,7 @@ import type { WorldEvent, WorldState } from "../world/WorldState";
 import { airSystem } from "./air";
 import { navalSystem } from "./naval";
 import { regentSystem } from "./regent";
+import { victorySystem } from "./victory";
 import { combatSystem } from "./combat";
 import { constructionSystem } from "./construction";
 import { economySystem } from "./economy";
@@ -47,11 +49,6 @@ export interface System {
   run(world: WorldState, tick: number): WorldEvent[];
 }
 
-/** A system that exists to hold its place in the order. */
-function planned(name: string): System {
-  return { name, run: () => [] };
-}
-
 export const SYSTEMS: readonly System[] = [
   economySystem,
   constructionSystem,
@@ -63,5 +60,5 @@ export const SYSTEMS: readonly System[] = [
   navalSystem,
   combatSystem,
   regentSystem,
-  planned("victory"),
+  victorySystem,
 ];

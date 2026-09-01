@@ -35,7 +35,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 16;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -722,6 +722,24 @@ export const InvasionViewSchema = z.object({
 });
 export type InvasionView = z.infer<typeof InvasionViewSchema>;
 
+/**
+ * Where the season stands, for everyone: who is on the victory threshold and
+ * since when, and — once — who won. Public like `trust` is public: a bloc
+ * closing on 40% is the one fact every other nation needs to see coming.
+ */
+export const VictoryViewSchema = z.object({
+  holders: z.array(z.number().int().positive()).nullable(),
+  heldSinceTick: z.number().int().nonnegative().nullable(),
+  winner: z
+    .object({
+      members: z.array(z.number().int().positive()),
+      reason: z.enum(["domination", "score"]),
+      atTick: z.number().int().nonnegative(),
+    })
+    .nullable(),
+});
+export type VictoryView = z.infer<typeof VictoryViewSchema>;
+
 export const FullStateSchema = z.object({
   t: z.literal("full"),
   tick: z.number().int().nonnegative(),
@@ -759,6 +777,8 @@ export const FullStateSchema = z.object({
   fronts: z.array(FrontViewSchema),
   /** Every division at sea, §6.8: the crossing is visible to everyone. */
   invasions: z.array(InvasionViewSchema),
+  /** Where the season stands. Public. */
+  victory: VictoryViewSchema,
   /** This session's own economy, or null when watching. */
   economy: NationEconomySchema.nullable(),
 });
@@ -793,6 +813,8 @@ export const DeltaSchema = z.object({
   fronts: z.array(FrontViewSchema),
   /** Every division at sea, in full every tick, as on the full state. */
   invasions: z.array(InvasionViewSchema),
+  /** Where the season stands, every tick. Small and load-bearing. */
+  victory: VictoryViewSchema,
   /** This session's own economy, recomputed every tick, or null when watching. */
   economy: NationEconomySchema.nullable(),
 });
