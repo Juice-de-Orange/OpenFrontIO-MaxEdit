@@ -48,8 +48,11 @@ buildings over hundreds of ticks, and production lines turn industry into
 equipment that divisions draw on. Research moves the rates those systems read,
 and supply decides how much of it reaches a division at the end of a long
 front. Nations hold standing agreements with each other and trade over them.
-Air zones are in as of phase 8. What is still not there is the sea: no sea
-zones, no fleets and no convoys, which is phase 9.
+Air zones are in as of phase 8, and the sea as of phase 9: fleets on the
+same zone machine as wings (decision 0015), sea supply between ports priced
+in convoys, seaborne trade that raiders can cut, and a naval invasion whose
+crossing everyone can watch. The sea routes over the sea-zone graph derived
+at load (decision 0017) — water provinces do not exist.
 
 **The border drift is gone.** From phase 1 to phase 7 a deterministic sweep
 moved one province a tick regardless of who held what, so that a world with

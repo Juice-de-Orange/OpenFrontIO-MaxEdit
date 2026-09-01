@@ -59,6 +59,7 @@ import {
 } from "src/shared/economy/Buildings";
 import { EQUIPMENT, equipmentIndex } from "src/shared/economy/Equipment";
 import {
+  ZONE_KINDS,
   FORMATIONS,
   formationTemplateIndex,
   MISSIONS,
@@ -84,6 +85,13 @@ import type {
 import { SYSTEMS } from "../systems";
 import { measureNation, type NationEconomy } from "../systems/economy";
 import { supplyCoverage, supplyOf, supplyReach } from "../systems/supply";
+import {
+  INVASION_MIN_CONTROL,
+  INVASION_TICKS_PER_ZONE,
+  SEA_SUPPLY_RANGE,
+} from "src/shared/config/naval";
+import { seaPath } from "src/shared/map/SeaGraph";
+import { tradeRouteBetween } from "../systems/routes";
 import { isDeadPartner, nationTrade } from "../systems/trade";
 import {
   contestOf,
@@ -92,6 +100,7 @@ import {
   zoneInReach,
 } from "../systems/zones";
 import {
+  AT_SEA,
   applyEvent,
   assignedFactories,
   atPeace,
@@ -189,7 +198,7 @@ export interface WorldChanges {
  * a changed function cannot tell corruption from its own history. That is
  * what lets a season survive a deploy (docs/decisions/0016).
  */
-export const STATE_HASH_VERSION = 2;
+export const STATE_HASH_VERSION = 3;
 
 /**
  * Everything needed to put the world back, and nothing that can be derived.
@@ -253,6 +262,16 @@ export interface WorldSnapshot {
     market?: Record<Resource, number>;
     /** `progress` is optional: a snapshot from before the front was a rate. */
     attacks?: { province: number; since: number; progress?: number }[];
+    /** Optional: a snapshot from before phase 9 has neither. */
+    seaTransits?: {
+      id: number;
+      divisionId: number;
+      from: number;
+      to: number;
+      path: number[];
+      ticksLeft: number;
+    }[];
+    nextTransitId?: number;
     /** Optional: a snapshot taken before phase 8 has neither. */
     formations?: Formation[];
     nextFormationId?: number;
@@ -430,6 +449,26 @@ export class World {
    * next door — and the client paints partial progress as tiles, which it
    * cannot do for fronts it is not told about.
    */
+  /**
+   * Every division at sea, as anyone may see it (§6.8: visible in transit).
+   * Public for the same reason `fronts` is: the crossing being watchable is
+   * what makes garrisoning the beach a real answer to it.
+   */
+  invasionsView(): { attacker: number; to: number; ticksLeft: number }[] {
+    const invasions: { attacker: number; to: number; ticksLeft: number }[] =
+      [];
+    for (let nation = 1; nation <= this.state.nationCount; nation++) {
+      for (const transit of this.state.nations[nation].seaTransits) {
+        invasions.push({
+          attacker: nation,
+          to: transit.to,
+          ticksLeft: transit.ticksLeft,
+        });
+      }
+    }
+    return invasions;
+  }
+
   frontsView(): { province: number; attacker: number; progress: number }[] {
     const fronts: { province: number; attacker: number; progress: number }[] =
       [];
@@ -515,6 +554,13 @@ export class World {
     researchSlots: ResearchSlotView[];
     unlockedTechs: TechId[];
     attacks: { province: number; progress: number }[];
+    seaTransits: {
+      id: number;
+      divisionId: number;
+      from: number;
+      to: number;
+      ticksLeft: number;
+    }[];
     formations: FormationView[];
     zones: ZoneView[];
   } {
@@ -559,6 +605,13 @@ export class World {
       attacks: state.attacks.map((attack) => ({
         province: attack.province,
         progress: attack.progress,
+      })),
+      seaTransits: state.seaTransits.map((transit) => ({
+        id: transit.id,
+        divisionId: transit.divisionId,
+        from: transit.from,
+        to: transit.to,
+        ticksLeft: transit.ticksLeft,
       })),
       formations: state.formations.map((formation) => ({
         id: formation.id,
@@ -633,6 +686,11 @@ export class World {
         lastSeenTick: nation.lastSeenTick,
         market: { ...nation.market },
         attacks: nation.attacks.map((attack) => ({ ...attack })),
+        seaTransits: nation.seaTransits.map((transit) => ({
+          ...transit,
+          path: [...transit.path],
+        })),
+        nextTransitId: nation.nextTransitId,
         formations: nation.formations.map((formation) => ({
           ...formation,
           equipment: [...formation.equipment],
@@ -779,6 +837,11 @@ export class World {
         ...attack,
         progress: attack.progress ?? 0,
       }));
+      live.seaTransits = (stored.seaTransits ?? []).map((transit) => ({
+        ...transit,
+        path: [...transit.path],
+      }));
+      live.nextTransitId = stored.nextTransitId ?? 1;
     }
     // A world is its seed as much as its provinces: restoring the arrays and
     // leaving the seed behind would give a resumed world a different future
@@ -898,6 +961,17 @@ export class World {
         mix(attack.since);
         mixFloat(attack.progress);
       }
+      mix(nation.nextTransitId);
+      mix(nation.seaTransits.length);
+      for (const transit of nation.seaTransits) {
+        mix(transit.id);
+        mix(transit.divisionId);
+        mix(transit.from);
+        mix(transit.to);
+        mix(transit.ticksLeft);
+        mix(transit.path.length);
+        for (const zone of transit.path) mix(zone);
+      }
     }
     mix(this.state.worldSeed);
     mix(this.state.nextAgreementId);
@@ -982,6 +1056,72 @@ export class World {
             `you hold an agreement with nation ${defender}; cancel it first ` +
             `and it will lapse after the notice period`
           );
+        }
+        return null;
+      }
+
+      case "naval_invade": {
+        const division = this.state.nations[nation].divisions.find(
+          (it) => it.id === body.divisionId,
+        );
+        if (division === undefined) {
+          return `you have no division ${body.divisionId}`;
+        }
+        if (division.province === AT_SEA) {
+          return "that division is already at sea";
+        }
+        const origin = this.map.provinces[division.province];
+        if (origin === undefined || origin.seaZone === null) {
+          return "the division has to stand in a coastal province";
+        }
+        if (this.state.provinceController[division.province] !== nation) {
+          return "the division is standing in ground you no longer hold";
+        }
+        if (!this.hasProvince(body.provinceId)) {
+          return `no province ${body.provinceId} on this map`;
+        }
+        const target = this.map.provinces[body.provinceId];
+        if (target.seaZone === null) {
+          return "the target has no shore to land on";
+        }
+        const holder = this.state.provinceController[body.provinceId];
+        if (holder === nation) return "the province is already yours";
+        if (holder > 0 && atPeace(this.state, nation, holder)) {
+          return (
+            `you hold an agreement with nation ${holder}; cancel it first ` +
+            `and it will lapse after the notice period`
+          );
+        }
+        // **An empty beach, deliberately.** A landing against a garrison is
+        // a battle this game resolves at borders (§6.9), and the crossing is
+        // long enough — announced to everyone, half a day a zone — that
+        // garrisoning the beach *is* the defence. A defender who watched the
+        // transit and did nothing chose that.
+        if (
+          holder > 0 &&
+          this.state.nations[holder].divisions.some(
+            (it) => it.province === body.provinceId,
+          )
+        ) {
+          return "the shore is garrisoned; a landing needs an open beach";
+        }
+        const path = seaPath(this.map, origin.seaZone, target.seaZone);
+        if (path === null) {
+          return "no sea route joins that coast to that shore";
+        }
+        if (path.length - 1 > SEA_SUPPLY_RANGE) {
+          return "the crossing is longer than the fleet train can support";
+        }
+        // §6.8: sea control gates invasion. At least a stalemate in every
+        // zone crossed — an empty sea is yours to cross, a losing one is not.
+        for (const zone of path) {
+          const control = superiorityOf(
+            contestOf(this.state, zone, "naval"),
+            nation,
+          );
+          if (control < INVASION_MIN_CONTROL) {
+            return `you do not hold sea zone ${zone}; win it or go around`;
+          }
         }
         return null;
       }
@@ -1230,13 +1370,13 @@ export class World {
               `${MAX_TRADE_POINTS_PER_TICK * TICKS_PER_DAY} construction a day`
             );
           }
-          // **Land routes only, in phase 7.** §6.5 says a route that crosses
-          // water consumes convoy equipment, and there are no convoys until
-          // phase 9 — so a sea route would be free, which is the one thing it
-          // must never be. An island nation trades with the world market
-          // until then, which is exactly what the market is for.
-          if (!this.landRoute(nation, other)) {
-            return `no land route to nation ${other}; the sea route needs convoys, which is phase 9`;
+          // **Some route has to exist** — land, or a chain of sea zones
+          // between the two coastlines. The sea route is no longer free:
+          // phase 9 prices it in convoys every tick and lets raiders cut it
+          // (`systems/routes.ts`, `systems/trade.ts`), which is what §6.5
+          // always meant by a route that crosses water.
+          if (tradeRouteBetween(this.state, nation, other).kind === "none") {
+            return `no land or sea route to nation ${other}; the world market needs neither`;
           }
         } else if (terms !== null) {
           return `a ${body.type} agreement carries no terms`;
@@ -1297,9 +1437,13 @@ export class World {
         }
         if (
           agreement.type === "trade" &&
-          !this.landRoute(agreement.parties[0], agreement.parties[1])
+          tradeRouteBetween(
+            this.state,
+            agreement.parties[0],
+            agreement.parties[1],
+          ).kind === "none"
         ) {
-          return "the land route between you has been cut";
+          return "every route between you, by land and by sea, has been cut";
         }
         // The other side may have gone away since it offered. Accepting would
         // create an agreement the trade system writes off on the same tick.
@@ -1433,46 +1577,6 @@ export class World {
       }
     }
     return proposals;
-  }
-
-  /**
-   * Whether a trade could be carried between these two nations over land.
-   *
-   * A breadth-first search over the province graph, which holds land only —
-   * phase 2 partitions the sea into zones and keeps them out of it — so this
-   * is exactly the question "are they on the same landmass". It crosses third
-   * parties' territory without asking: §6.5 gives transit rights to allies for
-   * *units*, and says nothing about goods, so a trade route is not something
-   * anyone can veto by standing in the way.
-   *
-   * Checked when an agreement is proposed and again when it is accepted, and
-   * never after that. A route cut by a war does not cancel a standing
-   * agreement — phase 9, where the route can be raided, is where a broken
-   * route starts to cost something.
-   */
-  private landRoute(a: number, b: number): boolean {
-    const seen = new Uint8Array(this.state.provinceController.length);
-    const queue: number[] = [];
-    for (
-      let province = 0;
-      province < this.state.provinceController.length;
-      province++
-    ) {
-      if (this.state.provinceController[province] !== a) continue;
-      seen[province] = 1;
-      queue.push(province);
-    }
-    if (queue.length === 0) return false;
-    for (let head = 0; head < queue.length; head++) {
-      const province = queue[head];
-      if (this.state.provinceController[province] === b) return true;
-      for (const next of this.neighbours[province]) {
-        if (seen[next] === 1) continue;
-        seen[next] = 1;
-        queue.push(next);
-      }
-    }
-    return false;
   }
 
   private hasProvince(province: number): boolean {
@@ -1699,6 +1803,34 @@ export class World {
 
       case "cancel_attack":
         return [{ kind: "attack_ended", nation, province: body.provinceId }];
+
+      case "naval_invade": {
+        // Validation has already checked the coasts, the peace and the sea
+        // control; here the route is priced. The reducer assigns the id.
+        const division = this.state.nations[nation].divisions.find(
+          (it) => it.id === body.divisionId,
+        );
+        if (division === undefined) return [];
+        const origin = this.map.provinces[division.province];
+        const target = this.map.provinces[body.provinceId];
+        const path = seaPath(
+          this.map,
+          origin.seaZone as number,
+          target.seaZone as number,
+        );
+        if (path === null) return [];
+        return [
+          {
+            kind: "invasion_started",
+            nation,
+            divisionId: body.divisionId,
+            from: division.province,
+            to: body.provinceId,
+            path: [...path],
+            ticks: Math.max(1, path.length - 1) * INVASION_TICKS_PER_ZONE,
+          },
+        ];
+      }
       case "queue_construction":
         return [
           {
@@ -1910,29 +2042,41 @@ export class World {
    * ratio they cannot see is a decision they cannot make (invariant 4).
    */
   private zoneViews(nation: number): ZoneView[] {
-    const zones = new Set<number>();
-    for (
-      let province = 0;
-      province < this.state.provinceController.length;
-      province++
-    ) {
-      if (this.state.provinceController[province] !== nation) continue;
-      zones.add(this.state.map.provinces[province].airZone);
-    }
-    for (const formation of this.state.nations[nation].formations) {
-      if (formation.zone !== null) zones.add(formation.zone);
-    }
-
+    // Both kinds through the same loop — invariant 5 in the view layer. A
+    // nation sees the sky over its ground, the sea off its coast, and every
+    // zone it has sent a formation of the matching kind to. (The first
+    // version poured fleet zones into the air list, because a zone id alone
+    // does not say which system it belongs to; the formation's template
+    // does.)
     const views: ZoneView[] = [];
-    for (const zone of [...zones].sort((a, b) => a - b)) {
-      const contest = contestOf(this.state, zone, "air");
-      views.push({
-        zone,
-        kind: "air",
-        superiority: superiorityOf(contest, nation),
-        contested: isContested(contest, nation),
-        ownStrength: contest.get(nation) ?? 0,
-      });
+    for (const kind of ZONE_KINDS) {
+      const zones = new Set<number>();
+      for (
+        let province = 0;
+        province < this.state.provinceController.length;
+        province++
+      ) {
+        if (this.state.provinceController[province] !== nation) continue;
+        const it = this.state.map.provinces[province];
+        const zone = kind === "air" ? it.airZone : it.seaZone;
+        if (zone !== null) zones.add(zone);
+      }
+      for (const formation of this.state.nations[nation].formations) {
+        if (formation.zone === null) continue;
+        if (FORMATIONS[formation.template].kind !== kind) continue;
+        zones.add(formation.zone);
+      }
+
+      for (const zone of [...zones].sort((a, b) => a - b)) {
+        const contest = contestOf(this.state, zone, kind);
+        views.push({
+          zone,
+          kind,
+          superiority: superiorityOf(contest, nation),
+          contested: isContested(contest, nation),
+          ownStrength: contest.get(nation) ?? 0,
+        });
+      }
     }
     return views;
   }

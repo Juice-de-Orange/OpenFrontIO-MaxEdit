@@ -81,6 +81,7 @@ describe("the wire protocol", () => {
           },
         ],
         fronts: [{ province: 11, attacker: 1, progress: 0.25 }],
+        invasions: [{ attacker: 1, to: 9, ticksLeft: 12 }],
         economy: {
           nation: 1,
           resources: { steel: 200, oil: 100, aluminium: 100, rubber: 50 },
@@ -133,6 +134,9 @@ describe("the wire protocol", () => {
             { province: 11, progress: 0.25 },
             { province: 12, progress: 0 },
           ],
+          seaTransits: [
+            { id: 1, divisionId: 2, from: 3, to: 9, ticksLeft: 12 },
+          ],
           formations: [
             {
               id: 1,
@@ -163,6 +167,7 @@ describe("the wire protocol", () => {
         trust: [0, 100, 45],
         agreements: [],
         fronts: [],
+        invasions: [],
         economy: null,
       },
       {
@@ -174,6 +179,7 @@ describe("the wire protocol", () => {
         trust: [0, 100, 45],
         agreements: [],
         fronts: [],
+        invasions: [],
         economy: null,
       },
     ];
@@ -248,6 +254,11 @@ describe("the wire protocol", () => {
     // and `fronts` rides on every full state and delta so defenders and
     // spectators can watch a province being ground into. An v11 client would
     // read an attack list of objects as numbers and paint no front at all.
-    expect(PROTOCOL_VERSION).toBe(12);
+    //
+    // 13 is the sea (§6.8): `naval_invade` joins the commands, the economy
+    // view carries the nation's own transits, and `invasions` rides on every
+    // full state and delta — the crossing being visible to everyone is what
+    // makes garrisoning the beach a real answer to it.
+    expect(PROTOCOL_VERSION).toBe(13);
   });
 });

@@ -183,6 +183,8 @@ export async function startWorldClient(
     cancelResearch: (slot) => send({ kind: "cancel_research", slot }),
     cancelAttack: (province) =>
       send({ kind: "cancel_attack", provinceId: province }),
+    navalInvade: (divisionId, province) =>
+      send({ kind: "naval_invade", divisionId, provinceId: province }),
     propose: (to, type, terms) =>
       send({ kind: "propose_agreement", to, type, terms }),
     acceptAgreement: (agreementId) =>

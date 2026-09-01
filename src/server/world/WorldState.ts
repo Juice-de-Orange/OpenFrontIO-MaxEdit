@@ -221,6 +221,29 @@ export interface AttackOrder {
   progress: number;
 }
 
+/** A division's province while it is at sea (§6.8: visible, vulnerable). */
+export const AT_SEA = -1;
+
+/**
+ * A division on the water, ordered from one coast to another (§6.8).
+ *
+ * The transit is the visible half of an invasion: it takes
+ * `INVASION_TICKS_PER_ZONE` a zone, the world tells everyone it is coming,
+ * and a defender who is watching has that long to put a garrison on the
+ * beach — which turns the landing back.
+ */
+export interface SeaTransit {
+  id: number;
+  divisionId: number;
+  /** The coastal province it embarked from. */
+  from: number;
+  /** The hostile coastal province it means to land on. */
+  to: number;
+  /** The sea zones the crossing passes through, both ends included. */
+  path: number[];
+  ticksLeft: number;
+}
+
 export interface NationState {
   resources: Record<Resource, number>;
   constructionQueue: ConstructionOrder[];
@@ -240,10 +263,13 @@ export interface NationState {
    * apart.
    */
   nextOrderId: number;
-  /** The same, for production lines, divisions and formations. */
+  /** The same, for production lines, divisions, formations and transits. */
   nextLineId: number;
   nextDivisionId: number;
   nextFormationId: number;
+  nextTransitId: number;
+  /** Divisions at sea (§6.8). The division's own `province` reads AT_SEA. */
+  seaTransits: SeaTransit[];
   researchSlots: ResearchSlot[];
   /** Finished techs, in the order they finished. Order is not significant. */
   unlockedTechs: TechId[];
@@ -612,6 +638,8 @@ export function createWorldState(
         number
       >,
       attacks: [],
+      seaTransits: [],
+      nextTransitId: 1,
     });
   }
 
@@ -759,6 +787,22 @@ export type WorldEvent =
       /** Positive buys, negative sells, zero clears the order. */
       perTick: number;
     }
+  /**
+   * An invasion put to sea. The reducer assigns the id, exactly as it does
+   * for divisions, so a replay hands out the same ones.
+   */
+  | {
+      kind: "invasion_started";
+      nation: number;
+      divisionId: number;
+      from: number;
+      to: number;
+      path: number[];
+      ticks: number;
+    }
+  | { kind: "invasion_progressed"; nation: number; id: number }
+  /** `landed` false means the beach was garrisoned and the landing turned back. */
+  | { kind: "invasion_landed"; nation: number; id: number; landed: boolean }
   | { kind: "attack_ordered"; nation: number; province: number }
   /** The front moved. `progress` is the new absolute value, clamped to 0..1. */
   | {
@@ -1095,6 +1139,48 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
     case "market_order_set":
       state.nations[event.nation].market[event.resource] = event.perTick;
       return;
+
+    case "invasion_started": {
+      const nation = state.nations[event.nation];
+      nation.seaTransits.push({
+        id: nation.nextTransitId++,
+        divisionId: event.divisionId,
+        from: event.from,
+        to: event.to,
+        path: [...event.path],
+        ticksLeft: event.ticks,
+      });
+      const division = nation.divisions.find(
+        (it) => it.id === event.divisionId,
+      );
+      if (division !== undefined) division.province = AT_SEA;
+      return;
+    }
+
+    case "invasion_progressed": {
+      const transit = state.nations[event.nation].seaTransits.find(
+        (it) => it.id === event.id,
+      );
+      if (transit !== undefined && transit.ticksLeft > 0) transit.ticksLeft--;
+      return;
+    }
+
+    case "invasion_landed": {
+      const nation = state.nations[event.nation];
+      const at = nation.seaTransits.findIndex((it) => it.id === event.id);
+      if (at < 0) return;
+      const transit = nation.seaTransits[at];
+      const division = nation.divisions.find(
+        (it) => it.id === transit.divisionId,
+      );
+      if (division !== undefined) {
+        // Ashore where it aimed, or back on the beach it left from — a
+        // garrisoned shore turns a landing back rather than destroying it.
+        division.province = event.landed ? transit.to : transit.from;
+      }
+      nation.seaTransits.splice(at, 1);
+      return;
+    }
 
     case "attack_ordered": {
       const attacks = state.nations[event.nation].attacks;

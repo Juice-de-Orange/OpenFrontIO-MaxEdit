@@ -43,7 +43,15 @@ import {
 import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
 import { RESOURCE_CAP } from "src/shared/config/rates";
+import {
+  CONVOY_WEAR,
+  CONVOYS_PER_TRADE_FLOW_ZONE,
+  SEA_RAID_SUPPLY_MAX,
+} from "src/shared/config/naval";
+import { equipmentIndex } from "src/shared/economy/Equipment";
 import type { System } from ".";
+import { tradeRouteBetween, type TradeRoute } from "./routes";
+import { netRaidOver, seaSupplyRoutes } from "./supply";
 import {
   agreementIsLive,
   type Agreement,
@@ -92,6 +100,10 @@ export interface TradeContext {
   hasCapital: Set<number>;
   /** Construction points per nation, measured lazily and kept. */
   construction: Map<number, number>;
+  /** How each live agreement's goods travel this tick, by agreement id. */
+  routes: Map<number, TradeRoute>;
+  /** Each nation's convoy coverage of its whole sea use, measured lazily. */
+  convoys: Map<number, number>;
 }
 
 export function tradeContext(state: WorldState): TradeContext {
@@ -105,6 +117,8 @@ export function tradeContext(state: WorldState): TradeContext {
     live: [],
     hasCapital,
     construction: new Map(),
+    routes: new Map(),
+    convoys: new Map(),
   };
   // **The dead-partner test is in the live list itself**, not only in the
   // dissolution below, and that is deliberate: the construction system reads
@@ -118,7 +132,93 @@ export function tradeContext(state: WorldState): TradeContext {
       agreementIsLive(agreement, state.tick) &&
       !agreement.parties.some((party) => isDeadPartner(state, party, context)),
   );
+  // **The route is asked every tick now, not only at acceptance.** Phase 9 is
+  // where a broken route starts to cost something (the promise World.ts has
+  // carried since phase 7): land moves free, sea moves on convoys and under
+  // raiders, and a route cut both ways moves nothing this tick — the flow
+  // scales, the commitment stands (§6.5).
+  for (const agreement of context.live) {
+    context.routes.set(
+      agreement.id,
+      tradeRouteBetween(state, agreement.parties[0], agreement.parties[1]),
+    );
+  }
   return context;
+}
+
+/**
+ * Convoys one sea agreement wants: per unit of the promised rate, per zone.
+ */
+function convoysWantedFor(agreement: Agreement, route: TradeRoute): number {
+  if (route.kind !== "sea" || agreement.terms === null) return 0;
+  return (
+    CONVOYS_PER_TRADE_FLOW_ZONE *
+    agreement.terms.resourcePerTick *
+    Math.max(1, route.zones)
+  );
+}
+
+/**
+ * How much of a nation's whole sea use its convoy stock covers, 0..1.
+ *
+ * One pool, not one per route: the merchant marine is a national asset and a
+ * shortfall scales every sea flow down together (invariant 2). Supply's
+ * needs are counted too — armies before commerce is the tiebreak, and it is
+ * why `supply.ts` computes its own coverage without asking trade: the
+ * dependency runs one way.
+ */
+function convoyShareOf(
+  state: WorldState,
+  nation: number,
+  context: TradeContext,
+): number {
+  const known = context.convoys.get(nation);
+  if (known !== undefined) return known;
+  let wanted = 0;
+  for (const agreement of context.live) {
+    if (agreement.parties[1] !== nation) continue;
+    const route = context.routes.get(agreement.id);
+    if (route === undefined) continue;
+    wanted += convoysWantedFor(agreement, route);
+  }
+  for (const route of seaSupplyRoutes(state, nation)) {
+    wanted += route.convoysWanted;
+  }
+  const share =
+    wanted <= 0
+      ? 1
+      : Math.min(
+          1,
+          (state.nations[nation].stockpile[equipmentIndex("convoy")] ?? 0) /
+            wanted,
+        );
+  context.convoys.set(nation, share);
+  return share;
+}
+
+/**
+ * What a sea route lets through this tick, 0..1 — and 1 for a land one.
+ *
+ * The buyer's convoy pool times what the raiders over the route leave: the
+ * §6.5 coupling in one term. A route with no way at all moves nothing this
+ * tick — that is a scale, not a dissolution.
+ */
+function routeScale(
+  state: WorldState,
+  agreement: Agreement,
+  context: TradeContext,
+): number {
+  const route = context.routes.get(agreement.id);
+  if (route === undefined || route.kind === "land") return 1;
+  if (route.kind === "none") return 0;
+  const buyer = agreement.parties[1];
+  let raid = 0;
+  for (const zone of route.path) {
+    raid = Math.max(raid, netRaidOver(state, buyer, zone));
+  }
+  return (
+    convoyShareOf(state, buyer, context) * (1 - SEA_RAID_SUPPLY_MAX * raid)
+  );
 }
 
 /** Construction points this nation makes this tick, measured at most once. */
@@ -340,6 +440,7 @@ function scaleOf(
     deliveryScale(state, agreement, context),
     pointsShare(state, agreement.parties[1], context),
     intakeShare(state, agreement.parties[1], agreement.terms.resource, context),
+    routeScale(state, agreement, context),
   );
 }
 
@@ -474,6 +575,29 @@ export const tradeSystem: System = {
         moved = true;
       }
       if (moved) events.push({ kind: "resources_changed", nation, delta });
+
+      // 3. Seaborne trade wears the convoys that carry it (§6.3), the same
+      //    small standing cost sea supply pays in `supply.ts`. Raiding
+      //    losses are the naval system's, one system later.
+      const held =
+        state.nations[nation].stockpile[equipmentIndex("convoy")] ?? 0;
+      if (held > 0) {
+        let wanted = 0;
+        for (const agreement of context.live) {
+          if (agreement.parties[1] !== nation) continue;
+          const route = context.routes.get(agreement.id);
+          if (route === undefined) continue;
+          wanted += convoysWantedFor(agreement, route);
+        }
+        const worn = Math.min(held, CONVOY_WEAR * Math.min(held, wanted));
+        if (worn > 0) {
+          events.push({
+            kind: "stockpile_changed",
+            nation,
+            delta: [[equipmentIndex("convoy"), -worn]],
+          });
+        }
+      }
     }
 
     return events;

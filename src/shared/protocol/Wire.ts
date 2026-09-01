@@ -34,7 +34,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -102,6 +102,19 @@ export const ClaimProvinceSchema = z.object({
  */
 export const CancelAttackSchema = z.object({
   kind: z.literal("cancel_attack"),
+  provinceId: z.number().int().nonnegative(),
+});
+
+/**
+ * Put a division to sea, aimed at a hostile shore (§6.8).
+ *
+ * As always, note what is *not* here: no path, no duration, no landing
+ * strength. The server finds the sea route, prices the crossing in ticks and
+ * announces the transit to everyone — the visibility is the defence.
+ */
+export const NavalInvadeSchema = z.object({
+  kind: z.literal("naval_invade"),
+  divisionId: z.number().int().positive(),
   provinceId: z.number().int().nonnegative(),
 });
 
@@ -336,6 +349,7 @@ export const NationPresentSchema = z.object({
 export const CommandBodySchema = z.discriminatedUnion("kind", [
   ClaimProvinceSchema,
   CancelAttackSchema,
+  NavalInvadeSchema,
   QueueConstructionSchema,
   CancelConstructionSchema,
   CreateProductionLineSchema,
@@ -473,7 +487,8 @@ export type ProductionLineView = z.infer<typeof ProductionLineSchema>;
 
 export const DivisionSchema = z.object({
   id: z.number().int().positive(),
-  provinceId: z.number().int().nonnegative(),
+  /** -1 while the division is at sea (§6.8); a province id otherwise. */
+  provinceId: z.number().int().gte(-1),
   /** 0..1 — held equipment against what a division should hold (§6.3). */
   strength: z.number(),
   /**
@@ -587,6 +602,16 @@ export const NationEconomySchema = z.object({
       progress: z.number().min(0).max(1),
     }),
   ),
+  /** This nation's own divisions at sea, with the whole crossing visible. */
+  seaTransits: z.array(
+    z.object({
+      id: z.number().int().positive(),
+      divisionId: z.number().int().positive(),
+      from: z.number().int().nonnegative(),
+      to: z.number().int().nonnegative(),
+      ticksLeft: z.number().int().nonnegative(),
+    }),
+  ),
   /** Wings and fleets this nation has raised, wherever they are (§6.7). */
   formations: z.array(FormationSchema),
   /** The zones it can see something in, and how the air over them stands. */
@@ -654,6 +679,19 @@ export const FrontViewSchema = z.object({
 });
 export type FrontView = z.infer<typeof FrontViewSchema>;
 
+/**
+ * One division at sea, as anyone may see it (§6.8: "the units are visible
+ * and vulnerable in transit"). The visibility is what makes the crossing
+ * answerable: a defender who sees it coming has the whole transit to put a
+ * garrison on the beach, and a garrisoned beach turns the landing back.
+ */
+export const InvasionViewSchema = z.object({
+  attacker: z.number().int().positive(),
+  to: z.number().int().nonnegative(),
+  ticksLeft: z.number().int().nonnegative(),
+});
+export type InvasionView = z.infer<typeof InvasionViewSchema>;
+
 export const FullStateSchema = z.object({
   t: z.literal("full"),
   tick: z.number().int().nonnegative(),
@@ -689,6 +727,8 @@ export const FullStateSchema = z.object({
   agreements: z.array(AgreementViewSchema),
   /** Every standing attack in the world, in full. Small, like agreements. */
   fronts: z.array(FrontViewSchema),
+  /** Every division at sea, §6.8: the crossing is visible to everyone. */
+  invasions: z.array(InvasionViewSchema),
   /** This session's own economy, or null when watching. */
   economy: NationEconomySchema.nullable(),
 });
@@ -721,6 +761,8 @@ export const DeltaSchema = z.object({
    * the line is.
    */
   fronts: z.array(FrontViewSchema),
+  /** Every division at sea, in full every tick, as on the full state. */
+  invasions: z.array(InvasionViewSchema),
   /** This session's own economy, recomputed every tick, or null when watching. */
   economy: NationEconomySchema.nullable(),
 });

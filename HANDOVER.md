@@ -39,6 +39,24 @@ end to end" and all gated:
   *deep* the same front grinds in a fixed window with and without bombers,
   fought twice over the same provinces since cancel-resets-progress makes
   that fair.
+- **Phase 9's systems, built and unit-tested — the gate is still owed.**
+  No `provinces.bin` bump: the sea routes over the sea-zone graph derived at
+  load (decision 0017), which deleted the plan's riskiest step. What runs:
+  the three ship types as `FORMATIONS` rows; `systems/naval.ts` on the same
+  zone machine as the air war (attrition, stand-down, convoy sinking with
+  `ESCORT_COVER` as §6.8's counter); sea supply between ports — §6.6's "port
+  on both ends" — priced in convoys, floored at `SEA_SUPPLY_FLOOR`, cut but
+  never severed by raiders; seaborne trade as a fourth `min`-term in
+  `scaleOf` with the importer finding the convoys, and the route asked every
+  tick (`systems/routes.ts` — land free, sea priced, none moves nothing);
+  convoy wear in both consumers; and `naval_invade` — transit over the zone
+  path at half a day a zone, publicly visible (`invasions` on every full
+  state and delta), landing at `INVASION_LANDING_FACTOR` on an open beach,
+  turned back by a garrison raised during the crossing. The wire went
+  12 → 13. STATE_HASH_VERSION is 3. `tests/server/Naval.test.ts` (12),
+  `tests/shared/SeaGraph.test.ts` (4) and the two-island fixture hold it
+  all; **`scripts/phase9-gate.mjs` does not exist yet**, so phase 9 is not
+  gated — the gate section below says exactly what it must prove.
 - **A menu instead of six open panels** (plan item 2): an icon bar top-left,
   one panel at a time, forms keep their identity across switches, the
   province panel stays on the right. `tests/client/world/HudMenu.test.ts`

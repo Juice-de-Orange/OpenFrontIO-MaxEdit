@@ -326,6 +326,7 @@ export class WorldSocketServer {
       trust: this.world.trustSnapshot(),
       agreements: this.world.agreementsFor(session.nation),
       fronts: this.world.frontsView(),
+      invasions: this.world.invasionsView(),
       economy: this.economyView(session.nation),
     });
   }
@@ -369,10 +370,12 @@ export class WorldSocketServer {
     };
     const trust = this.world.trustSnapshot();
     const fronts = this.world.frontsView();
+    const invasions = this.world.invasionsView();
     const spectatorPayload = encodeServer({
       ...shared,
       trust,
       fronts,
+      invasions,
       agreements: this.world.agreementsFor(null),
       economy: null,
     });
@@ -390,6 +393,7 @@ export class WorldSocketServer {
           ...shared,
           trust,
           fronts,
+          invasions,
           agreements: this.world.agreementsFor(s.nation),
           economy: this.economyView(s.nation),
         }),

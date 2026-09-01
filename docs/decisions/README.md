@@ -78,3 +78,4 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0014](0014-the-border-drift-gives-way-to-a-front.md)      | The border drift gives way to a front; an unattended world is quiet       | Accepted |
 | [0015](0015-one-formation-and-one-zone-machine.md)         | One formation and one zone machine; air and naval differ by a table       | Accepted |
 | [0016](0016-the-hash-check-holds-within-a-version.md)      | The state-hash check holds within a hash version, not across one          | Accepted |
+| [0017](0017-the-sea-graph-is-the-zone-graph.md)            | The sea's graph is the sea-zone graph; water provinces do not exist       | Accepted |

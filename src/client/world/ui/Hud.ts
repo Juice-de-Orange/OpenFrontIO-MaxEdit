@@ -52,6 +52,7 @@ import {
   AIR_MISSIONS,
   FORMATION_TEMPLATES,
   FORMATIONS,
+  MISSIONS_BY_KIND,
   type FormationTemplate,
   type Mission,
 } from "src/shared/economy/Formations";
@@ -198,6 +199,8 @@ export interface HudActions {
   cancelResearch(slot: number): void;
   /** Call off a standing attack. The order costs equipment until it stops. */
   cancelAttack(province: number): void;
+  /** Send a division across the sea at a hostile coast (§6.8). */
+  navalInvade(divisionId: number, province: number): void;
   /** Terms for a trade, null for everything else. Rates are per tick. */
   propose(to: number, type: AgreementType, terms: TradeTermsView | null): void;
   acceptAgreement(agreementId: number): void;
@@ -250,6 +253,7 @@ export class Hud {
   private airForm: HTMLElement | null = null;
   private airWhich: HTMLSelectElement | null = null;
   private airZone: HTMLSelectElement | null = null;
+  private airMission: HTMLSelectElement | null = null;
 
   /**
    * Which of the menu's panels is open. One at a time: six always-open panels
@@ -527,6 +531,35 @@ export class Hud {
       button.addEventListener("click", () =>
         attacking ? this.actions.cancelAttack(id) : this.actions.claim(id),
       );
+
+      // §6.8's other way in: a hostile coast can be invaded from the sea.
+      // The division is chosen for the player — the strongest one standing
+      // on a coast the nation holds — because invariant 4 wants allocation,
+      // not unit-picking, and the server refuses anything unseaworthy.
+      const invader =
+        province.seaZone === null || model.economy === null
+          ? undefined
+          : model.economy.divisions
+              .filter((division) => {
+                const at = model.provinces[division.provinceId];
+                return (
+                  at !== undefined &&
+                  at.seaZone !== null &&
+                  model.controllers[division.provinceId] === model.nation &&
+                  !model.economy?.seaTransits.some(
+                    (transit) => transit.divisionId === division.id,
+                  )
+                );
+              })
+              .sort((a, b) => b.strength - a.strength)[0];
+      if (invader !== undefined) {
+        const invade = document.createElement("button");
+        invade.textContent = t("province.invade");
+        invade.addEventListener("click", () =>
+          this.actions.navalInvade(invader.id, id),
+        );
+        button.insertAdjacentElement("afterend", invade);
+      }
       children.push(spacer(), button);
       if (attacking) children.push(muted(t("province.attacking")));
     }
@@ -759,12 +792,20 @@ export class Hud {
       children.push(muted(t("production.noDivisions")));
     }
     for (const division of economy.divisions) {
+      const transit = economy.seaTransits.find(
+        (it) => it.divisionId === division.id,
+      );
       children.push(
         row(
-          t("production.divisionAt", {
-            id: division.id,
-            province: division.provinceId,
-          }),
+          transit !== undefined
+            ? t("production.atSea", {
+                id: division.id,
+                ticks: transit.ticksLeft,
+              })
+            : t("production.divisionAt", {
+                id: division.id,
+                province: division.provinceId,
+              }),
           // Two numbers, not one. A weak division needs equipment out of the
           // stockpile; an unsupplied one needs a hub or a shorter front. A
           // single figure would say something is wrong and nothing about
@@ -1177,17 +1218,43 @@ export class Hud {
     syncOptions(which, wanted);
     if (wanted.some((option) => option.value === chosen)) which.value = chosen;
 
-    // Every zone the nation can see. Out-of-reach ones are left in and
-    // refused by the server, which is the one whose answer counts (§7) — and
-    // a zone that vanished from the list mid-click would be worse.
+    // **The form takes a zone kind, §6.8's phase-9 sentence for the UI**: it
+    // is derived from the chosen formation's template, and the zone and
+    // mission lists follow it. A fleet is offered sea zones and sea
+    // missions, a wing the sky's — one form, two theatres (invariant 5).
+    const template = economy.formations.find(
+      (formation) => String(formation.id) === which.value,
+    )?.template;
+    const kind = template === undefined ? "air" : FORMATIONS[template].kind;
+
+    // Every zone of the right kind the nation can see. Out-of-reach ones are
+    // left in and refused by the server, which is the one whose answer
+    // counts (§7) — and a zone that vanished mid-click would be worse.
     const zoneChosen = zone.value;
-    const zones = economy.zones.map((view) => ({
-      value: String(view.zone),
-      label: t("air.zone", { zone: view.zone }),
-    }));
+    const zones = economy.zones
+      .filter((view) => view.kind === kind)
+      .map((view) => ({
+        value: String(view.zone),
+        label: t(kind === "air" ? "air.zone" : "air.seaZone", {
+          zone: view.zone,
+        }),
+      }));
     syncOptions(zone, zones);
     if (zones.some((option) => option.value === zoneChosen)) {
       zone.value = zoneChosen;
+    }
+
+    const mission = this.airMission;
+    if (mission !== null) {
+      const missionChosen = mission.value;
+      const missions = MISSIONS_BY_KIND[kind].map((id) => ({
+        value: id,
+        label: t(`mission.${id}` as StringKey),
+      }));
+      syncOptions(mission, missions);
+      if (missions.some((option) => option.value === missionChosen)) {
+        mission.value = missionChosen;
+      }
     }
   }
 
@@ -1222,6 +1289,7 @@ export class Hud {
     this.airForm = form;
     this.airWhich = which;
     this.airZone = zone;
+    this.airMission = mission;
     this.airPanel.append(form);
   }
 

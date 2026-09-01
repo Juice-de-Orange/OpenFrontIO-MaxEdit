@@ -68,7 +68,13 @@ export const MISSIONS_BY_KIND: Readonly<Record<ZoneKind, readonly Mission[]>> =
  *
  * Appended to, never reordered — the id is in every snapshot.
  */
-export const FORMATION_TEMPLATES = ["fighter_wing", "bomber_wing"] as const;
+export const FORMATION_TEMPLATES = [
+  "fighter_wing",
+  "bomber_wing",
+  "submarine_flotilla",
+  "escort_group",
+  "battle_fleet",
+] as const;
 
 export type FormationTemplate = (typeof FORMATION_TEMPLATES)[number];
 
@@ -107,6 +113,13 @@ const NO_NAVAL: Readonly<Record<NavalMission, number>> = {
   invasion_support: 0,
 } as const;
 
+const NO_AIR: Readonly<Record<AirMission, number>> = {
+  air_superiority: 0,
+  ground_support: 0,
+  interdiction: 0,
+  strategic_bombing: 0,
+} as const;
+
 export const FORMATIONS: Readonly<Record<FormationTemplate, FormationSpec>> = {
   fighter_wing: {
     kind: "air",
@@ -130,6 +143,48 @@ export const FORMATIONS: Readonly<Record<FormationTemplate, FormationSpec>> = {
       interdiction: 1,
       strategic_bombing: 1,
       ...NO_NAVAL,
+    },
+  },
+  // §6.8's three ship types, decided in §10: rows in this table, not a
+  // hull-and-module system. Submarines are strong at convoy raiding and weak
+  // in a stand-up fight; escorts counter them; capital ships decide sea
+  // control. The "counter" itself lives where convoys are consumed
+  // (ESCORT_COVER against the raid), so the escort's raiding weight is what
+  // it can do offensively, not what it prevents.
+  submarine_flotilla: {
+    kind: "naval",
+    base: "naval_base",
+    equipment: { submarine: 10 },
+    weight: {
+      ...NO_AIR,
+      sea_control: 0.15,
+      convoy_raiding: 1,
+      convoy_escort: 0.1,
+      invasion_support: 0.2,
+    },
+  },
+  escort_group: {
+    kind: "naval",
+    base: "naval_base",
+    equipment: { escort: 12 },
+    weight: {
+      ...NO_AIR,
+      sea_control: 0.35,
+      convoy_raiding: 0.15,
+      convoy_escort: 1,
+      invasion_support: 0.5,
+    },
+  },
+  battle_fleet: {
+    kind: "naval",
+    base: "naval_base",
+    equipment: { capital_ship: 4, escort: 6 },
+    weight: {
+      ...NO_AIR,
+      sea_control: 1,
+      convoy_raiding: 0.2,
+      convoy_escort: 0.25,
+      invasion_support: 1,
     },
   },
 } as const;

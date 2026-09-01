@@ -1,8 +1,8 @@
 /**
  * Supply over the province graph: how far a nation can fight from its hubs.
  *
- * §6.6, land only — the sea path is stubbed until phase 9 gives convoys
- * something to be sunk by. Two numbers decide what a division gets, and they
+ * §6.6, both halves: the land path over the province graph, and — since
+ * phase 9 — the sea path between ports, carried by convoys that can be sunk. Two numbers decide what a division gets, and they
  * fail in different directions on purpose:
  *
  * - **Reach**, from a weighted shortest path over provinces the nation
@@ -30,6 +30,14 @@
 
 import { INTERDICTION_MAX } from "src/shared/config/air";
 import {
+  CONVOY_WEAR,
+  CONVOYS_PER_DIVISION_ZONE,
+  ESCORT_COVER,
+  SEA_RAID_SUPPLY_MAX,
+  SEA_SUPPLY_FLOOR,
+  SEA_SUPPLY_RANGE,
+} from "src/shared/config/naval";
+import {
   SUPPLY_ATTRITION,
   SUPPLY_HOP_COST,
   SUPPLY_INFRASTRUCTURE_RELIEF,
@@ -38,6 +46,8 @@ import {
   SUPPLY_RANGE,
   SUPPLY_SOURCE_THROUGHPUT,
 } from "src/shared/config/supply";
+import { equipmentIndex } from "src/shared/economy/Equipment";
+import { seaPath } from "src/shared/map/SeaGraph";
 import type { System } from ".";
 import {
   atPeace,
@@ -46,7 +56,7 @@ import {
   type WorldEvent,
   type WorldState,
 } from "../world/WorldState";
-import { hostileMissionEffect } from "./zones";
+import { hostileMissionEffect, missionEffect } from "./zones";
 
 /**
  * Provinces a nation draws supply from: its capitals, and its supply hubs.
@@ -72,6 +82,80 @@ export function supplySources(state: WorldState, nation: number): number[] {
     }
   }
   return sources;
+}
+
+export interface SeaSupplyRoute {
+  /** The coastal province being supplied over water. */
+  province: number;
+  /** The sea zones the route passes through, both ends included. */
+  path: readonly number[];
+  /** Zones crossed — zero when both ports share a sea zone. */
+  zones: number;
+  /** Convoys the route wants: per division at the far end, per zone. */
+  convoysWanted: number;
+}
+
+/**
+ * The sea routes a nation's supply actually runs, §6.6: from a supply source
+ * that is also a port, to a controlled coastal province with a port of its
+ * own — "a port on both ends". Only the port province itself is supplied
+ * this way; pushing further inland is what building a supply hub on the far
+ * shore is for.
+ *
+ * Exported because the naval system reads the same routes to know where a
+ * nation's convoys are exposed to raiding — one answer, computed one way.
+ */
+export function seaSupplyRoutes(
+  state: WorldState,
+  nation: number,
+): SeaSupplyRoute[] {
+  const map = state.map;
+  const sources = supplySources(state, nation);
+  const sourcePorts = sources.filter(
+    (province) =>
+      map.provinces[province].seaZone !== null &&
+      countBuilding(state, province, "naval_base") > 0,
+  );
+  if (sourcePorts.length === 0) return [];
+
+  const routes: SeaSupplyRoute[] = [];
+  for (
+    let province = 0;
+    province < state.provinceController.length;
+    province++
+  ) {
+    if (state.provinceController[province] !== nation) continue;
+    if (sources.includes(province)) continue;
+    const it = map.provinces[province];
+    if (it.seaZone === null) continue;
+    if (countBuilding(state, province, "naval_base") === 0) continue;
+
+    let best: number[] | null = null;
+    for (const port of sourcePorts) {
+      const path = seaPath(
+        map,
+        map.provinces[port].seaZone as number,
+        it.seaZone,
+      );
+      if (path === null) continue;
+      if (best === null || path.length < best.length) best = path;
+    }
+    if (best === null) continue;
+    const zones = best.length - 1;
+    if (zones > SEA_SUPPLY_RANGE) continue;
+
+    const divisions = state.nations[nation].divisions.filter(
+      (division) => division.province === province,
+    ).length;
+    routes.push({
+      province,
+      path: best,
+      zones,
+      convoysWanted:
+        CONVOYS_PER_DIVISION_ZONE * Math.max(1, zones) * Math.max(1, divisions),
+    });
+  }
+  return routes;
 }
 
 /**
@@ -145,7 +229,63 @@ export function supplyReach(
       interdictionOver(state.map.provinces[province].airZone);
     reach.set(province, base * (1 - cut));
   }
+
+  // **The sea path, §6.6.** A controlled port with no land way home falls
+  // back to convoys: reach falls with zones crossed, scales with how much of
+  // the wanted convoy tonnage the nation actually holds — floored, because a
+  // province with no convoys is badly supplied, not cut off — and is cut,
+  // never severed, by raiders over the route the same way land reach is cut
+  // by interdiction. The convoys themselves are worn and sunk elsewhere (the
+  // supply system's wear, the naval system's raiding): this function stays a
+  // pure reading of the state.
+  const routes = seaSupplyRoutes(state, nation);
+  if (routes.length > 0) {
+    const stock =
+      state.nations[nation].stockpile[equipmentIndex("convoy")] ?? 0;
+    const wanted = routes.reduce((sum, route) => sum + route.convoysWanted, 0);
+    const carried =
+      SEA_SUPPLY_FLOOR +
+      (1 - SEA_SUPPLY_FLOOR) * (wanted <= 0 ? 1 : Math.min(1, stock / wanted));
+    for (const route of routes) {
+      let raid = 0;
+      for (const zone of route.path) {
+        raid = Math.max(raid, netRaidOver(state, nation, zone));
+      }
+      const base = Math.max(0, 1 - route.zones / SEA_SUPPLY_RANGE);
+      const cut =
+        INTERDICTION_MAX *
+        interdictionOver(state.map.provinces[route.province].airZone);
+      const sea =
+        base * carried * (1 - SEA_RAID_SUPPLY_MAX * raid) * (1 - cut);
+      if (sea > (reach.get(route.province) ?? 0)) {
+        reach.set(route.province, sea);
+      }
+    }
+  }
   return reach;
+}
+
+/**
+ * What raiding is worth against this nation's convoys in one zone, 0..1:
+ * every hostile raider's effect, less what the nation's own escorts in the
+ * same zone cover. §6.8's counter, in the one place convoys are consumed.
+ */
+export function netRaidOver(
+  state: WorldState,
+  nation: number,
+  zone: number,
+): number {
+  const raid = hostileMissionEffect(
+    state,
+    zone,
+    nation,
+    "convoy_raiding",
+    "naval",
+    (a, b) => atPeace(state, a, b),
+  );
+  if (raid <= 0) return 0;
+  const escort = missionEffect(state, zone, nation, "convoy_escort", "naval");
+  return raid * Math.max(0, 1 - ESCORT_COVER * escort);
 }
 
 /**
@@ -181,6 +321,32 @@ export const supplySystem: System = {
     const events: WorldEvent[] = [];
 
     for (let nation = 1; nation <= state.nationCount; nation++) {
+      // **Sea supply wears the convoys that carry it** (§6.3: consumed by
+      // sea supply). Wear, not battle: a small share of what each route
+      // wants, every tick it runs, which is what makes convoys a standing
+      // production line rather than a one-off purchase. Raiding losses are
+      // the naval system's, one system later — the §6 order's deliberate
+      // one-tick lag.
+      const routes = seaSupplyRoutes(state, nation);
+      if (routes.length > 0) {
+        const held =
+          state.nations[nation].stockpile[equipmentIndex("convoy")] ?? 0;
+        if (held > 0) {
+          const wanted = routes.reduce(
+            (sum, route) => sum + route.convoysWanted,
+            0,
+          );
+          const worn = Math.min(held, CONVOY_WEAR * Math.min(held, wanted));
+          if (worn > 0) {
+            events.push({
+              kind: "stockpile_changed",
+              nation,
+              delta: [[equipmentIndex("convoy"), -worn]],
+            });
+          }
+        }
+      }
+
       const divisions = state.nations[nation].divisions;
       if (divisions.length === 0) continue;
 
