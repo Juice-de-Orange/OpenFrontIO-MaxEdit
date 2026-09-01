@@ -15,6 +15,12 @@ traps have already been paid for.
 
 ## Where we are
 
+**Twelve of thirteen gates passed, the world is deployed and playable over
+TLS, and the thirteenth gate is waiting on a clock (2026-09-01).** What it is
+_not_ is understandable: the player could not work out how to build anything.
+**Read _The next plan: from a spreadsheet to a game_ below before writing
+code.**
+
 **Phase 11 of 13 gated, the victory system built, and the map wears its
 real borders (2026-09-01).** Natural Earth outlines replaced the
 capital-Voronoi territories and the palette got saturation/lightness steps —
@@ -218,10 +224,224 @@ and its output belongs in the same commit (decision 0006).
 
 ---
 
-## The plan, end to end
+## The next plan: from a spreadsheet to a game
 
-**This section is written to be worked through without asking anybody
-anything.** Every design question §10 left open has an answer now (it is in
+**Written 2026-09-01, after the player opened the deployed world for the first
+time.** What he said, and it is the whole brief:
+
+> the game is far too complicated, I do not understand it. … that tells me
+> nothing. … the construction queue, research, production make no sense — so
+> where does research come from, how do I build something new? Every building
+> you build should be visible, like in a real game. Then the world becomes
+> alive. Give the countries more personality. Aircraft must need an airfield.
+> Ground war has to be visibly simulated, and I want numbers like in the real
+> game.
+
+**The reframing that matters.** He is not asking for tooltips on a game he can
+play. He cannot play it. Nothing in the interface says provinces are
+clickable, and the build menu exists _only_ inside the province panel, which
+exists only after a click on the map. "How do I build something new" is not
+badly answered; it is unanswered. Everything else on his list — icons on the
+map, battle numbers, rulers — is decoration on a door he cannot find.
+
+So the order below is not his order. The cheapest item is first because it is
+also the one that unlocks the rest.
+
+**Nothing he asked for breaks an invariant, and that is worth stating.**
+Invariant 4 forbids _commanding_ a unit, not _seeing_ one: an icon, a strength
+label and a division count are outputs. The one real edge is picking — a click
+on a building icon must resolve to its province, the way `CameraController`
+already does. Invariant 8 permits a tile position for a building explicitly,
+as long as the tile is projection and never a target.
+
+### Step 0 · The missing entrance
+
+An hour, no bump, and the highest value in the plan.
+
+- Empty construction queue and the economy panel say **"click a province on the
+  map to build"**. Today an empty queue renders as nothing at all.
+- Every disabled build button carries its reason (the HUD already knows it: no
+  building slot, not coastal) instead of being greyed in silence.
+- The build menu stops vanishing on a province whose `controller === nation`
+  but `owner !== nation` — that is exactly the province a player looks at
+  after taking one.
+- **A clock in the bar**: tick and in-game day. The delta already carries the
+  tick. Without it every "12/day" and every "10 days left" is a number with no
+  scale, which is half of why the economy panel "tells me nothing".
+- Research gets the sentence it is missing: a slot researches one tech, it
+  costs nothing but the slot, and `TECHS[id].effect` — already imported by the
+  HUD and never rendered — goes under each tech.
+
+**Proves it worked**: a person who has never seen the game builds a factory
+without being told how.
+
+### Step 1 · The info affordance, and the two panels that need it most
+
+An afternoon, no bump.
+
+`info(HelpKey)` beside `heading`, `row` and `captionFor` at the foot of
+`Hud.ts`: a circled i that toggles an explanation **inline inside the panel**.
+About 35 lines of helper and 25 of CSS. The open state must live in a
+module-level `let`, not in the DOM — panels are rebuilt by `replaceChildren`
+every tick and a DOM-held state closes itself every five seconds. That is the
+same reason the diplomacy, air and regent forms are built once.
+
+Then the two panels he named: **economy** (construction, "of it from trade",
+industry, resources covered, the four resources) and **research**. The
+airfield rule rides along here as two more keys — the rule is already enforced
+(the wing button appears only where the base is, and the server refuses zones
+out of range); it is simply invisible. Disable out-of-range zones in the
+dropdown rather than letting the server refuse them.
+
+The remaining ~85 explanations grow panel by panel afterwards. The mechanism is
+cheap; the prose is the cost, and it is doubled by `de: Record<StringKey,
+string>` — which is the point of that type.
+
+### Step 2 · Buildings on the map
+
+An afternoon, no bump. **The machinery is complete and drawing zero
+instances.**
+
+`StructurePass` (498 lines), `StructureLevelPass` (writes the count as a digit
+over the icon — exactly the per-province number we want) and `BarPass` are all
+constructed, drawn and enabled in `render-settings.json`. `model.buildings` is
+tick-current in the client and already read by the province panel. The entire
+gap is one line: `FrameAdapter` writes `units: new Map()` and never touches it
+again.
+
+- A `StructureAdapter` in `src/client/world/` — **not** in `render/`, where
+  `tests/architecture/RenderBoundary.test.ts` forbids the edge. It turns
+  `model.buildings` plus `ProvinceTileIndex.tilesOf()` into `UnitState`s with a
+  stable synthetic id per (province, type), `level` = count, and a tile chosen
+  by a deterministic hash so the fan does not overlap. `Province.centre` is the
+  cheaper source and wrong on crescent-shaped provinces, where the factory
+  lands in the sea.
+- `view.setLocalPlayerID(nation)` — **missing entirely today**, so
+  `uLocalPlayerID` is 0 and the own/ally/enemy tint in the structure shader is
+  inert.
+- Map the ten building types onto the six existing atlas columns and **do not
+  touch the atlas**. Dockyard and naval base will both look like a port, the
+  air base like a SAM launcher. That is ugly and it is right: find out whether
+  the display carries before building an asset pipeline. See _What is honestly
+  not possible_ for why the atlas is its own project.
+
+### Step 3 · The war becomes visible
+
+Half a day, no bump.
+
+`delta.fronts` already arrives every tick and goes only into the frame adapter;
+`HudModel` has no `fronts` field, **so the defender sees nothing at all**.
+
+- Put `fronts` in the model (three lines where the client applies full state
+  and deltas) and render a battle block in the province panel that **the
+  defender sees too**, with the player's own divisions there as strength and
+  supply fractions.
+- Feed `updateAttackRings` one ring per contested province at
+  `province.centre` — about fifteen lines; the pass is constructed, enabled,
+  drawn, and fades itself in and out from local time.
+
+After this the map says where the war is without being asked.
+
+### Step 4 · One protocol bump, everything that touches the wire
+
+One to two days, **protocol 16 → 17**, twelve gate scripts to follow. Bundled
+on purpose: a bump disconnects every live client, so it happens once.
+
+- `front_resolved` and a `BattleViewSchema`: both sides' strength as division
+  equivalents, terrain and air as signed percentages, losses and advance **per
+  day** (invariant 9). `combat.ts` computes all of it every tick and throws
+  everything away but `progress`.
+- `ruler` on `NationStaticSchema`. **Derived from `(worldSeed, smallID)`, never
+  stored** — that is what keeps the state hash where it is. The nation list is
+  rebuilt from the manifest on every start, so the derivation reproduces.
+  Decided 2026-09-01: AI rulers only; the player's own name is step 5.
+- `flag` while we are there: the 928 SVGs are already in the repo and already
+  served through `publicDir`.
+- The civilian-factory count in `NationEconomySchema`. Without it "where does
+  my construction come from" cannot be answered from the interface at all.
+
+**This needs a decision record.** The wire's own comments state that the other
+side's assignments are not on it. Enemy division strength is a departure from
+that, and an undocumented departure gets reverted in three months by someone
+reading the old comment.
+
+### Step 5 · Afterwards, if it carries
+
+The remaining ~85 explanations, panel by panel. The player's own name (an input
+field, validation, a store join, and a decision record — decision 0019 draws
+the line and names must never reach a snapshot or the command log). Names and
+flags on the map through `NamePass`. Purpose-drawn icons and an atlas
+generator. A seed-drawn regent focus per nation, so the 51 AI nations do not
+all play "economy" — three lines in `Season.ts`, submitted as a real
+`configure_regent` command so replays stay faithful.
+
+### What is honestly not possible
+
+**Animated air combat, in the sense meant, cannot be built — and not out of
+laziness.** There are no aircraft. A wing _is_ an assignment to a zone and air
+combat _is_ a ratio computed per tick, and invariant 4 says it stays that way.
+There is no place where an aeroplane is, so there is nothing to move between
+two states. What is possible and does look alive: the FX passes animate from
+**local time**, not from server data — a pulsing marker over a contested zone,
+a superiority bar that eases between two tick values instead of jumping, loss
+figures that rise from a zone centre and fade. Decoration driven by real state,
+and it is the whole distance this game can travel. Call it that, or the next
+attempt will try to build aeroplanes.
+
+**Trains do not exist.** Supply is a flow value per province, not an object
+with a position. A rail line between provinces could be drawn from the supply
+graph (`railroadState` exists), but nothing would run on it.
+
+**The icon atlas is what turns a medium job into a large one.**
+`resources/atlases/icon-atlas.png` is 384×64 — six columns of inherited
+binary. The `generate-sprite-atlases.mjs` named in three file headers **has
+never existed** (`git log --all` over the path is empty), and five of the ten
+building types have no source SVG at all. Hence step 2's mapping onto six
+columns.
+
+**Do not draw divisions through `UnitPass`/`BarPass`.** Both want upstream's
+`UnitState` with a `unitType` from `ALL_UNIT_TYPES` plus skin atlas data this
+fork has no producer for. `setAttackTroopLabels` and `updateAttackRings` take
+small purpose-built shapes instead. Starting at the first pair buys half a day
+of props.
+
+### Bumps, and what survives them
+
+- **Protocol 16 → 17: step 4 only.** Disconnects live clients;
+  `tests/GateProtocolVersion.test.ts` enforces parity with twelve gate scripts.
+- **State hash 5 → 6: not needed anywhere in this plan**, under two conditions
+  that are discipline rather than luck. The battle numbers stay **transient** —
+  emitted, filtered, sent, forgotten, never in `WorldState`. The ruler name is
+  **derived**, never stored. Break either and the deployed season dies.
+- A running client sees a newly claimed nation's name only after a reconnect,
+  because `FullState` is the only carrier of `nations`. Accepted for now.
+
+### Traps that will actually bite
+
+- `markedForDeletion` is `number | false` and `StructurePass` tests
+  `!== false`. Setting `0` marks every building deleted.
+- `structuresDirty` must be an **edge**. Left true it rebuilds ~6,770 instances
+  a tick; left false it draws nothing after the first frame. **Neither says
+  anything.**
+- Panels are rebuilt per tick by `replaceChildren`. Any state held in the DOM
+  closes itself every five seconds.
+- `#world-hud` is `pointer-events: none` and the canvas sits after it in the
+  body. A popover appended to `document.body` is invisible or unclickable —
+  explanations stay inline in `.panel`.
+- `t()` has no guard, so with ~105 keys cast through `as StringKey` a typo
+  renders as the key. Prefer literal keys.
+- Two invariant-9 violations to fix in passing: `production.atSea` shows ticks,
+  and `hud.orderAccepted` names a tick number.
+
+---
+
+## The plan that built phases 9 to 12
+
+**Every item in this section is done.** It is kept because the reasons are
+still the reasons, and because two of its traps bite again in the plan above.
+The live plan is _The next plan_, which precedes it.
+
+Every design question §10 left open has an answer now (it is in
 CLAUDE.md §10, with reasoning), so what follows is nine pieces of work in
 order, each with what to build, which files it touches, what it has to prove
 before it counts as done, and the traps that are already known.
@@ -1632,11 +1852,16 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**First: open the browser.** Items 0a–0d of the checklist below have never
-been seen by a person — the front filling tile by tile, the menu, the fleet
-side of the assignment form, an invasion under way. Everything else in phases
-1–9 is proven by scripts; those four are not, and a gate cannot tell you the
-game is unplayable.
+**Work through _The next plan_, at the top of this file, in its own order.**
+The player opened the deployed world on 2026-09-01 and could not play it: he
+could not find how to build anything, because nothing says provinces are
+clickable and the build menu lives only in the province panel. Step 0 of that
+plan is an hour's work and is worth more than everything after it.
+
+The browser checklist below is still worth ten minutes and is no longer the
+first thing. Items 0a–0d have been seen now — the chooser, the bar, the
+economy panel filling — but the front filling tile by tile, the fleet side of
+the assignment form and an invasion under way have not.
 
 **Phase 12 is down to one thing, and it is not a coding thing.** On
 2026-09-01 the host was redeployed as a season, the watchdog was installed and
