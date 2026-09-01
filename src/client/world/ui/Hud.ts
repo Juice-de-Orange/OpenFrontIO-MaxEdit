@@ -63,6 +63,8 @@ import { TerrainType } from "src/shared/map/Terrain";
 import { zoneInReach } from "src/shared/map/Zones";
 import type {
   AgreementView,
+  FrontView,
+  InvasionView,
   NationEconomyView,
   NationStatic,
   TradeTermsView,
@@ -203,6 +205,9 @@ const STYLE = `
 #world-hud .pair { display: flex; gap: .25rem; }
 #world-hud .pair > * { flex: 1 1 0; min-width: 0; }
 #world-hud .warn { color: #f0a; }
+/* A front's bar is in the attacker's colour, set inline; the track is the
+   same as every other bar. */
+#world-hud .bar.front { height: 6px; }
 #world-hud .field { display: block; margin-top: .6rem; }
 #world-hud .caption {
   display: block; font-size: 13px; font-weight: 600; color: #dbe2ec;
@@ -288,6 +293,10 @@ export interface HudModel {
   agreements: AgreementView[];
   /** Where the season stands. Public (§10). */
   victory: VictoryView;
+  /** Every standing front, public: the defender must see it too. */
+  fronts: FrontView[];
+  /** Every crossing under way, public: §6.8's defence is seeing it come. */
+  invasions: InvasionView[];
   /**
    * The world's tick, for the clock. One tick is one in-game hour (§4), and
    * without a clock every "12/day" on screen is a number with no scale.
@@ -914,6 +923,75 @@ export class Hud {
       row(t("province.slots"), fraction(used, province.buildingSlots)),
       row(t("province.deposits"), depositLine(province) ?? t("province.none")),
     ];
+
+    // The war, for whoever is looking. `fronts` and `invasions` are public on
+    // the wire — §7 keeps treaty terms private, not battles — and until now
+    // the client used them only to paint tiles: a defender being ground
+    // down read nothing here, and the map alone had to say so. The holder
+    // also sees their own divisions standing in the province, with the two
+    // numbers that decide the fight.
+    const front = model.fronts.find((it) => it.province === id);
+    if (front !== undefined && front.attacker !== controller) {
+      children.push(
+        spacer(),
+        warn(
+          front.attacker === model.nation
+            ? t("province.frontOwn")
+            : t("province.underAttack", {
+                attacker: nationName(model, front.attacker),
+              }),
+        ),
+      );
+      const bar = document.createElement("div");
+      bar.className = "bar front";
+      const fill = document.createElement("div");
+      fill.style.width = `${Math.min(100, front.progress * 100)}%`;
+      fill.style.background = nationCss(front.attacker);
+      bar.appendChild(fill);
+      children.push(
+        bar,
+        muted(t("province.frontTaken", { share: share(front.progress) })),
+      );
+    }
+    const landing = model.invasions.find((it) => it.to === id);
+    if (landing !== undefined) {
+      // Invariant 9: days, rounded up like every other estimate on screen.
+      const days = daysRemaining(landing.ticksLeft, 1);
+      children.push(
+        spacer(),
+        warn(
+          landing.attacker === model.nation
+            ? t("province.invasionOwn", { days })
+            : t("province.invasionIncoming", {
+                attacker: nationName(model, landing.attacker),
+                days,
+              }),
+        ),
+      );
+    }
+    if (
+      model.nation !== null &&
+      controller === model.nation &&
+      model.economy !== null
+    ) {
+      const here = model.economy.divisions.filter(
+        (division) => division.provinceId === id,
+      );
+      if (here.length > 0) {
+        children.push(spacer(), heading(t("province.defenders")));
+        for (const division of here) {
+          children.push(
+            muted(
+              t("province.divisionLine", {
+                id: division.id,
+                strength: share(division.strength),
+                supply: share(division.supply),
+              }),
+            ),
+          );
+        }
+      }
+    }
 
     if (province.capital || province.coastal) {
       children.push(

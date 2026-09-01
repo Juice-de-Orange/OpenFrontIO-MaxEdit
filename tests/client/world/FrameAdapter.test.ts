@@ -202,7 +202,10 @@ describe("FrameAdapter", () => {
 
     // A quarter in: a quarter of the tiles, and they hug the border the
     // attack comes over.
-    adapter.applyFronts([{ province: 1, attacker: 1, progress: 0.25 }], controllers);
+    adapter.applyFronts(
+      [{ province: 1, attacker: 1, progress: 0.25 }],
+      controllers,
+    );
     const quarter = painted();
     expect(quarter.length).toBe(Math.floor(tiles.length * 0.25));
     for (const tile of quarter) {
@@ -213,13 +216,19 @@ describe("FrameAdapter", () => {
 
     // Half in: the quarter's tiles are still held — the front grows, it does
     // not wander.
-    adapter.applyFronts([{ province: 1, attacker: 1, progress: 0.5 }], controllers);
+    adapter.applyFronts(
+      [{ province: 1, attacker: 1, progress: 0.5 }],
+      controllers,
+    );
     const half = painted();
     expect(half.length).toBe(Math.floor(tiles.length * 0.5));
     for (const tile of quarter) expect(half).toContain(tile);
 
     // Pushed back to nothing: every tile is the defender's again.
-    adapter.applyFronts([{ province: 1, attacker: 1, progress: 0 }], controllers);
+    adapter.applyFronts(
+      [{ province: 1, attacker: 1, progress: 0 }],
+      controllers,
+    );
     expect(painted()).toHaveLength(0);
   });
 
@@ -227,7 +236,10 @@ describe("FrameAdapter", () => {
     const controllers = new Array<number>(idx.provinceCount).fill(1);
     controllers[1] = 2;
     adapter.applyFullState(controllers, 1);
-    adapter.applyFronts([{ province: 1, attacker: 1, progress: 0.5 }], controllers);
+    adapter.applyFronts(
+      [{ province: 1, attacker: 1, progress: 0.5 }],
+      controllers,
+    );
     const before = [...idx.tilesOf(1)].filter(
       (tile) => adapter.frameData().tileState[tile] === 1,
     );
@@ -236,7 +248,10 @@ describe("FrameAdapter", () => {
     // A fresh full state paints province 1 back to its controller; applying
     // the fronts afterwards must restore exactly the same lead tiles.
     adapter.applyFullState(controllers, 2);
-    adapter.applyFronts([{ province: 1, attacker: 1, progress: 0.5 }], controllers);
+    adapter.applyFronts(
+      [{ province: 1, attacker: 1, progress: 0.5 }],
+      controllers,
+    );
     const after = [...idx.tilesOf(1)].filter(
       (tile) => adapter.frameData().tileState[tile] === 1,
     );
@@ -247,7 +262,10 @@ describe("FrameAdapter", () => {
     const controllers = new Array<number>(idx.provinceCount).fill(1);
     controllers[1] = 2;
     adapter.applyFullState(controllers, 1);
-    adapter.applyFronts([{ province: 1, attacker: 1, progress: 0.5 }], controllers);
+    adapter.applyFronts(
+      [{ province: 1, attacker: 1, progress: 0.5 }],
+      controllers,
+    );
 
     // The attack was called off: the next update simply has no front for the
     // province, and the tiles must go back to the defender.

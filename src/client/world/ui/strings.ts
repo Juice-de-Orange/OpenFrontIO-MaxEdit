@@ -87,6 +87,15 @@ const en = {
   "province.callOff": "Call off the attack",
   "province.invade": "Invade from the sea",
   "province.attacking": "Your front is grinding here, every tick.",
+  "province.underAttack": "Under attack by {attacker}",
+  "province.frontOwn": "Your front is here",
+  "province.frontTaken": "{share} of the province taken",
+  "province.defenders": "Your divisions here",
+  "province.divisionLine":
+    "Division {id} \u00b7 strength {strength} \u00b7 supply {supply}",
+  "province.invasionIncoming":
+    "Invasion coming from {attacker} \u2014 lands in {days} days",
+  "province.invasionOwn": "Your invasion lands here in {days} days",
   "province.buildings": "Buildings",
   "province.build": "Build",
   "build.occupied": "occupied territory \u2014 build in provinces you own",
@@ -367,6 +376,15 @@ const de: Record<StringKey, string> = {
   "province.callOff": "Angriff abbrechen",
   "province.invade": "Von See her anlanden",
   "province.attacking": "Hier mahlt deine Front, jeden Tick.",
+  "province.underAttack": "Angegriffen von {attacker}",
+  "province.frontOwn": "Deine Front steht hier",
+  "province.frontTaken": "{share} der Provinz genommen",
+  "province.defenders": "Deine Divisionen hier",
+  "province.divisionLine":
+    "Division {id} \u00b7 St\u00e4rke {strength} \u00b7 Versorgung {supply}",
+  "province.invasionIncoming":
+    "Invasion aus {attacker} \u2014 landet in {days} Tagen",
+  "province.invasionOwn": "Deine Invasion landet hier in {days} Tagen",
   "province.buildings": "Gebäude",
   "province.build": "Bauen",
   "build.occupied": "besetztes Gebiet \u2014 gebaut wird in eigenen Provinzen",

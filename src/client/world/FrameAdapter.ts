@@ -19,6 +19,7 @@
  */
 
 import type { FrameData, UnitState } from "src/client/render/types";
+import type { Province } from "src/shared/map/Province";
 import type { ProvinceTileIndex } from "./ProvinceTileIndex";
 import { structuresOf } from "./StructureAdapter";
 
@@ -38,6 +39,20 @@ export interface FrontUpdate {
   attacker: number;
   progress: number;
 }
+
+/** One crossing under way as the wire reports it. */
+export interface InvasionUpdate {
+  attacker: number;
+  to: number;
+  ticksLeft: number;
+}
+
+/**
+ * The pulsing circle over a beach an invasion is heading for, in tiles.
+ * Rendering constants, not balance: nothing in the simulation reads them.
+ */
+const INVASION_MARK_INNER = 3;
+const INVASION_MARK_OUTER = 9;
 
 export class FrameAdapter {
   private readonly tileState: Uint16Array;
@@ -123,6 +138,51 @@ export class FrameAdapter {
     (this.frame as { units: ReadonlyMap<number, UnitState> }).units =
       structuresOf(buildings, controllers, this.index);
     this.structuresDirty = true;
+  }
+
+  /**
+   * Mark the war on the map: a ring over every contested province and a
+   * pulsing circle over every beach an invasion is heading for.
+   *
+   * Both passes were inherited, enabled and fed nothing. The attack ring
+   * fades itself in and out from local time and diffs by `unitId`, so a
+   * stable id per province is all it needs; the telegraph pulses and takes
+   * a self/enemy relation for its colour. Centres are fine here — a ring
+   * over the sea beside a crescent coast still says where the province is,
+   * where a factory in the water would not.
+   */
+  applyMarkers(
+    fronts: readonly FrontUpdate[],
+    invasions: readonly InvasionUpdate[],
+    controllers: readonly number[],
+    provinces: readonly Province[],
+    nation: number | null,
+  ): void {
+    const rings = this.frame.attackRings;
+    rings.length = 0;
+    for (const front of fronts) {
+      if (front.attacker === controllers[front.province]) continue;
+      const province = provinces[front.province];
+      if (province === undefined) continue;
+      rings.push({
+        x: province.centre.x,
+        y: province.centre.y,
+        unitId: front.province + 1,
+      });
+    }
+    const marks = this.frame.nukeTelegraphs;
+    marks.length = 0;
+    for (const invasion of invasions) {
+      const province = provinces[invasion.to];
+      if (province === undefined) continue;
+      marks.push({
+        x: province.centre.x,
+        y: province.centre.y,
+        innerRadius: INVASION_MARK_INNER,
+        outerRadius: INVASION_MARK_OUTER,
+        relation: invasion.attacker === nation ? 0 : 2,
+      });
+    }
   }
 
   /** Paint every province from scratch; the next frame is a full upload. */

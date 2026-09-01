@@ -361,6 +361,8 @@ export async function startWorldClient(
     trust: [],
     agreements: [],
     victory: { holders: null, heldSinceTick: null, winner: null },
+    fronts: [],
+    invasions: [],
     tick: 0,
     selected: null,
   };
@@ -448,6 +450,8 @@ export async function startWorldClient(
         model.trust = [...state.trust];
         model.agreements = state.agreements;
         model.victory = state.victory;
+        model.fronts = state.fronts;
+        model.invasions = state.invasions;
         model.tick = state.tick;
 
         if (!view || !adapter) {
@@ -460,6 +464,13 @@ export async function startWorldClient(
               model.provinces = built.provinces;
               adapter.applyFullState(state.controllers, state.tick);
               adapter.applyFronts(state.fronts, model.controllers);
+              adapter.applyMarkers(
+                model.fronts,
+                model.invasions,
+                model.controllers,
+                model.provinces,
+                model.nation,
+              );
               adapter.applyBuildings(model.buildings, model.controllers);
               uploadFrameData(view, adapter.frameData());
               hud.update(model);
@@ -476,6 +487,13 @@ export async function startWorldClient(
         }
         adapter.applyFullState(state.controllers, state.tick);
         adapter.applyFronts(state.fronts, model.controllers);
+        adapter.applyMarkers(
+          model.fronts,
+          model.invasions,
+          model.controllers,
+          model.provinces,
+          model.nation,
+        );
         adapter.applyBuildings(model.buildings, model.controllers);
         uploadFrameData(view, adapter.frameData());
         hud.update(model);
@@ -499,6 +517,8 @@ export async function startWorldClient(
         // one thing a diff would be unforgivable for losing.
         model.agreements = delta.agreements;
         model.victory = delta.victory;
+        model.fronts = delta.fronts;
+        model.invasions = delta.invasions;
         model.tick = delta.tick;
 
         if (!view || !adapter) {
@@ -513,6 +533,13 @@ export async function startWorldClient(
         // After the base ownership, so a repainted province gets its front
         // back — and a front that shrank or ended gets unwound.
         adapter.applyFronts(delta.fronts, model.controllers);
+        adapter.applyMarkers(
+          model.fronts,
+          model.invasions,
+          model.controllers,
+          model.provinces,
+          model.nation,
+        );
         // Buildings only when something about them moved: a count, or the
         // controller whose colour they wear. Most ticks move neither.
         if (delta.buildings.length > 0 || delta.control.length > 0) {

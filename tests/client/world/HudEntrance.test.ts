@@ -96,6 +96,8 @@ function model(over: Partial<HudModel> = {}): HudModel {
     trust: [0, 100, 100],
     agreements: [],
     victory: { holders: null, heldSinceTick: null, winner: null },
+    fronts: [],
+    invasions: [],
     tick: 0,
     selected: 0,
     ...over,
