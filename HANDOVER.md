@@ -610,7 +610,8 @@ the first run and clean it in a commit of its own.
 
 ## The whole plan, and how far along it is
 
-Twelve of thirteen gates passed. **The gate is the unit of progress here, not the
+Twelve of thirteen gates passed, and the thirteenth is waiting on a clock
+rather than on work. **The gate is the unit of progress here, not the
 code:** a phase is done when its gate has been demonstrated, not when it
 compiles.
 
@@ -628,7 +629,7 @@ compiles.
 | 9 · Naval zones and convoys    | Cutting convoy routes starves a province _and_ cuts trade income, with no land war  | ✅ passed                                                          |
 | 10 · Regent                    | 2,000 ticks under regent control against an active opponent, capital still held     | ✅ passed                                                          |
 | 11 · Accounts and identity     | A session claiming a nation it does not hold is refused and told nothing about it   | ✅ passed                                                          |
-| 12 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | ⬜                                                                 |
+| 12 · Deployment                | Seven uninterrupted days on the deployment host, one verified snapshot restore      | 🟡 every leg but the clock, running since 2026-09-01               |
 
 ---
 
@@ -1494,18 +1495,31 @@ on which port is deliberately not in this repository** — it is in
 public. This paragraph named the host and its address until 2026-09-01, in the
 same breath as saying it would not; see the note at the end of this section.
 
-Two things about it belong here, though, because they are decisions rather than
-details:
+**Redeployed as a season on 2026-09-01**, which is what §8 was waiting for.
+The old world was dumped and verified first; the partition hash and the
+protocol had both moved, so it could be kept but not resumed.
 
-- **It has no accounts.** §8 puts deployment _after_ phase 11 for exactly this
-  reason: anyone who reaches the URL can play any nation by putting its number
-  in `?nation=`, read that nation's treaty terms and cancel its agreements.
-  Deploying first was a deliberate call to get a live test, made knowingly. It
-  is not a state to leave a world in.
-- **It has no TLS**, because it has no DNS record, because the zone is on
-  Cloudflare and there is no API token on either machine. The vhost for the
-  ACME challenge is already in place; the certificate is one command away from
-  a record existing.
+Three things about the deployment belong here, because they are decisions
+rather than details:
+
+- **It has accounts now.** `WORLD_SEASON=open` is set, and the world says so
+  on startup: identity armed, every unclaimed nation handed to its regent.
+  Playing one needs a token from `POST /register`; a bare URL gets you a
+  spectator. Until that day anyone who reached the URL could put a number in
+  `?nation=` and be that nation — read its treaty terms, cancel its
+  agreements. §8 puts deployment after phase 11 for exactly that reason, and
+  deploying before it was a deliberate call to get a live test.
+- **It still has no TLS**, because it has no DNS record, because the zone is
+  on Cloudflare and **there is no API token on any machine** — looked for
+  again on 2026-09-01 and not found, and certbot on the host has only the
+  `standalone` and `webroot` plugins. This is the one part of phase 12 that
+  cannot be done from a machine: it needs somebody with access to the zone.
+  The ACME vhost is in place, so the certificate is one command behind the
+  record.
+- **The seven-day clock is running.** `scripts/phase12-gate.mjs --start` set
+  its mark on 2026-09-01. Every other leg of that gate passed on the day, and
+  all five of its counter-proofs failed at exactly the leg they aim at. What
+  is left is the waiting.
 
 **A leak, and what it is worth.** From 2026-08-31 to 2026-09-01 this section
 carried the host's name, its IP address and its port — in a public repository,
@@ -1621,13 +1635,20 @@ side of the assignment form, an invasion under way. Everything else in phases
 1–9 is proven by scripts; those four are not, and a gate cannot tell you the
 game is unplayable.
 
-**Then phase 12's deployment remainder** (plan §6). The in-stack half is
-done — backup sidecar with a hard-abort verification, and a restore really
-tested. What remains needs the host or Max: a DNS record (Cloudflare token
-or a hand-created entry), TLS via the ACME vhost that is already in place,
-the systemd watchdog on the machine, and the host redeploy — **with
-`WORLD_SEASON=open`**, which restarts that world (hash and protocol both
-moved) and turns it from a demo into a season.
+**Phase 12 is down to one thing, and it is not a coding thing.** On
+2026-09-01 the host was redeployed as a season, the watchdog was installed and
+its alert path proved end to end, backups moved onto the filesystem where
+something can read and copy them, `/register` was added to the proxy, and
+`scripts/phase12-gate.mjs` was written, run, and made to fail five different
+ways on purpose. Every leg of that gate passes except the seven days, whose
+clock started the same afternoon.
+
+What is left: **a DNS record**, and the TLS certificate behind it. There is no
+Cloudflare API token on any machine — looked for again that day and not found
+— so this needs somebody with access to the zone, adding an `A` record with
+the grey cloud (the orange one terminates TLS and breaks the host's SNI
+passthrough). `docs/deploy/HOST.local.md` has the exact certbot command that
+follows. Nothing else in the phase is blocked, and nothing else is undone.
 
 **The map's real borders are done** (plan §8, decision 0021) — built after
 phase 11 instead of last, at the player's call. The partition hash moved, so

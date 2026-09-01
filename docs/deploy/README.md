@@ -1,10 +1,13 @@
 # Running your own world
 
-**Status: twelve of thirteen gates passed.** A world ticks, persists to
-Postgres, and comes back where it was after a hard kill; every system in
-CLAUDE.md §6 is built and gated. Phase 12 — this document's own subject — is
-the one that is not. Its in-stack half is done (a backup sidecar whose restore
-was really run); its host half is not.
+**Status: twelve of thirteen gates passed, and the thirteenth is waiting on a
+clock.** A world ticks, persists to Postgres, and comes back where it was
+after a hard kill; every system in CLAUDE.md §6 is built and gated. Phase 12 —
+this document's own subject — is deployed and running as a season: identity
+armed, backups verified, a watchdog on a two-minute timer, and
+`scripts/phase12-gate.mjs` passing every leg but the seven days it has to wait
+out. The one piece still missing is TLS, and it is missing because of a DNS
+record nobody has been able to create.
 
 ```bash
 docker compose up -d          # Postgres, and a world on ws://localhost:3000/ws
