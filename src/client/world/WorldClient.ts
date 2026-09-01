@@ -326,6 +326,12 @@ export async function startWorldClient(
 
   let view: MapRenderer | undefined;
   let adapter: FrameAdapter | undefined;
+  /**
+   * Set when the renderer could not be built — no GPU context, a map
+   * mismatch. The HUD keeps updating without a map behind it, so the
+   * player still gets numbers and the reason, rather than a blank page.
+   */
+  let rendererFailed = false;
 
   // The nation, from the URL, from what this browser chose last time, or by
   // asking. Before this the URL was the only way and a visitor without one
@@ -447,15 +453,24 @@ export async function startWorldClient(
         if (!view || !adapter) {
           // First full state carries the map identity, so the renderer cannot
           // be built before it arrives.
-          void buildFrom(state, pickProvince).then((built) => {
-            view = built.view;
-            adapter = built.adapter;
-            model.provinces = built.provinces;
-            adapter.applyFullState(state.controllers, state.tick);
-            adapter.applyFronts(state.fronts, model.controllers);
-            uploadFrameData(view, adapter.frameData());
-            hud.update(model);
-          });
+          void buildFrom(state, pickProvince)
+            .then((built) => {
+              view = built.view;
+              adapter = built.adapter;
+              model.provinces = built.provinces;
+              adapter.applyFullState(state.controllers, state.tick);
+              adapter.applyFronts(state.fronts, model.controllers);
+              uploadFrameData(view, adapter.frameData());
+              hud.update(model);
+            })
+            .catch((error: unknown) => {
+              // A rejected build used to be an unhandled promise and a page
+              // that stayed blank with a full state in hand. Say what went
+              // wrong, and keep the panels alive — the economy needs no GPU.
+              rendererFailed = true;
+              showFatal(error instanceof Error ? error.message : String(error));
+              hud.update(model);
+            });
           return;
         }
         adapter.applyFullState(state.controllers, state.tick);
@@ -484,7 +499,12 @@ export async function startWorldClient(
         model.victory = delta.victory;
         model.tick = delta.tick;
 
-        if (!view || !adapter) return; // full state still loading
+        if (!view || !adapter) {
+          // Full state still loading — or the renderer failed, in which case
+          // the panels are all there is and they still get every tick.
+          if (rendererFailed) hud.update(model);
+          return;
+        }
         // Control, not ownership: the map shows where the line is, not who
         // holds the title deeds (docs/decisions/0002).
         adapter.applyDelta(delta.control, delta.tick);

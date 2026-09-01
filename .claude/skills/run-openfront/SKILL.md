@@ -34,38 +34,46 @@ To play a nation rather than watch, open `http://localhost:9000/?nation=17`
 ?nation=&lt;n&gt; to the URL to play one."_ On a season world
 (`WORLD_SEASON=open`) the nation needs a token instead; see decision 0019.
 
-A gate script is the other way to drive a world — eleven of them live in
+A gate script is the other way to drive a world — twelve of them live in
 `scripts/`, each plays a real world over a WebSocket and prints what it
 measured. They want `WORLD_TICK_MS=50`, and `HANDOVER.md` records what each one
 proved.
 
 ## Driving a browser
 
-**There is no working browser automation in this repository, and the files next
-to this one are not it.**
+**There is a browser leg now: `npm run test:e2e`** (`tests/e2e/smoke.mjs`,
+Playwright, added 2026-09-01). It opens the real client against the running
+world and checks what a person would see: the map canvas at window size, the
+six menu buttons, the clock, the economy panel with numbers, a click on the map
+opening a province panel with a build menu, a welcomed socket, and no error or
+fatal screen. It wants the compose stack on :3000 and the Vite dev server on
+:9000, and exits 2 with instructions when either is missing.
 
-`driver.mjs`, `game.mjs` and `setup.sh` came from upstream (three commits, none
-of them from this fork) and phase 0 moved 259 client files into `_legacy/`
-without noticing them. They assume things that no longer exist:
-`src/server/Server.ts`, a lobby to poll, a `single-player-modal`, a
-`map-picker`, a `build-menu`, a spawn phase, a `GameView` with `ticks()` and
-`myPlayer()`, and a 100 ms tick. Every DOM selector in them now resolves to
-`null`: `index.html` contains one script tag and nothing else, and
-`tests/architecture/QuarantineBoundary.test.ts` actively prevents the legacy
-custom elements from ever being registered. `playwright` is not installed and
-is not a dependency, so `driver.mjs` fails at its first import.
+```bash
+docker compose up -d && npm run start:client &
+npm run test:e2e -- --nation=17 --screenshot=/tmp/world.png
+```
 
-Two things in there are still worth reading if somebody rebuilds this:
+`--screenshot` writes a PNG of the whole page, which is the cheapest way to
+_look_ at a client change without a person. `--client`, `--health` and
+`--timeout` override the defaults.
 
-- `launch()` in `driver.mjs` — plain Playwright bootstrapping, and its
-  Linux library injection is guarded by an `fs.existsSync` so it is harmless
-  elsewhere.
-- The `rafIntervalMs` throttle. This fork still renders WebGL, so headless runs
-  still go through SwiftShader and still starve the main thread.
+Two things it had to learn, both written in the script's header:
 
-**Before writing a new one, read `HANDOVER.md` under "What you have to look at
-yourself".** It records the real obstacle, which is not the selectors: in an
-automated Chrome the page's own WebSocket to `/ws` fails immediately while
-Vite's HMR socket on the same origin connects. That is the problem to solve
-first. Until it is solved, the checklist in that section is a human's job, and
-items 0a–0f on it have never been seen by anyone.
+- **Headless Chromium only has software WebGL**, and `initGL.ts` refuses it —
+  rightly, for a player. The script gives the page an init script that hides
+  the renderer string and drops `failIfMajorPerformanceCaveat`. Test-side
+  only; the client is not changed. And the spoofed string must not contain
+  "software" — the first version did and gated itself.
+- **The page's WebSocket connects fine from Playwright.** The old note that an
+  automated Chrome fails at `/ws` was about the Claude-in-Chrome extension's
+  sandbox, not about headless browsers.
+
+The frames are slow under SwiftShader (a run takes ~30 s); the DOM is not what
+is slow, and the DOM is what the checks read. WebGL _output_ — an icon on the
+map, a front's tiles — is not checkable this way; only the screenshot shows it.
+
+`driver.mjs`, `game.mjs` and `setup.sh` next to this file are upstream
+leftovers that target the deleted client (lobby, `single-player-modal`,
+`map-picker`, a spawn phase). Every selector in them resolves to `null`. They
+are not the browser leg and should not be revived.
