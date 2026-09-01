@@ -1,6 +1,7 @@
 # Handover — state of the work
 
-**Written 2026-08-31, last updated 2026-09-01 (real borders).** Read this first if you are picking the project up
+**Written 2026-08-31, last updated 2026-09-01 (real borders, and the move
+to another machine).** Read this first if you are picking the project up
 without context. It says where the work stands, what to do next, and which
 traps have already been paid for.
 
@@ -178,6 +179,44 @@ curl -s localhost:3000/health
 Without `docker compose`, `npm run start:server` still works: with no
 `DATABASE_URL` the world keeps its history in memory and says so on the first
 line.
+
+## Continuing on another machine
+
+The work moves computers from here. Everything that matters is in this
+repository — with three exceptions, named below rather than discovered.
+
+**Fresh setup, in order:**
+
+```bash
+git clone https://github.com/Juice-de-Orange/OpenFrontIO-MaxEdit
+cd OpenFrontIO-MaxEdit && npm ci
+git config user.email 200407033+Juice-de-Orange@users.noreply.github.com
+docker compose up -d          # Postgres + world + backup sidecar
+curl -s localhost:3000/health # healthy, ticking, 677 provinces
+npm run start:client          # http://localhost:9000
+npm run test                  # 624 passed, 9 skipped
+```
+
+The `user.email` line is not optional: GitHub's email privacy rejects a push
+whose commits carry the private address, and the rejection arrives at the
+*end* of the first day's work, not the start of it.
+
+The province artefact is checked in — there is no generation step on a fresh
+clone. `npm run gen-provinces` exists for when the partition itself changes,
+and its output belongs in the same commit (decision 0006).
+
+**What does not travel in the repository:**
+
+- **`docs/deploy/HOST.local.md`** is git-ignored on purpose — the repo is
+  public and that file holds the deployment host's names, ports and paths.
+  It exists only on the old machine; carry it over by hand or the phase-12
+  host work starts from an interview with the server instead of a note.
+- **The assistant's memory directory** is machine-local. Everything worth
+  keeping from it is in this document; the one live item it tracked is that
+  the borders still await the player's visual sign-off (checklist 0e/0f).
+- **`static/`** is build output; it regenerates.
+
+---
 
 ## The plan, end to end
 
@@ -529,7 +568,7 @@ hash. Plan it together with a season boundary.
 Before calling anything done:
 
 ```bash
-npm run test                          # 618 with the victory system
+npm run test                          # 624 with the real borders
 TEST_DATABASE_URL=... npm run test:db # skipped silently without it
 npx tsc --noEmit -p tsconfig.strict.json
 npm run lint
@@ -789,7 +828,7 @@ phase-9 gate
 FAIL
 ```
 
-### Phase 8 — air zones### Phase 8 — air zones
+### Phase 8 — air zones
 
 ```
 phase-8 gate
@@ -1313,6 +1352,17 @@ The night and morning of 2026-08-31/09-01 (all six pushed to `origin/main`):
 | `e563d053` | The handover for the night, and the gate specification phase 9 then had to satisfy                                                           |
 | `98b44426` | **The phase-9 gate passes** — and its counter-proof caught naval.ts pricing a one-zone route's raid exposure at zero                         |
 
+The day of 2026-09-01 (all pushed to `origin/main`):
+
+| Commit     | What                                                                                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `0ff04b4a` | **The regent — phase 10, gated the afternoon it was built** (decision 0018)                                                             |
+| `52b85be0` | **Accounts and identity — phase 11, gated** (decision 0019); `WORLD_SEASON=open` arms it, supersession, tokens stored as hashes only    |
+| `028067d7` | **The victory system** — transitive blocs, the 40%/seven-day hold, a season that ends on points (decision 0020)                         |
+| `dde361bc` | **The backup sidecar, and a restore that really ran** — phase 12's in-stack half                                                        |
+| `fe445316` | **Nations wear their real borders** — Natural Earth registered onto the tile grid (decision 0021), partition regenerated                |
+| `6e215cbc` | 52 nations get 52 tellable colours — saturation and lightness steps in the palette                                                      |
+
 Phase 7:
 
 | Commit     | What                                                                                                                                                                                                                                                                                                             |
@@ -1763,14 +1813,14 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**618 passed, 9 skipped, in one run — no tolerated failures.** The ninth
+**624 passed, 9 skipped, in one run — no tolerated failures.** The ninth
 skip is the Postgres claims test, which runs under `npm run test:db`. (The
 count moves by one with every gate script: the protocol-version guard
 counts them by glob.) The eight
 skipped are the Postgres integration tests, which run under `npm run test:db`
 against `docker compose up -d db`. **They are a suite that rots when nobody
 runs it**, so `npm run test:db` belongs in every phase's closing checks; it
-passed 9/9 at the end of phase 11.
+passed 9/9 after the borders landed.
 
 The count moved from 597 at the end of phase 9, from 567 at the end of
 phase 8, from 533 at the end of

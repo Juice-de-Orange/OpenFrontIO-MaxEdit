@@ -325,23 +325,30 @@ Plus two transitive leaks the count above missed, because they were not
 
 ## The province partition
 
-Provinces are grown, not gridded, and the order matters:
+Nation territory comes from the atlas, and the provinces are grown inside
+it:
 
-1. A multi-source breadth-first flood from the capitals in the map manifest,
-   over land only, gives each nation its territory. Because it spreads at a
-   uniform rate, the boundary between two nations ends up equidistant _along
-   the land_ — so it bends around bays and runs through mountains the way a
-   frontier does.
+1. **Every land tile is looked up in Natural Earth** through a fitted
+   transform (`src/build/NationBorders.ts`, decision 0021): the hand-drawn
+   map is registered onto real admin-0 geometry, every capital claims a
+   12-tile disk, specks drown, and drawn coastline the atlas does not know
+   floods from its nearest owner. The old capital flood — a multi-source
+   breadth-first spread that made every border equidistant along the land —
+   is still there as the fallback for a map without borders data.
 2. Each territory is then cut into pieces by a flood restricted to that
-   territory, with two Lloyd relaxation passes to even out the sizes.
+   territory, with two Lloyd relaxation passes to even out the sizes. A
+   detached piece — an island, an exclave — becomes a province of its own
+   rather than fusing with the mainland across open water.
 
 Cutting inside a territory is what guarantees **no province straddles a
 national border**: the national borders are province borders. An ownership
 change therefore moves one province, and a front is a set of province edges.
 
-Europe at quarter resolution: 529 provinces, mean node degree 3.27, no
-isolated provinces. (The plan measured 2.66 with 160 isolated for a naive
-partition, and warned it would give "corridors instead of fronts".)
+Europe at quarter resolution: 677 provinces, mean node degree 2.90, 39 of
+them islands with no land neighbour — reachable by naval invasion and
+nothing else. (The plan measured 2.66 with 160 isolated for a naive
+partition and warned it would give "corridors instead of fronts"; the
+isolated provinces now are real islands, not artefacts.)
 
 ### It is generated once, not at startup
 
@@ -359,7 +366,8 @@ resources/maps/europe/
 
 The `Uint16` carries two partitions at once: a land tile holds its province id,
 a water tile holds its sea zone with bit 15 set. Land ids never approach 0x8000
-— a nation is capped at 40 provinces.
+— a nation's mainland is capped at 40 provinces, and its islands add a
+handful on top.
 
 `FullState.map.partitionHash` (FNV-1a over the whole binary) is what makes the
 two sides' agreement checkable, with `terrainHash` beside it because the

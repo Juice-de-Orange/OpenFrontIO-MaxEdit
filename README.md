@@ -60,7 +60,8 @@ ones that look arbitrary — is in [CLAUDE.md](CLAUDE.md).
 
 ## 🚧 Status
 
-**Phase 11 of 13 built.** A world server ticks every five seconds, persists to
+**Phase 11 of 13 built, and the map wears its real borders.** A world
+server ticks every five seconds, persists to
 Postgres, accepts commands and comes back where it was after being killed. On
 top of that runs an economy: provinces extract from their deposits, civilian
 factories make construction points, military factories and dockyards draw the
@@ -93,7 +94,10 @@ And the world knows who you are now: on a
 season world (`WORLD_SEASON=open`) an account token is the key to exactly
 one nation, an impostor is refused before it is told anything, and every
 nation nobody claims is played by its regent. On a workbench world all of
-that stays out of the way. The inherited renderer draws all of it.
+that stays out of the way. And the map under all of it is Europe now, not a
+diagram of it: Natural Earth's borders registered onto the hand-drawn tile
+grid, islands under the right flags, fifty-two nations in tellable colours.
+The inherited renderer draws all of it.
 
 The build order and the gate each phase has to pass are in
 [CLAUDE.md § 8](CLAUDE.md). For the current state of the work — what is done,
