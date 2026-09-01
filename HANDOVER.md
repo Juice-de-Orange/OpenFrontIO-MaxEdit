@@ -468,7 +468,7 @@ hash. Plan it together with a season boundary.
 Before calling anything done:
 
 ```bash
-npm run test                          # 609 at the end of phase 10
+npm run test                          # 610 at the end of phase 10
 TEST_DATABASE_URL=... npm run test:db # skipped silently without it
 npx tsc --noEmit -p tsconfig.strict.json
 npm run lint
@@ -1643,7 +1643,9 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**609 passed, 8 skipped, in one run — no tolerated failures.** The eight
+**610 passed, 8 skipped, in one run — no tolerated failures.** (The
+count moves by one with every gate script: the protocol-version guard
+counts them by glob.) The eight
 skipped are the Postgres integration tests, which run under `npm run test:db`
 against `docker compose up -d db`. **They are a suite that rots when nobody
 runs it**, so `npm run test:db` belongs in every phase's closing checks; it
