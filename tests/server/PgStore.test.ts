@@ -334,6 +334,14 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
       expect(await store.claimOf(id, 7)).toBe(`alice-${suffix}`);
       expect(await store.claimOf(id, 9)).toBeNull();
       expect(await store.claimedNations(id)).toEqual([7, 8]);
+      // The join the wire's `ruler` reads (decision 0024): nation to the
+      // name its holder registered with.
+      expect(await store.holderNames(id)).toEqual(
+        new Map([
+          [7, "Alice"],
+          [8, "Bob"],
+        ]),
+      );
     } finally {
       await store.close();
     }

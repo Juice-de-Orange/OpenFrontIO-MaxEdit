@@ -1832,6 +1832,15 @@ on which port is deliberately not in this repository** — it is in
 public. This paragraph named the host and its address until 2026-09-01, in the
 same breath as saying it would not; see the note at the end of this section.
 
+**The phase-12 gate, run on the host after both redeploys (2026-09-02,
+10:20, without `--start`):** every leg green but the clock. Continuity:
+"0.58 days elapsed, 10005 ticks of an expected 10035 (-30) — the world lost no
+more than 100 ticks (1% or 60, whichever is larger)". Two restarts cost
+thirty ticks between them, well inside the budget, and the mark from
+2026-09-01 19:31 UTC stands. The restore drill loaded that morning's dump
+into a scratch database (63 commands, 168 snapshots) and dropped it again.
+"6.42 to go."
+
 **Redeployed a second time on 2026-09-02, 09:50, for the player's name**
 (decision 0024): the same sequence, a verified dump first, the world back at
 its last durable record, the watching smoke green against the live URL, and
@@ -2080,18 +2089,12 @@ the host redeploy above is now doubly a season boundary.
   tick while the agreement stands), and the propose/accept refusals ask for
   _some_ route rather than a land one.
 
-Still worth doing, and still deferred:
-
-- **A language picker.** The HUD has its own English/German catalogue in
-  `client/world/ui/strings.ts` and reads `navigator.language`.
-- **Supply's per-type half.** §6.6 wants consumption proportional to a unit's
-  equipment and type; it is still flat per division. (The sea path itself is
-  no longer deferred — phase 9 built it.)
-- **Rendering an invasion on the map.** The crossing is public on the wire
-  (`invasions`) and shown in the owner's division list; nothing marks it on
-  the map itself yet.
-- **Deployment to a real host** (phase 12) and **accounts** (phase 11, see
-  below). The nation still comes from `?nation=` in the URL.
+The four deferrals this list used to carry are all closed (2026-09-02): a
+**language picker** in the bar (`14a7626a`), **supply proportional to
+equipment** (§6.6, same commit, phase-6 gate re-run), **invasions on the map**
+as a pulsing circle over the beach (`64f7246b`), and **deployment with
+accounts** (phases 11 and 12, 2026-09-01). Nothing on this list is deferred
+any more; what is open is under "What to do next".
 
 Two long-standing deferrals **closed by phase 9, the other way than planned**:
 the water provinces became decision 0017 (no format bump — the sea-zone graph
