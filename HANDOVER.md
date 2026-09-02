@@ -2247,8 +2247,14 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
    the one word in `tradeContext`.
 2. Decision 0026 (trust regrowth): leave `TRUST_REGROWTH_PER_DAY` at 0, or
    set a value — 1 is the number to try, and the help text changes with it.
-3. `REGENT_FOCUS_RESEED=1` once on the host, so the running season's fifty
-   regents stop all playing "economy". A restart, five minutes of snapshot.
+3. ~~`REGENT_FOCUS_RESEED=1` once on the host~~ **Done, 19:35.** Thirty-one
+   of the fifty-two moved onto the focus their archetype asks for; the other
+   twenty-one are nineteen builders and scholars already on `economy` and the
+   two nations a player holds, which the world never touches (invariant 7).
+   The commands were read back out of the log and compared against the seed:
+   thirty-one reseeded, none mismatched. The compose file had never forwarded
+   the flag to the container, which is why this could not be done this
+   morning.
 4. ~~**Redeploy with the day's work.**~~ **Done, 2026-09-02 19:25.**
    Protocol 18 and hash version 6 went to the host with Max's go-ahead: dump
    `world-20260902-172432.dump` first, then the morning's sequence. The world
