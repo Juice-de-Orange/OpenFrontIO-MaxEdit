@@ -32,6 +32,19 @@ export interface CameraState {
   zoom: number;
 }
 
+/** Two world points as a box, whichever corner was dragged from. */
+function boxOf(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): { x0: number; y0: number; x1: number; y1: number } {
+  return {
+    x0: Math.min(a.x, b.x),
+    y0: Math.min(a.y, b.y),
+    x1: Math.max(a.x, b.x),
+    y1: Math.max(a.y, b.y),
+  };
+}
+
 export class CameraController {
   private state: CameraState;
   private dragging = false;
@@ -41,6 +54,24 @@ export class CameraController {
 
   /** Set while a pointer is down and has moved far enough to be a drag. */
   private moved = false;
+
+  /**
+   * While set, a drag draws a box instead of moving the map.
+   *
+   * This is how a player says *where* a fleet patrols (decision 0031): they
+   * draw the water. The controller owns it because the controller is what
+   * already turns pointer events into world coordinates; everything about
+   * what the box then means lives in the client.
+   */
+  private drawing:
+    | ((
+        area: { x0: number; y0: number; x1: number; y1: number } | null,
+      ) => void)
+    | null = null;
+  private drawFrom: { x: number; y: number } | null = null;
+  private onDrawMove:
+    | ((area: { x0: number; y0: number; x1: number; y1: number }) => void)
+    | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -57,16 +88,26 @@ export class CameraController {
 
     this.bind("pointerdown", (e) => {
       const ev = e as PointerEvent;
+      canvas.setPointerCapture(ev.pointerId);
+      if (this.drawing !== null) {
+        this.drawFrom = this.screenToWorld(ev.clientX, ev.clientY);
+        return;
+      }
       this.dragging = true;
       this.moved = false;
       this.lastX = ev.clientX;
       this.lastY = ev.clientY;
-      canvas.setPointerCapture(ev.pointerId);
     });
 
     this.bind("pointermove", (e) => {
-      if (!this.dragging) return;
       const ev = e as PointerEvent;
+      if (this.drawing !== null) {
+        if (this.drawFrom === null) return;
+        const to = this.screenToWorld(ev.clientX, ev.clientY);
+        this.onDrawMove?.(boxOf(this.drawFrom, to));
+        return;
+      }
+      if (!this.dragging) return;
       const dx = ev.clientX - this.lastX;
       const dy = ev.clientY - this.lastY;
       if (Math.abs(dx) + Math.abs(dy) > 0) this.moved = true;
@@ -82,6 +123,20 @@ export class CameraController {
 
     const endDrag = (e: Event) => {
       const ev = e as PointerEvent;
+      if (this.drawing !== null) {
+        const done = this.drawing;
+        const from = this.drawFrom;
+        this.drawFrom = null;
+        if (canvas.hasPointerCapture?.(ev.pointerId)) {
+          canvas.releasePointerCapture(ev.pointerId);
+        }
+        if (e.type !== "pointerup" || from === null) {
+          done(null);
+          return;
+        }
+        done(boxOf(from, this.screenToWorld(ev.clientX, ev.clientY)));
+        return;
+      }
       const wasDragging = this.dragging;
       this.dragging = false;
       if (canvas.hasPointerCapture?.(ev.pointerId)) {
@@ -112,6 +167,33 @@ export class CameraController {
     );
   }
 
+  /**
+   * Take the next drag as a drawn box rather than as a pan.
+   *
+   * `onDone` is called once, with the box in world coordinates, or with
+   * null if the gesture was cancelled. `onMove` is called while the pointer
+   * is down so the caller can draw what is being drawn. Both are cleared
+   * afterwards: draw mode is one gesture, never a state to get stuck in.
+   */
+  drawArea(
+    onDone: (
+      area: { x0: number; y0: number; x1: number; y1: number } | null,
+    ) => void,
+    onMove?: (area: { x0: number; y0: number; x1: number; y1: number }) => void,
+  ): void {
+    this.drawing = (area) => {
+      this.drawing = null;
+      this.onDrawMove = null;
+      onDone(area);
+    };
+    this.onDrawMove = onMove ?? null;
+  }
+
+  /** Whether a drawn area is being waited for. */
+  get drawingArea(): boolean {
+    return this.drawing !== null;
+  }
+
   /** CSS pixels of pointer movement, in world tiles. */
   private toWorldDistance(cssPixels: number): number {
     return (cssPixels * renderDpr()) / this.state.zoom;
@@ -133,6 +215,16 @@ export class CameraController {
       y:
         this.state.y +
         this.toWorldDistance(clientY - rect.top - rect.height / 2),
+    };
+  }
+
+  /** The inverse of `screenToWorld`, for drawing over the map. */
+  worldToScreen(worldX: number, worldY: number): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    const scale = this.state.zoom / renderDpr();
+    return {
+      x: rect.left + rect.width / 2 + (worldX - this.state.x) * scale,
+      y: rect.top + rect.height / 2 + (worldY - this.state.y) * scale,
     };
   }
 

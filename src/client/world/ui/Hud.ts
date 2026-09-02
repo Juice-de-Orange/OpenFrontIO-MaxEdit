@@ -391,6 +391,15 @@ export interface HudActions {
     zone: number | null,
     mission: Mission | null,
   ): void;
+  /**
+   * Let the player draw the area this formation should work over.
+   *
+   * The next drag on the map is a box rather than a pan; the client turns
+   * the box into the zone it mostly covers and sends the assignment
+   * (decision 0031). A dropdown of thirty-one zone numbers is a list of
+   * numbers; this is a piece of sea.
+   */
+  drawAreaFor(formationId: number): void;
   disbandFormation(formationId: number): void;
 }
 
@@ -1984,6 +1993,14 @@ export class Hud {
               }),
         ),
       );
+      const draw = document.createElement("button");
+      draw.className = "draw";
+      draw.textContent = t("air.drawArea");
+      draw.title = t("air.drawAreaHint");
+      draw.addEventListener("click", () =>
+        this.actions.drawAreaFor(formation.id),
+      );
+      line.append(draw);
       if (formation.zone !== null) {
         const home = document.createElement("button");
         home.textContent = t("air.bringHome");

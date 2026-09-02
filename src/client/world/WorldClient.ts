@@ -23,8 +23,10 @@ import type { RenderRules } from "src/client/render/types";
 import { ALL_UNIT_TYPES, PlayerTypeEnum } from "src/client/render/types";
 import { TICK_MS } from "src/shared/config/time";
 import { BUILDING_TYPES } from "src/shared/economy/Buildings";
+import { FORMATIONS } from "src/shared/economy/Formations";
 import type { ProvinceMap } from "src/shared/map/ProvinceMap";
 import type { FullState } from "src/shared/protocol/Wire";
+import { zoneUnder } from "./AreaPicker";
 import { CameraController } from "./CameraController";
 import { FrameAdapter } from "./FrameAdapter";
 import { loadWorldMap } from "./MapAssets";
@@ -335,6 +337,9 @@ export async function startWorldClient(
   let view: MapRenderer | undefined;
   let adapter: FrameAdapter | undefined;
   let anchors: ZoneAnchors = { air: new Map(), sea: new Map() };
+  let camera: CameraController | null = null;
+  let zoneSource: ProvinceMap | null = null;
+  let mapSize = { width: 0, height: 0 };
   /**
    * Set when the renderer could not be built — no GPU context, a map
    * mismatch. The HUD keeps updating without a map behind it, so the
@@ -429,6 +434,43 @@ export async function startWorldClient(
       send({ kind: "raise_formation", provinceId: province, template }),
     assignFormation: (formationId, zone, mission) =>
       send({ kind: "assign_formation", formationId, zone, mission }),
+    drawAreaFor: (formationId) => {
+      const formation = model.economy?.formations.find(
+        (f) => f.id === formationId,
+      );
+      if (formation === undefined || camera === null || zoneSource === null) {
+        return;
+      }
+      const kind = FORMATIONS[formation.template].kind;
+      const box = drawnBox();
+      showNotice(t("air.drawing"));
+      camera.drawArea(
+        (area) => {
+          box.remove();
+          if (area === null) return;
+          const zone = zoneUnder(
+            zoneSource as ProvinceMap,
+            mapSize.width,
+            mapSize.height,
+            area,
+            kind,
+          );
+          if (zone === null) {
+            showNotice(t("air.drawNothing"));
+            return;
+          }
+          // The order a drawn area means: hold this water, or own this sky.
+          // The other of the two is a choice the panel still offers.
+          send({
+            kind: "assign_formation",
+            formationId,
+            zone,
+            mission: kind === "naval" ? "patrol" : "air_superiority",
+          });
+        },
+        (area) => paintBox(box, area, camera as CameraController),
+      );
+    },
     disbandFormation: (formationId) =>
       send({ kind: "disband_formation", formationId }),
     // Forget and start over. A reload rather than re-entering the boot path:
@@ -480,6 +522,9 @@ export async function startWorldClient(
               view = built.view;
               adapter = built.adapter;
               anchors = built.anchors;
+              camera = built.camera;
+              zoneSource = built.grid;
+              mapSize = built.mapSize;
               model.provinces = built.provinces;
               adapter.applyFullState(state.controllers, state.tick);
               adapter.applyFronts(state.fronts, model.controllers);
@@ -666,6 +711,40 @@ async function ensureToken(
  * disagree about and shows up only as quietly mis-coloured regions.
  */
 /**
+ * The rubber band a player drags to say where a fleet or a wing works.
+ *
+ * A plain positioned `div` over the canvas rather than anything in the
+ * renderer: it exists for the half-second the gesture lasts, and a WebGL
+ * pass for a dashed rectangle would be three hundred lines nobody can test
+ * against a browser this project does not open in CI.
+ */
+function drawnBox(): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "world-draw-box";
+  box.style.cssText =
+    "position:fixed;pointer-events:none;z-index:40;border:2px dashed " +
+    "rgba(190,245,255,.95);background:rgba(190,245,255,.12);border-radius:2px;" +
+    "display:none";
+  document.body.append(box);
+  return box;
+}
+
+/** Put the band where the drag currently is, in screen pixels. */
+function paintBox(
+  box: HTMLElement,
+  area: { x0: number; y0: number; x1: number; y1: number },
+  camera: CameraController,
+): void {
+  const a = camera.worldToScreen(area.x0, area.y0);
+  const b = camera.worldToScreen(area.x1, area.y1);
+  box.style.display = "block";
+  box.style.left = `${Math.min(a.x, b.x)}px`;
+  box.style.top = `${Math.min(a.y, b.y)}px`;
+  box.style.width = `${Math.abs(b.x - a.x)}px`;
+  box.style.height = `${Math.abs(b.y - a.y)}px`;
+}
+
+/**
  * Where to point the camera so a player can see their own country.
  *
  * The bounding box of everything the nation controls, framed with the same
@@ -712,6 +791,9 @@ async function buildFrom(
   adapter: FrameAdapter;
   provinces: ProvinceMap["provinces"];
   anchors: ZoneAnchors;
+  camera: CameraController;
+  grid: ProvinceMap;
+  mapSize: { width: number; height: number };
 }> {
   const map = await loadWorldMap(state.map.id);
   const grid = map.provinces;
@@ -828,7 +910,7 @@ async function buildFrom(
     }
   });
 
-  new CameraController(
+  const camera = new CameraController(
     canvas,
     initialCamera,
     (x, y, z) => view.setCameraState(x, y, z),
@@ -851,6 +933,9 @@ async function buildFrom(
     // One tile per zone, worked out once: where a wing or a fleet stands
     // when it is assigned to an area rather than to a place.
     anchors: zoneAnchors(grid, map.width),
+    camera,
+    grid,
+    mapSize: { width: map.width, height: map.height },
   };
 }
 

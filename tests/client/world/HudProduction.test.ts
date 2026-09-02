@@ -108,6 +108,7 @@ function actions(): HudActions {
     configureRegent: vi.fn(),
     raiseFormation: vi.fn(),
     assignFormation: vi.fn(),
+    drawAreaFor: vi.fn(),
     disbandFormation: vi.fn(),
     chooseNation: vi.fn(),
     changeLanguage: vi.fn(),

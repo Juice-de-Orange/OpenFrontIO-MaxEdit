@@ -169,6 +169,12 @@ const en = {
   "air.missionsHint": "Eight missions: four for the sky, four for the sea.",
   "air.overlayHint": "Press z to see the zones on the map.",
   "air.send": "Send",
+  "air.drawArea": "Draw its area",
+  "air.drawAreaHint":
+    "Then drag a box on the map over the area it should work: the sea a fleet patrols, or the sky a wing flies in.",
+  "air.drawing": "Drag a box on the map over the area — Escape to stop.",
+  "air.drawNothing":
+    "Nothing there for this one: a fleet needs open water, a wing needs land.",
   "air.raise": "{what} \u2014 {cost} manpower",
   "formation.wing": "Air wing",
   "formation.fleet": "Fleet",
@@ -527,6 +533,12 @@ const de: Record<StringKey, string> = {
     "Acht Missionen: vier f\u00fcr den Himmel, vier f\u00fcr die See.",
   "air.overlayHint": "Taste z zeigt die Zonen auf der Karte.",
   "air.send": "Entsenden",
+  "air.drawArea": "Gebiet zeichnen",
+  "air.drawAreaHint":
+    "Dann ein Rechteck über das Gebiet ziehen: das Meer, das eine Flotte patrouilliert, oder den Himmel, in dem eine Staffel fliegt.",
+  "air.drawing": "Zieh ein Rechteck über das Gebiet — Escape bricht ab.",
+  "air.drawNothing":
+    "Da ist nichts für sie: eine Flotte braucht offenes Wasser, eine Staffel Land.",
   "air.raise": "{what} \u2014 {cost} Menschenreserve",
   "formation.wing": "Staffel",
   "formation.fleet": "Flotte",
