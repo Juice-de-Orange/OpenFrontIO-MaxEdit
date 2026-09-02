@@ -82,7 +82,7 @@ function wing(
   state: WorldState,
   nation: number,
   base: number,
-  template: "fighter_wing" | "bomber_wing",
+  template: "wing" | "wing",
   zone: number | null,
   mission: Parameters<typeof missionEffect>[3] | null,
 ): number {
@@ -178,7 +178,7 @@ describe("the zone machine", () => {
     const nation = state.provinceController[base.id];
     const zone = base.airZone;
 
-    wing(state, nation, base.id, "fighter_wing", zone, "air_superiority");
+    wing(state, nation, base.id, "wing", zone, "air_superiority");
     // Alone in the sky: the ceiling, and not 1.
     let contest = contestOf(state, zone, "air");
     expect(superiorityOf(contest, nation)).toBe(SUPERIORITY_CEILING);
@@ -192,7 +192,7 @@ describe("the zone machine", () => {
       (province) => state.provinceController[province.id] === other,
     );
     if (theirs !== undefined) {
-      wing(state, other, theirs.id, "fighter_wing", zone, "air_superiority");
+      wing(state, other, theirs.id, "wing", zone, "air_superiority");
       contest = contestOf(state, zone, "air");
       expect(superiorityOf(contest, nation)).toBeCloseTo(0.5, 6);
     }
@@ -205,7 +205,7 @@ describe("the zone machine", () => {
     );
     if (base === undefined) throw new Error("no held province");
     const nation = state.provinceController[base.id];
-    wing(state, nation, base.id, "fighter_wing", null, null);
+    wing(state, nation, base.id, "wing", null, null);
     expect(contestOf(state, base.airZone, "air").size).toBe(0);
   });
 
@@ -218,9 +218,9 @@ describe("the zone machine", () => {
     const nation = state.provinceController[base.id];
     const zone = base.airZone;
 
-    wing(state, nation, base.id, "bomber_wing", zone, "ground_support");
+    wing(state, nation, base.id, "wing", zone, "ground_support");
     const one = missionEffect(state, zone, nation, "ground_support", "air");
-    wing(state, nation, base.id, "bomber_wing", zone, "ground_support");
+    wing(state, nation, base.id, "wing", zone, "ground_support");
     const two = missionEffect(state, zone, nation, "ground_support", "air");
 
     expect(two).toBeGreaterThan(one);
@@ -241,14 +241,7 @@ describe("the air war", () => {
     const nation = state.provinceController[mine.id];
     const zone = mine.airZone;
 
-    const id = wing(
-      state,
-      nation,
-      mine.id,
-      "fighter_wing",
-      zone,
-      "air_superiority",
-    );
+    const id = wing(state, nation, mine.id, "wing", zone, "air_superiority");
     const formation = state.nations[nation].formations.find((f) => f.id === id);
     if (formation === undefined) throw new Error("no formation");
 
@@ -262,7 +255,7 @@ describe("the air war", () => {
     );
     if (theirs === undefined) throw new Error("no second nation");
     const other = state.provinceController[theirs.id];
-    wing(state, other, theirs.id, "fighter_wing", zone, "air_superiority");
+    wing(state, other, theirs.id, "wing", zone, "air_superiority");
 
     for (const event of airSystem.run(state, 2)) applyEvent(state, event);
     expect(formationStrength(formation)).toBeLessThan(1);
@@ -282,7 +275,7 @@ describe("the air war", () => {
       state,
       nation,
       mine.id,
-      "fighter_wing",
+      "wing",
       mine.airZone,
       "air_superiority",
     );
@@ -318,9 +311,9 @@ describe("the air war", () => {
         state,
         attacker,
         base.id,
-        "bomber_wing",
+        "wing",
         state.map.provinces[province].airZone,
-        "interdiction",
+        "ground_support",
       );
     }
 
@@ -372,7 +365,7 @@ describe("the air war", () => {
             state,
             attacker,
             from,
-            "bomber_wing",
+            "wing",
             state.map.provinces[province].airZone,
             "ground_support",
           );

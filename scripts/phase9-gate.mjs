@@ -41,7 +41,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 19;
+const PROTOCOL_VERSION = 20;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -533,12 +533,12 @@ async function main() {
   await buildYards(attacker, provinces, island, YARDS, "island", home.id);
   await buildYards(victim, provinces, defender, YARDS, "defender");
 
-  const convoyLine = await createLine(attacker, "convoy", "convoys");
+  const convoyLine = await createLine(attacker, "ships", "convoys");
   await attacker.require(
     { kind: "assign_factories", lineId: convoyLine, factories: YARDS },
     "convoys-assign",
   );
-  const subLine = await createLine(victim, "submarine", "subs");
+  const subLine = await createLine(victim, "ships", "subs");
   await victim.require(
     { kind: "assign_factories", lineId: subLine, factories: YARDS },
     "subs-assign",
@@ -730,7 +730,7 @@ async function main() {
     await victim.require(
       {
         kind: "raise_formation",
-        template: "submarine_flotilla",
+        template: "fleet",
         provinceId: basedAt,
       },
       `raise-${tag}`,
@@ -755,7 +755,7 @@ async function main() {
         kind: "assign_formation",
         formationId: hunters.id,
         zone: shared[0],
-        mission: "convoy_raiding",
+        mission: "raiding",
       },
       `${tag}-hunters`,
     );
@@ -764,7 +764,7 @@ async function main() {
         kind: "assign_formation",
         formationId: cover.id,
         zone: shared[1] ?? shared[0],
-        mission: shared.length > 1 ? "convoy_raiding" : "sea_control",
+        mission: shared.length > 1 ? "raiding" : "patrol",
       },
       `${tag}-cover`,
     );

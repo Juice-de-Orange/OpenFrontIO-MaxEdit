@@ -45,7 +45,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 19;
+const PROTOCOL_VERSION = 20;
 
 /** Above this the notice period alone would take four minutes. */
 const MAX_TICK_MS = 200;
@@ -476,7 +476,7 @@ async function main() {
       sellerPlayer.economy.productionLines.map((l) => l.id),
     );
     const opened = await sellerPlayer.command(
-      { kind: "create_production_line", equipment: "infantry_equipment" },
+      { kind: "create_production_line", equipment: "infantry" },
       "rifles-line",
     );
     let stocked = false;
@@ -521,7 +521,7 @@ async function main() {
             resource: RESOURCE,
             resourcePerTick: 0,
             pointsPerTick: POINTS_PER_TICK,
-            equipment: { type: "infantry_equipment", perTick: CRATES_PER_TICK },
+            equipment: { type: "infantry", perTick: CRATES_PER_TICK },
           },
         },
         "offer-rifles",
@@ -557,7 +557,7 @@ async function main() {
         );
         check(
           buyerPlayer.agreement(riflesId)?.terms?.equipment?.type ===
-            "infantry_equipment",
+            "infantry",
           "the buyer sees the equipment named in the terms",
         );
         const held = buyerPlayer.economy.stockpile[RIFLES] ?? 0;

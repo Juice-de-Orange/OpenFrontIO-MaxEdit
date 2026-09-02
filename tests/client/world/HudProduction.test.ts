@@ -32,7 +32,7 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
     tradePointsOut: 0,
     tradeResourcePerTick: { ...zero },
     queue: [],
-    stockpile: new Array<number>(10).fill(0),
+    stockpile: new Array<number>(3).fill(0),
     manpower: 5000,
     manpowerCap: 10000,
     productionLines: [],
@@ -144,7 +144,7 @@ describe("the production panel", () => {
           productionLines: [
             {
               id: 1,
-              equipment: "infantry_equipment",
+              equipment: "infantry",
               factories: 2,
               efficiency: 0.4,
               outputPerTick: 0.5,
@@ -167,7 +167,7 @@ describe("the production panel", () => {
           productionLines: [
             {
               id: 7,
-              equipment: "infantry_equipment",
+              equipment: "infantry",
               factories: 1,
               efficiency: 0.76,
               outputPerTick: 0.3,
@@ -192,7 +192,7 @@ describe("the production panel", () => {
           productionLines: [
             {
               id: 3,
-              equipment: "artillery",
+              equipment: "infantry",
               factories: 2,
               efficiency: 0.2,
               outputPerTick: 0.1,
@@ -215,7 +215,7 @@ describe("the production panel", () => {
           productionLines: [
             {
               id: 4,
-              equipment: "armour",
+              equipment: "infantry",
               factories: 0,
               efficiency: 0.1,
               outputPerTick: 0,
@@ -260,7 +260,7 @@ describe("raising a division", () => {
         provinces: [province],
         controllers: [1],
         owners: [1],
-        buildings: new Array<number>(10).fill(0),
+        buildings: new Array<number>(3).fill(0),
         selected: 0,
         economy: economy({ manpower }),
       }),

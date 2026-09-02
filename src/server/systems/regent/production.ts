@@ -22,51 +22,39 @@ interface Wanted {
   weight: number;
 }
 
-/** The lines this steward wants on its military factories, with their weights. */
+/**
+ * The lines this steward wants on its military factories, with their weights.
+ *
+ * Two, where there were four (decision 0030): the ground always, and
+ * aircraft once there is a base to fly them from and a reason to. What used
+ * to be the choice between rifles and guns, and between fighters and
+ * bombers, is now how many factories go on each of two lines — which is the
+ * decision that was underneath both of them.
+ */
 function wantedMilitary(s: Situation): Wanted[] {
   const t = s.temperament;
-  const lines: Wanted[] = [
-    { equipment: "infantry_equipment", weight: 1 },
-    { equipment: "artillery", weight: 0.35 },
-  ];
+  const lines: Wanted[] = [{ equipment: "infantry", weight: 1 }];
   if (s.bases.air.length > 0 && (t.air >= 0.4 || s.airThreat.size > 0)) {
-    lines.push({ equipment: "fighter", weight: 0.4 + t.air * 0.6 });
-    if (
-      t.aggression >= 0.6 &&
-      t.air >= 0.4 &&
-      s.factories.military.total >= 4
-    ) {
-      lines.push({ equipment: "bomber", weight: t.aggression * t.air });
-    }
+    lines.push({ equipment: "aircraft", weight: 0.4 + t.air * 0.6 });
   }
   return lines;
 }
 
-/** And on its dockyards. */
+/**
+ * And on its dockyards: ships, when it has anything to do with the sea.
+ *
+ * One line, because there is one naval good. A merchant hull and a warship
+ * hull are the same number now (§6.3), which is what makes raiding hurt
+ * twice — the ships that carry your trade are the ships that guard it.
+ */
 function wantedDockyard(s: Situation): Wanted[] {
   const t = s.temperament;
-  const lines: Wanted[] = [];
-  if (s.sea.routes.length > 0 || s.sea.island || s.sea.convoysWanted > 0) {
-    lines.push({ equipment: "convoy", weight: 1 });
-  }
-  if (s.sea.convoysWanted > 0 && s.bases.naval.length > 0) {
-    lines.push({ equipment: "escort", weight: 0.6 });
-  }
-  if (
-    t.aggression * t.naval >= 0.4 &&
-    s.bases.naval.length > 0 &&
-    s.sea.enemySeaZones().length > 0
-  ) {
-    lines.push({ equipment: "submarine", weight: t.aggression * t.naval });
-  }
-  if (
-    t.naval >= 0.7 &&
-    s.factories.dockyard.total >= 3 &&
-    s.bases.naval.length > 0
-  ) {
-    lines.push({ equipment: "capital_ship", weight: 0.4 });
-  }
-  return lines;
+  const wantsSea =
+    s.sea.routes.length > 0 ||
+    s.sea.island ||
+    s.sea.convoysWanted > 0 ||
+    (s.bases.naval.length > 0 && t.naval >= 0.5);
+  return wantsSea ? [{ equipment: "ships", weight: 1 }] : [];
 }
 
 /**

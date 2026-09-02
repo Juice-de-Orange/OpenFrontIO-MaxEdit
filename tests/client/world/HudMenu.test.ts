@@ -29,7 +29,7 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
     tradePointsOut: 0,
     tradeResourcePerTick: { ...zero },
     queue: [],
-    stockpile: new Array<number>(10).fill(0),
+    stockpile: new Array<number>(3).fill(0),
     manpower: 5000,
     manpowerCap: 10000,
     productionLines: [],

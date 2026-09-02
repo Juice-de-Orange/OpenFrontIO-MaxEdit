@@ -128,24 +128,23 @@ describe("supply over the province graph", () => {
   });
 
   test("a division draws supply in proportion to the equipment it holds (§6.6)", () => {
-    const full = { equipment: [100, 12, 0, 0, 0, 0, 0, 0, 0, 0] };
-    const half = { equipment: [50, 6, 0, 0, 0, 0, 0, 0, 0, 0] };
-    const empty = { equipment: new Array<number>(10).fill(0) };
+    const full = { equipment: [100, 0, 0] };
+    const half = { equipment: [50, 0, 0] };
+    const empty = { equipment: new Array<number>(3).fill(0) };
     expect(divisionDemand(full)).toBeCloseTo(SUPPLY_PER_DIVISION, 10);
     expect(divisionDemand(half)).toBeCloseTo(SUPPLY_PER_DIVISION / 2, 10);
     expect(divisionDemand(empty)).toBe(0);
-    // Type matters, not just count: twelve guns cost what forty-eight rifles
-    // do, and eat like it.
-    const guns = { equipment: [0, 12, 0, 0, 0, 0, 0, 0, 0, 0] };
-    const rifles = { equipment: [48, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
-    expect(divisionDemand(guns)).toBeCloseTo(divisionDemand(rifles), 10);
+    // What it carries, not what it is called: a division holding aircraft it
+    // has no use for eats for them all the same, because supply is weight.
+    const odd = { equipment: [50, 6, 0] };
+    expect(divisionDemand(odd)).toBeGreaterThan(divisionDemand(half));
     // And a nation of empty divisions has full coverage: nothing is asked.
     const state = world.view();
     for (let i = 0; i < 20; i++) {
       state.nations[nation].divisions.push({
         id: 2000 + i,
         province: capital,
-        equipment: new Array<number>(10).fill(0),
+        equipment: new Array<number>(3).fill(0),
       });
     }
     expect(supplyCoverage(state, nation)).toBe(1);
@@ -158,9 +157,8 @@ describe("supply over the province graph", () => {
     // read 0.9025, which is 0.95 twice and has nothing to do with supply.
     const state = world.view();
     const equipped = (): number[] => {
-      const kit = new Array<number>(10).fill(0);
+      const kit = new Array<number>(3).fill(0);
       kit[0] = 100;
-      kit[1] = 12;
       return kit;
     };
     const stranded = state.provinceController.findIndex(
@@ -199,9 +197,8 @@ describe("supply over the province graph", () => {
     const stranded = state.provinceController.findIndex(
       (holder) => holder !== nation && holder !== 0,
     );
-    const kit = new Array<number>(10).fill(0);
+    const kit = new Array<number>(3).fill(0);
     kit[0] = 100;
-    kit[1] = 12;
     state.nations[nation].divisions.push({
       id: 3,
       province: stranded,

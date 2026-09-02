@@ -38,7 +38,7 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
     tradePointsOut: 0,
     tradeResourcePerTick: { ...zero },
     queue: [],
-    stockpile: new Array<number>(10).fill(0),
+    stockpile: new Array<number>(3).fill(0),
     manpower: 5000,
     manpowerCap: 10000,
     productionLines: [],
@@ -258,7 +258,7 @@ describe("the circled i", () => {
 describe("the airfield rule, visible", () => {
   const wing = {
     id: 5,
-    template: "fighter_wing" as const,
+    template: "wing" as const,
     baseProvinceId: 0,
     zone: null,
     mission: null,

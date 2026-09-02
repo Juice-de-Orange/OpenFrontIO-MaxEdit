@@ -38,7 +38,7 @@ const division = (id: number, provinceId: number, strength = 1) => ({
 
 const formation = (
   id: number,
-  template: "fighter_wing" | "escort_group",
+  template: "wing" | "fleet",
   zone: number | null,
   baseProvinceId = 1,
 ) => ({ id, template, baseProvinceId, zone, strength: 1 }) as const;
@@ -85,7 +85,7 @@ describe("a nation's forces on the map", () => {
     const units = forcesOf(
       2,
       [],
-      [formation(1, "fighter_wing", 7), formation(2, "escort_group", 3)],
+      [formation(1, "wing", 7), formation(2, "fleet", 3)],
       index(),
       anchors,
     );
@@ -105,7 +105,7 @@ describe("a nation's forces on the map", () => {
     const units = forcesOf(
       2,
       [],
-      [formation(4, "fighter_wing", null, 3)],
+      [formation(4, "wing", null, 3)],
       index(),
       anchors,
     );
@@ -118,7 +118,7 @@ describe("a nation's forces on the map", () => {
     const units = forcesOf(
       2,
       [],
-      [formation(6, "escort_group", 999, 0)],
+      [formation(6, "fleet", 999, 0)],
       index(),
       anchors,
     );
@@ -132,7 +132,7 @@ describe("a nation's forces on the map", () => {
       forcesOf(
         null,
         [division(1, 0)],
-        [formation(1, "fighter_wing", 7)],
+        [formation(1, "wing", 7)],
         index(),
         anchors,
       ).size,

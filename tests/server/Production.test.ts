@@ -64,7 +64,7 @@ describe("production lines", () => {
   function openLine(): number {
     command({
       kind: "create_production_line",
-      equipment: "infantry_equipment",
+      equipment: "infantry",
     });
     const id = lineOf().id;
     // One military factory in the capital is what a nation starts with, so
@@ -76,14 +76,12 @@ describe("production lines", () => {
   test("a new line starts empty, at the floor, and makes nothing", () => {
     command({
       kind: "create_production_line",
-      equipment: "infantry_equipment",
+      equipment: "infantry",
     });
     expect(lineOf().efficiency).toBe(EFFICIENCY_FLOOR);
     expect(lineOf().factories).toBe(0);
     expect(
-      world.view().nations[nation].stockpile[
-        equipmentIndex("infantry_equipment")
-      ],
+      world.view().nations[nation].stockpile[equipmentIndex("infantry")],
     ).toBe(0);
   });
 
@@ -94,9 +92,7 @@ describe("production lines", () => {
 
     expect(lineOf().efficiency).toBeGreaterThan(before);
     expect(
-      world.view().nations[nation].stockpile[
-        equipmentIndex("infantry_equipment")
-      ],
+      world.view().nations[nation].stockpile[equipmentIndex("infantry")],
     ).toBeGreaterThan(0);
   });
 
@@ -115,9 +111,9 @@ describe("production lines", () => {
     command({
       kind: "switch_production_line",
       lineId: id,
-      equipment: "artillery",
+      equipment: "aircraft",
     });
-    expect(lineOf().equipment).toBe("artillery");
+    expect(lineOf().equipment).toBe("aircraft");
     // At the floor, plus at most the one tick of climbing the line did after
     // the switch landed: commands apply before the systems run, so a line
     // reset on tick N is already producing artillery badly on tick N.
@@ -150,7 +146,7 @@ describe("production lines", () => {
   test("a nation cannot put more factories on lines than it holds", () => {
     command({
       kind: "create_production_line",
-      equipment: "infantry_equipment",
+      equipment: "infantry",
     });
     expect(
       world.rejectionFor({
@@ -201,7 +197,7 @@ describe("production lines", () => {
   test("switching a line to what it already makes is refused, not ignored", () => {
     command({
       kind: "create_production_line",
-      equipment: "infantry_equipment",
+      equipment: "infantry",
     });
     expect(
       world.rejectionFor({
@@ -209,7 +205,7 @@ describe("production lines", () => {
         body: {
           kind: "switch_production_line",
           lineId: lineOf().id,
-          equipment: "infantry_equipment",
+          equipment: "infantry",
         },
       }),
     ).toMatch(/already makes/);
@@ -280,8 +276,8 @@ describe("divisions and the stockpile", () => {
     expect(after).toBeGreaterThan(before);
     // And the stockpile went down by what the division took.
     expect(
-      state.nations[nation].stockpile[equipmentIndex("infantry_equipment")],
-    ).toBeLessThan((DIVISION_TEMPLATE.infantry_equipment ?? 0) * 5);
+      state.nations[nation].stockpile[equipmentIndex("infantry")],
+    ).toBeLessThan((DIVISION_TEMPLATE.infantry ?? 0) * 5);
   });
 
   test("manpower grows toward what the nation's land supports", () => {

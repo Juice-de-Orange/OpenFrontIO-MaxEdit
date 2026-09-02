@@ -45,7 +45,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 19;
+const PROTOCOL_VERSION = 20;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -844,9 +844,9 @@ async function land(spectator, provinces) {
       `inv-buy-${resource}`,
     );
   }
-  const rifles = await createLine(invader, "infantry_equipment", "inv-rifles");
-  const guns = await createLine(invader, "artillery", "inv-guns");
-  const bombers = await createLine(invader, "bomber", "inv-bombers");
+  const rifles = await createLine(invader, "infantry", "inv-rifles");
+  const guns = await createLine(invader, "infantry", "inv-guns");
+  const bombers = await createLine(invader, "aircraft", "inv-bombers");
   // Everything on rifles and guns first; the bombers get a factory once the
   // army is armed, so the stockpile fills in the order the war needs it.
   await assignUpTo(
@@ -923,7 +923,7 @@ async function land(spectator, provinces) {
   if (baseStands && (await stock(invader, EQ.bomber, BOMBER_WING, "bombers"))) {
     const before = new Set(invader.economy.formations.map((f) => f.id));
     const ack = await invader.command(
-      { kind: "raise_formation", provinceId: base, template: "bomber_wing" },
+      { kind: "raise_formation", provinceId: base, template: "wing" },
       "inv-wing",
     );
     if (ack.accepted) {
@@ -1059,12 +1059,12 @@ async function land(spectator, provinces) {
     samples.find((s) => s.queue.includes("air_base"))?.tick ?? null;
   const baseBuilt = held.some((p) => steward.building(p, B.air_base) > 0);
   const fighterLine = steward.economy.productionLines.some(
-    (l) => l.equipment === "fighter",
+    (l) => l.equipment === "aircraft",
   );
   const fighterWing = samples.some((s) =>
     s.formations.some(
       (f) =>
-        f.template === "fighter_wing" &&
+        f.template === "wing" &&
         f.zone === frontZone &&
         f.mission === "air_superiority",
     ),
@@ -1295,29 +1295,27 @@ async function sea(spectator, provinces) {
   log("");
   const lines = steward.economy.productionLines.map((l) => l.equipment);
   check(
-    lines.includes("convoy"),
+    lines.includes("ships"),
     `a convoy line runs on the yards (${lines.join(", ")})`,
   );
   check(
-    lines.includes("escort"),
+    lines.includes("ships"),
     "and an escort line beside it — the §6.10 duty, in steel",
   );
   const escorts = steward.economy.formations.filter(
-    (f) => f.template === "escort_group",
+    (f) => f.template === "fleet",
   );
   // Any zone its convoys cross, not only the home one: the route to the
   // partner is several zones long and the regent covers the raided one first.
   const onDuty = samples.some((s) =>
-    s.formations.some(
-      (f) => f.template === "escort_group" && f.mission === "convoy_escort",
-    ),
+    s.formations.some((f) => f.template === "fleet" && f.mission === "patrol"),
   );
   if (escorts.length > 0) {
     const strengths = escorts.map((f) => `${f.strength.toFixed(2)}`).join(", ");
     ok(`an escort group was raised (${escorts.length}, strength ${strengths})`);
     const sailed = samples
       .flatMap((s) => s.formations)
-      .filter((f) => f.template === "escort_group" && f.mission !== null);
+      .filter((f) => f.template === "fleet" && f.mission !== null);
     check(
       onDuty,
       onDuty

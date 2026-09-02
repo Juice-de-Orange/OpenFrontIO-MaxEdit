@@ -125,12 +125,12 @@ describe("every regent event is a command the world would accept", () => {
     const sky = state.map.provinces[capital].airZone;
     const theirs = capitalOf(state, 2);
     setBuilding(state, theirs, "air_base", 1);
-    formation(state, 2, theirs, "fighter_wing", sky, "air_superiority");
-    formation(state, 2, theirs, "bomber_wing", sky, "strategic_bombing");
+    formation(state, 2, theirs, "wing", sky, "air_superiority");
+    formation(state, 2, theirs, "wing", sky, "ground_support");
     setBuilding(state, capital, "air_base", 1);
     setBuilding(state, capital, "military_factory", 4);
-    state.nations[1].stockpile[equipmentIndex("fighter")] = 1000;
-    state.nations[1].stockpile[equipmentIndex("bomber")] = 1000;
+    state.nations[1].stockpile[equipmentIndex("aircraft")] = 1000;
+    state.nations[1].stockpile[equipmentIndex("aircraft")] = 1000;
     expect(crossCheck(world, state, 20)).toBeGreaterThan(20);
   });
 
@@ -159,12 +159,7 @@ describe("every regent event is a command the world would accept", () => {
       if (far === undefined) throw new Error("no far coast");
       state.provinceController[far.id] = nation;
       setBuilding(state, far.id, "naval_base", 1);
-      for (const type of [
-        "convoy",
-        "escort",
-        "submarine",
-        "capital_ship",
-      ] as const) {
+      for (const type of ["ships", "ships", "ships", "ships"] as const) {
         state.nations[nation].stockpile[equipmentIndex(type)] = 1000;
       }
     }

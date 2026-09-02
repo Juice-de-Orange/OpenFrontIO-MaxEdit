@@ -433,43 +433,43 @@ describe("what a factory draws depends on what it makes", () => {
     );
   });
 
-  test("a rifle line and a tank line of the same size are not the same drain", () => {
+  test("a rifle line and an aircraft line of the same size are not the same drain", () => {
     command({
       kind: "create_production_line",
-      equipment: "infantry_equipment",
+      equipment: "infantry",
     });
     const line = world.view().nations[nation].productionLines[0].id;
     command({ kind: "assign_factories", lineId: line, factories: 1 });
 
     const rifles = { ...demand() };
     expect(rifles.material).toBeCloseTo(
-      EQUIPMENT_MATERIALS.infantry_equipment.material ?? 0,
+      EQUIPMENT_MATERIALS.infantry.material ?? 0,
       9,
     );
 
     command({
       kind: "switch_production_line",
       lineId: line,
-      equipment: "armour",
+      equipment: "aircraft",
     });
-    const tanks = { ...demand() };
+    const planes = { ...demand() };
 
-    expect(tanks.material).toBeCloseTo(
-      EQUIPMENT_MATERIALS.armour.material ?? 0,
+    expect(planes.material).toBeCloseTo(
+      EQUIPMENT_MATERIALS.aircraft.material ?? 0,
       9,
     );
-    // Three times the drain of a rifle line, from the same factory count:
-    // choosing what to build is still an economic decision and not only an
-    // industrial one (decision 0009), with one number instead of four.
-    expect(tanks.material).toBeGreaterThan(rifles.material * 2);
+    // Twice the drain of a rifle line, from the same factory count: choosing
+    // what to build is still an economic decision and not only an industrial
+    // one (decision 0009), with one number instead of four.
+    expect(planes.material).toBeGreaterThan(rifles.material * 2);
   });
 
   test("taking the factories off a line puts it back on the flat rate", () => {
-    command({ kind: "create_production_line", equipment: "armour" });
+    command({ kind: "create_production_line", equipment: "infantry" });
     const line = world.view().nations[nation].productionLines[0].id;
     command({ kind: "assign_factories", lineId: line, factories: 1 });
     expect(demand().material).toBeCloseTo(
-      EQUIPMENT_MATERIALS.armour.material ?? 0,
+      EQUIPMENT_MATERIALS.infantry.material ?? 0,
       9,
     );
 

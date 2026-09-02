@@ -153,8 +153,8 @@ describe("the regent", () => {
 
     for (let i = 0; i < 4; i++) visit(state);
     const lines = state.nations[1].productionLines;
-    const rifles = lines.find((l) => l.equipment === "infantry_equipment");
-    const guns = lines.find((l) => l.equipment === "artillery");
+    const rifles = lines.find((l) => l.equipment === "infantry");
+    const guns = lines.find((l) => l.equipment === "infantry");
     expect(rifles?.factories).toBeGreaterThan(0);
     expect(guns?.factories).toBeGreaterThan(0);
   });
@@ -194,8 +194,8 @@ describe("the regent", () => {
       nation: holder,
       divisionId: theirs.id,
       delta: [
-        [equipmentIndex("infantry_equipment"), 100],
-        [equipmentIndex("artillery"), 12],
+        [equipmentIndex("infantry"), 100],
+        [equipmentIndex("infantry"), 12],
       ],
     });
     applyEvent(state, {
@@ -264,7 +264,7 @@ describe("the regent", () => {
     applyEvent(state, {
       kind: "production_line_created",
       nation: 1,
-      equipment: "armour",
+      equipment: "infantry",
     });
     const lines = state.nations[1].productionLines;
     const line = lines[lines.length - 1];
@@ -306,8 +306,7 @@ describe("the regent", () => {
     applyEvent(state, { kind: "division_raised", nation: 1, province: far });
     const divisions = state.nations[1].divisions;
     const division = divisions[divisions.length - 1];
-    division.equipment[equipmentIndex("infantry_equipment")] = 100;
-    division.equipment[equipmentIndex("artillery")] = 12;
+    division.equipment[equipmentIndex("infantry")] = 100;
 
     const events = visit(state);
     const queued = events.find(

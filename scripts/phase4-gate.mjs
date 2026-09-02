@@ -39,7 +39,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 19;
+const PROTOCOL_VERSION = 20;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -647,8 +647,8 @@ async function main() {
   // and no artillery has divisions at zero.
   const artilleryFactories = Math.min(ARTILLERY_FACTORIES, factories - 1);
   const rifleFactories = factories - artilleryFactories;
-  const rifleLine = await createLine(player, "infantry_equipment", "rifles");
-  const gunLine = await createLine(player, "artillery", "guns");
+  const rifleLine = await createLine(player, "infantry", "rifles");
+  const gunLine = await createLine(player, "infantry", "guns");
   const gunsOn = await assignUpTo(
     player,
     gunLine,
@@ -775,7 +775,11 @@ async function main() {
       `taken from it`,
   );
   const switchAck = await player.require(
-    { kind: "switch_production_line", lineId: rifleLine, equipment: "fighter" },
+    {
+      kind: "switch_production_line",
+      lineId: rifleLine,
+      equipment: "aircraft",
+    },
     "switch",
   );
   await player.waitFor(
@@ -795,7 +799,7 @@ async function main() {
       `on tick ${switchAck.tick}`,
   );
   check(
-    switched.equipment === "fighter",
+    switched.equipment === "aircraft",
     `and the line makes fighters now, not rifles`,
   );
 

@@ -266,7 +266,81 @@ function migrateToOneResource(
   return { ...snapshot, buildings, nations };
 }
 
-export const STATE_HASH_VERSION = 7;
+/**
+ * A snapshot from before the equipment list shrank (decision 0030, hash 8).
+ *
+ * Ten types became three, so every stockpile array and every division's and
+ * formation's kit has to be folded down rather than copied: rifles, guns,
+ * armour and transports are all `infantry` now; fighters and bombers are
+ * `aircraft`; convoys, submarines, escorts and capital ships are `ships`.
+ * Five formation templates became two, and the missions they were flying
+ * became the two that are left.
+ *
+ * A straight copy would leave every army holding a tenth of its kit in the
+ * wrong slot, which reads as an army that lost a war it never fought.
+ */
+function migrateToThreeEquipment(snapshot: WorldSnapshot): WorldSnapshot {
+  /** Old index → new: infantry 0, aircraft 1, ships 2. */
+  const FOLD = [0, 0, 0, 1, 1, 0, 2, 2, 2, 2];
+  const fold = (kit: readonly number[]): number[] => {
+    const out = [0, 0, 0];
+    for (let i = 0; i < FOLD.length && i < kit.length; i++) {
+      out[FOLD[i]] += kit[i] ?? 0;
+    }
+    return out;
+  };
+  const TEMPLATE: Record<string, "wing" | "fleet"> = {
+    fighter_wing: "wing",
+    bomber_wing: "wing",
+    submarine_flotilla: "fleet",
+    escort_group: "fleet",
+    battle_fleet: "fleet",
+  };
+  const MISSION: Record<string, string> = {
+    interdiction: "ground_support",
+    strategic_bombing: "ground_support",
+    sea_control: "patrol",
+    convoy_escort: "patrol",
+    convoy_raiding: "raiding",
+  };
+  const EQUIPMENT: Record<string, "infantry" | "aircraft" | "ships"> = {
+    infantry_equipment: "infantry",
+    artillery: "infantry",
+    armour: "infantry",
+    transport: "infantry",
+    fighter: "aircraft",
+    bomber: "aircraft",
+    convoy: "ships",
+    submarine: "ships",
+    escort: "ships",
+    capital_ship: "ships",
+  };
+
+  const nations = snapshot.nations.map((nation) => ({
+    ...nation,
+    stockpile: fold(nation.stockpile),
+    productionLines: nation.productionLines.map((line) => ({
+      ...line,
+      equipment: EQUIPMENT[line.equipment] ?? line.equipment,
+    })),
+    divisions: nation.divisions.map((division) => ({
+      ...division,
+      equipment: fold(division.equipment),
+    })),
+    formations: nation.formations?.map((formation) => ({
+      ...formation,
+      template: TEMPLATE[formation.template] ?? formation.template,
+      mission:
+        formation.mission === null
+          ? null
+          : ((MISSION[formation.mission] ?? formation.mission) as never),
+      equipment: fold(formation.equipment),
+    })),
+  }));
+  return { ...snapshot, nations } as WorldSnapshot;
+}
+
+export const STATE_HASH_VERSION = 8;
 
 /**
  * Everything needed to put the world back, and nothing that can be derived.
@@ -909,10 +983,13 @@ export class World {
     // otherwise have to be thrown away, and decision 0016 exists so that it
     // does not. Older still than the versioning, and there is nothing to
     // translate from.
-    const migrated =
-      (snapshot.hashVersion ?? 1) < 7
-        ? migrateToOneResource(snapshot, this.state.buildings.length)
-        : snapshot;
+    let migrated = snapshot;
+    if ((snapshot.hashVersion ?? 1) < 7) {
+      migrated = migrateToOneResource(migrated, this.state.buildings.length);
+    }
+    if ((snapshot.hashVersion ?? 1) < 8) {
+      migrated = migrateToThreeEquipment(migrated);
+    }
     if (migrated.buildings.length !== this.state.buildings.length) {
       throw new Error(
         `snapshot has ${migrated.buildings.length} building slots, this world ` +

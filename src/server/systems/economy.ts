@@ -34,7 +34,6 @@ import {
 import type { System } from ".";
 import {
   assignedFactories,
-  atPeace,
   countBuilding,
   effectiveInfrastructure,
   factoryOutput,
@@ -43,7 +42,6 @@ import {
   type WorldEvent,
   type WorldState,
 } from "../world/WorldState";
-import { hostileMissionEffect } from "./zones";
 
 /** What a nation's economy is doing this tick. Pure; nothing is stored. */
 export interface NationEconomy {
@@ -95,14 +93,12 @@ export function measureNation(
   const bombingOver = (zone: number): number => {
     const known = bombing.get(zone);
     if (known !== undefined) return known;
-    const share = hostileMissionEffect(
-      state,
-      zone,
-      nation,
-      "strategic_bombing",
-      "air",
-      (a, b) => atPeace(state, a, b),
-    );
+    // **Nothing bombs a factory any more** (decision 0030). Strategic
+    // bombing was a third way of saying "hurt them somewhere else", and the
+    // sky's economic footprint now runs through the army it is flying over:
+    // `ground_support` weakens divisions, divisions lose equipment, and the
+    // factories make it again (invariant 6, one step longer).
+    const share = 0;
     bombing.set(zone, share);
     return share;
   };

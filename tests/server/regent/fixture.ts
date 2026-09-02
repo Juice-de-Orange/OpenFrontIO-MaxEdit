@@ -158,10 +158,8 @@ export function division(
   const divisions = state.nations[nation].divisions;
   const raised = divisions[divisions.length - 1];
   if (raised === undefined) throw new Error("no division");
-  raised.equipment[equipmentIndex("infantry_equipment")] = Math.round(
-    100 * fill,
-  );
-  raised.equipment[equipmentIndex("artillery")] = Math.round(12 * fill);
+  raised.equipment[equipmentIndex("infantry")] = Math.round(100 * fill);
+  raised.equipment[equipmentIndex("infantry")] = Math.round(12 * fill);
   return raised.id;
 }
 
@@ -209,8 +207,7 @@ export function formation(
  */
 export function fillArmy(state: WorldState, nation: number): void {
   for (const raised of state.nations[nation].divisions) {
-    raised.equipment[equipmentIndex("infantry_equipment")] = 100;
-    raised.equipment[equipmentIndex("artillery")] = 12;
+    raised.equipment[equipmentIndex("infantry")] = 100;
   }
 }
 

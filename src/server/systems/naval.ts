@@ -177,7 +177,7 @@ export const navalSystem: System = {
     // thousand convoys and no sea traffic loses none of them, because there
     // is nothing on the water to sink (invariant 6 read backwards — no
     // economic footprint without an economic activity to stamp on).
-    const convoy = equipmentIndex("convoy");
+    const convoy = equipmentIndex("ships");
     const context = tradeContext(state);
     for (let nation = 1; nation <= state.nationCount; nation++) {
       const held = state.nations[nation].stockpile[convoy] ?? 0;

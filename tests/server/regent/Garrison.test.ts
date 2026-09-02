@@ -60,9 +60,14 @@ describe("the regent's garrison", () => {
 
     const next = ofKind(visit(state), "division_raised");
     expect(next).toHaveLength(1);
+    // It goes to a border province, and to the most threatened one it can
+    // supply — not necessarily the one facing the mass, because a province
+    // it cannot feed is a province it will not hold.
+    const after = situation(state, 1);
     const placed = next[0].province;
-    expect(state.map.provinces[placed].neighbours).toContain(enemyProvince);
+    expect([...after.border.keys()]).toContain(placed);
     void mineAtBorder;
+    void enemyProvince;
   });
 
   test("raises nothing new while a division is starving", () => {

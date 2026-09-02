@@ -81,7 +81,7 @@ function fleet(
   zone: number | null,
   mission: Mission | null,
 ): Formation {
-  const equipment = new Array<number>(10).fill(0);
+  const equipment = new Array<number>(3).fill(0);
   for (const [type, wanted] of Object.entries(FORMATIONS[template].equipment)) {
     equipment[equipmentIndex(type as never)] = wanted ?? 0;
   }
@@ -106,10 +106,9 @@ function division(
   const raised: Division = {
     id: state.nations[nation].nextDivisionId++,
     province,
-    equipment: new Array<number>(10).fill(0),
+    equipment: new Array<number>(3).fill(0),
   };
-  raised.equipment[equipmentIndex("infantry_equipment")] = 100;
-  raised.equipment[equipmentIndex("artillery")] = 12;
+  raised.equipment[equipmentIndex("infantry")] = 100;
   state.nations[nation].divisions.push(raised);
   return raised;
 }
@@ -131,7 +130,7 @@ describe("the sea half of phase 9", () => {
     beachhead = coastalOf(state, 2);
     state.provinceController[beachhead] = 1;
     setBuilding(state, beachhead, "naval_base", 1);
-    state.nations[1].stockpile[equipmentIndex("convoy")] = 200;
+    state.nations[1].stockpile[equipmentIndex("ships")] = 200;
   });
 
   test("a port across the water is supplied over the sea", () => {
@@ -153,7 +152,7 @@ describe("the sea half of phase 9", () => {
 
   test("no convoys is badly supplied, never cut off", () => {
     const full = supplyReach(state, 1).get(beachhead) ?? 0;
-    state.nations[1].stockpile[equipmentIndex("convoy")] = 0;
+    state.nations[1].stockpile[equipmentIndex("ships")] = 0;
     const empty = supplyReach(state, 1).get(beachhead) ?? 0;
     expect(empty).toBeLessThan(full);
     expect(empty).toBeGreaterThan(0);
@@ -167,12 +166,12 @@ describe("the sea half of phase 9", () => {
     const clean = supplyReach(state, 1).get(beachhead) ?? 0;
 
     const enemyPort = coastalOf(state, 2);
-    fleet(state, 2, enemyPort, "submarine_flotilla", zone, "convoy_raiding");
+    fleet(state, 2, enemyPort, "fleet", zone, "raiding");
     const raided = supplyReach(state, 1).get(beachhead) ?? 0;
     expect(raided).toBeLessThan(clean);
     expect(raided).toBeGreaterThan(0);
 
-    fleet(state, 1, home, "escort_group", zone, "convoy_escort");
+    fleet(state, 1, home, "fleet", zone, "patrol");
     const escorted = supplyReach(state, 1).get(beachhead) ?? 0;
     expect(escorted).toBeGreaterThan(raided);
     expect(escorted).toBeLessThanOrEqual(clean);
@@ -181,7 +180,7 @@ describe("the sea half of phase 9", () => {
   test("raiding sinks convoys — but only where there is traffic", () => {
     const zone = state.map.provinces[beachhead].seaZone as number;
     const enemyPort = coastalOf(state, 2);
-    fleet(state, 2, enemyPort, "submarine_flotilla", zone, "convoy_raiding");
+    fleet(state, 2, enemyPort, "fleet", zone, "raiding");
 
     const sunk = navalSystem
       .run(state, 1)
@@ -190,7 +189,7 @@ describe("the sea half of phase 9", () => {
       );
     expect(sunk.length).toBe(1);
     const delta = (sunk[0] as { delta: [number, number][] }).delta;
-    expect(delta[0][0]).toBe(equipmentIndex("convoy"));
+    expect(delta[0][0]).toBe(equipmentIndex("ships"));
     expect(delta[0][1]).toBeLessThan(0);
 
     // Take the traffic away — no route, no exposure, no sinking. A warehouse
@@ -206,21 +205,14 @@ describe("the sea half of phase 9", () => {
 
   test("a contested sea costs both fleets equipment; an empty one is free", () => {
     const zone = state.map.provinces[beachhead].seaZone as number;
-    const ours = fleet(state, 1, home, "battle_fleet", zone, "sea_control");
+    const ours = fleet(state, 1, home, "fleet", zone, "patrol");
     const alone = navalSystem
       .run(state, 1)
       .filter((event) => event.kind === "formation_equipment_changed");
     expect(alone.length).toBe(0);
 
     const enemyPort = coastalOf(state, 2);
-    const theirs = fleet(
-      state,
-      2,
-      enemyPort,
-      "battle_fleet",
-      zone,
-      "sea_control",
-    );
+    const theirs = fleet(state, 2, enemyPort, "fleet", zone, "patrol");
     const contested = navalSystem
       .run(state, 1)
       .filter((event) => event.kind === "formation_equipment_changed");
@@ -233,7 +225,7 @@ describe("the sea half of phase 9", () => {
 
   test("a fleet whose harbour falls stands down rather than fighting on", () => {
     const zone = state.map.provinces[beachhead].seaZone as number;
-    const ours = fleet(state, 1, home, "battle_fleet", zone, "sea_control");
+    const ours = fleet(state, 1, home, "fleet", zone, "patrol");
     state.provinceController[home] = 2;
     const events = navalSystem
       .run(state, 1)
@@ -280,7 +272,7 @@ describe("the sea half of phase 9", () => {
     // through one function, so the convoys wanted are the same.
     const wanted = (terms: {
       resourcePerTick: number;
-      equipment?: { type: "infantry_equipment"; perTick: number };
+      equipment?: { type: "infantry"; perTick: number };
     }) => {
       const before = state.agreements.length;
       applyEvent(state, {
@@ -301,7 +293,7 @@ describe("the sea half of phase 9", () => {
     const steel = wanted({ resourcePerTick: 1.5 });
     const mixed = wanted({
       resourcePerTick: 0.5,
-      equipment: { type: "infantry_equipment", perTick: 1 },
+      equipment: { type: "infantry", perTick: 1 },
     });
     expect(steel).toBeGreaterThan(0);
     expect(mixed).toBeCloseTo(steel);
@@ -344,7 +336,7 @@ describe("the sea half of phase 9", () => {
     // A hostile sea gates it (§6.8: sea control). The enemy owns the target
     // zone outright, so our control there is the floor, not a stalemate.
     const zone = state.map.provinces[beachhead].seaZone as number;
-    fleet(state, 2, coastalOf(state, 2), "battle_fleet", zone, "sea_control");
+    fleet(state, 2, coastalOf(state, 2), "fleet", zone, "patrol");
     expect(
       world.rejectionFor({
         nation: 1,
@@ -391,7 +383,7 @@ describe("the sea half of phase 9", () => {
 
     // The crossing itself already cost something: a division at sea is
     // beyond every supply line, and attrition is the §6.8 vulnerability.
-    const rifles = equipmentIndex("infantry_equipment");
+    const rifles = equipmentIndex("infantry");
     expect(troops.equipment[rifles]).toBeLessThan(before[rifles]);
     const embarked = [...troops.equipment];
 
@@ -462,14 +454,7 @@ describe("the sea half of phase 9", () => {
     setBuilding(state, capital.id, "civilian_factory", 4);
 
     const zone = state.map.provinces[beachhead].seaZone as number;
-    fleet(
-      state,
-      2,
-      coastalOf(state, 2),
-      "submarine_flotilla",
-      zone,
-      "convoy_raiding",
-    );
+    fleet(state, 2, coastalOf(state, 2), "fleet", zone, "raiding");
 
     const sunk = navalSystem
       .run(state, 1)
@@ -478,7 +463,7 @@ describe("the sea half of phase 9", () => {
       );
     expect(sunk.length).toBe(1);
     const [index, delta] = (sunk[0] as { delta: [number, number][] }).delta[0];
-    expect(index).toBe(equipmentIndex("convoy"));
+    expect(index).toBe(equipmentIndex("ships"));
     // The magnitude is the regression: under the zones-times-rate pricing
     // this read about -0.003 a tick and drowned in the wear.
     expect(delta).toBeLessThan(-0.01);
@@ -512,7 +497,7 @@ describe("the sea half of phase 9", () => {
     const carried = nationTrade(state, 1);
     expect(carried.resourceIn.material).toBeGreaterThan(0);
 
-    state.nations[1].stockpile[equipmentIndex("convoy")] = 0;
+    state.nations[1].stockpile[equipmentIndex("ships")] = 0;
     const stranded = nationTrade(state, 1);
     expect(stranded.resourceIn.material).toBe(0);
   });

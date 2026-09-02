@@ -36,7 +36,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 19;
+export const PROTOCOL_VERSION = 20;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {

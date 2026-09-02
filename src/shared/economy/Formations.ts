@@ -29,21 +29,26 @@ import type { EquipmentType } from "./Equipment";
 export const ZONE_KINDS = ["air", "naval"] as const;
 export type ZoneKind = (typeof ZONE_KINDS)[number];
 
-/** §6.7's four, in full. */
-export const AIR_MISSIONS = [
-  "air_superiority",
-  "ground_support",
-  "interdiction",
-  "strategic_bombing",
-] as const;
+/**
+ * Two, where §6.7 listed four (decision 0030).
+ *
+ * `air_superiority` is fighting for the sky; `ground_support` is everything
+ * you do with the sky once you have it. Interdiction and strategic bombing
+ * were a third and a fourth way of saying "hurt them somewhere else", and
+ * the choice between four was a quiz rather than a decision.
+ */
+export const AIR_MISSIONS = ["air_superiority", "ground_support"] as const;
 
-/** §6.8's four, in full. Phase 9 resolves them; the machine is already here. */
-export const NAVAL_MISSIONS = [
-  "sea_control",
-  "convoy_raiding",
-  "convoy_escort",
-  "invasion_support",
-] as const;
+/**
+ * Two, where §6.8 listed four (decision 0030).
+ *
+ * `patrol` is a fleet holding a piece of water: it contests the sea against
+ * whoever else is there *and* it covers your own shipping across it, which
+ * is what a patrol has always meant and what the old `sea_control` and
+ * `convoy_escort` were separately. `raiding` is the other thing a navy does
+ * — sinking somebody else's shipping.
+ */
+export const NAVAL_MISSIONS = ["patrol", "raiding"] as const;
 
 export type AirMission = (typeof AIR_MISSIONS)[number];
 export type NavalMission = (typeof NAVAL_MISSIONS)[number];
@@ -68,13 +73,7 @@ export const MISSIONS_BY_KIND: Readonly<Record<ZoneKind, readonly Mission[]>> =
  *
  * Appended to, never reordered — the id is in every snapshot.
  */
-export const FORMATION_TEMPLATES = [
-  "fighter_wing",
-  "bomber_wing",
-  "submarine_flotilla",
-  "escort_group",
-  "battle_fleet",
-] as const;
+export const FORMATION_TEMPLATES = ["wing", "fleet"] as const;
 
 export type FormationTemplate = (typeof FORMATION_TEMPLATES)[number];
 
@@ -107,84 +106,40 @@ export interface FormationSpec {
 }
 
 const NO_NAVAL: Readonly<Record<NavalMission, number>> = {
-  sea_control: 0,
-  convoy_raiding: 0,
-  convoy_escort: 0,
-  invasion_support: 0,
+  patrol: 0,
+  raiding: 0,
 } as const;
 
 const NO_AIR: Readonly<Record<AirMission, number>> = {
   air_superiority: 0,
   ground_support: 0,
-  interdiction: 0,
-  strategic_bombing: 0,
 } as const;
 
 export const FORMATIONS: Readonly<Record<FormationTemplate, FormationSpec>> = {
-  fighter_wing: {
+  // One wing and one fleet. What used to be five templates — fighters,
+  // bombers, submarines, escorts, capital ships — is now *how many* of the
+  // one thing you put in it, which is the number a player was going to look
+  // at anyway. §10 excluded a hull-and-module designer for interacting with
+  // nothing else on the list; five fixed rows had the same problem in
+  // smaller print.
+  wing: {
     kind: "air",
     base: "air_base",
-    equipment: { fighter: 24 },
+    equipment: { aircraft: 24 },
     weight: {
       air_superiority: 1,
-      ground_support: 0.35,
-      interdiction: 0.3,
-      strategic_bombing: 0.15,
-      ...NO_NAVAL,
-    },
-  },
-  bomber_wing: {
-    kind: "air",
-    base: "air_base",
-    equipment: { bomber: 18 },
-    weight: {
-      air_superiority: 0.2,
       ground_support: 1,
-      interdiction: 1,
-      strategic_bombing: 1,
       ...NO_NAVAL,
     },
   },
-  // §6.8's three ship types, decided in §10: rows in this table, not a
-  // hull-and-module system. Submarines are strong at convoy raiding and weak
-  // in a stand-up fight; escorts counter them; capital ships decide sea
-  // control. The "counter" itself lives where convoys are consumed
-  // (ESCORT_COVER against the raid), so the escort's raiding weight is what
-  // it can do offensively, not what it prevents.
-  submarine_flotilla: {
+  fleet: {
     kind: "naval",
     base: "naval_base",
-    equipment: { submarine: 10 },
+    equipment: { ships: 12 },
     weight: {
       ...NO_AIR,
-      sea_control: 0.15,
-      convoy_raiding: 1,
-      convoy_escort: 0.1,
-      invasion_support: 0.2,
-    },
-  },
-  escort_group: {
-    kind: "naval",
-    base: "naval_base",
-    equipment: { escort: 12 },
-    weight: {
-      ...NO_AIR,
-      sea_control: 0.35,
-      convoy_raiding: 0.15,
-      convoy_escort: 1,
-      invasion_support: 0.5,
-    },
-  },
-  battle_fleet: {
-    kind: "naval",
-    base: "naval_base",
-    equipment: { capital_ship: 4, escort: 6 },
-    weight: {
-      ...NO_AIR,
-      sea_control: 1,
-      convoy_raiding: 0.2,
-      convoy_escort: 0.25,
-      invasion_support: 1,
+      patrol: 1,
+      raiding: 1,
     },
   },
 } as const;

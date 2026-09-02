@@ -8,26 +8,24 @@
  * lost battle is a hole in the stockpile that the factories then have to fill
  * again.
  *
- * `convoy` is in here rather than among the units for the same reason (§6.3):
- * sea supply and seaborne trade consume it, and enemy raiding sinks it, so
- * losing a naval war shows up as a number in the economy screen.
+ * **Three, where §6.3 listed ten** (decision 0030). One kind of thing per
+ * kind of unit: an army eats `infantry`, a wing eats `aircraft`, a fleet
+ * eats `ships`. The ten were a shopping list a player had to learn before
+ * they could open a production line, and the strategy they carried — rifles
+ * *and* guns, or the division fights at the worse ratio — was a lesson in
+ * bookkeeping rather than in war.
+ *
+ * `ships` is the merchant marine as well as the navy, which is what keeps
+ * §6.3's best idea: sea supply and seaborne trade consume ships, and enemy
+ * raiding sinks them, so losing a naval war still shows up as a number in
+ * the economy screen — and now it is the *same* number that makes your
+ * fleets weaker.
  *
  * In `shared/` because the build menu needs the same costs the server uses.
  * The server computes them again; the client's copy is decoration (§7).
  */
 
-export const EQUIPMENT_TYPES = [
-  "infantry_equipment",
-  "artillery",
-  "armour",
-  "fighter",
-  "bomber",
-  "transport",
-  "convoy",
-  "submarine",
-  "escort",
-  "capital_ship",
-] as const;
+export const EQUIPMENT_TYPES = ["infantry", "aircraft", "ships"] as const;
 
 export type EquipmentType = (typeof EQUIPMENT_TYPES)[number];
 
@@ -58,16 +56,9 @@ export interface EquipmentSpec {
 }
 
 export const EQUIPMENT: Record<EquipmentType, EquipmentSpec> = {
-  infantry_equipment: { cost: 1, yard: "military_factory" },
-  artillery: { cost: 4, yard: "military_factory" },
-  armour: { cost: 12, yard: "military_factory" },
-  fighter: { cost: 8, yard: "military_factory" },
-  bomber: { cost: 14, yard: "military_factory" },
-  transport: { cost: 6, yard: "military_factory" },
-  convoy: { cost: 3, yard: "dockyard" },
-  submarine: { cost: 20, yard: "dockyard" },
-  escort: { cost: 12, yard: "dockyard" },
-  capital_ship: { cost: 80, yard: "dockyard" },
+  infantry: { cost: 1, yard: "military_factory" },
+  aircraft: { cost: 8, yard: "military_factory" },
+  ships: { cost: 12, yard: "dockyard" },
 };
 
 /**
@@ -79,6 +70,5 @@ export const EQUIPMENT: Record<EquipmentType, EquipmentSpec> = {
  * about it is how much of this it actually has.
  */
 export const DIVISION_TEMPLATE: Partial<Record<EquipmentType, number>> = {
-  infantry_equipment: 100,
-  artillery: 12,
+  infantry: 100,
 };

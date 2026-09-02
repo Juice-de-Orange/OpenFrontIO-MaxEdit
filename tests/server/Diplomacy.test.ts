@@ -430,7 +430,7 @@ describe("agreements", () => {
       resource: "material" as const,
       resourcePerTick,
       pointsPerTick: 1,
-      equipment: { type: "infantry_equipment" as const, perTick },
+      equipment: { type: "infantry" as const, perTick },
     });
     // The ceiling is the equipment's own, and it is lower than a resource's.
     expect(offer(rifles(0))).toMatch(/a day/);
@@ -479,7 +479,7 @@ describe("agreements", () => {
           resource: "material",
           resourcePerTick: 0.5,
           pointsPerTick: 1,
-          equipment: { type: "fighter", perTick: 0.5 },
+          equipment: { type: "aircraft", perTick: 0.5 },
         },
       },
     });
@@ -517,7 +517,7 @@ describe("agreements", () => {
     const agreement = restored.view().agreements.find((a) => a.id === id);
     expect(agreement?.terms?.resource).toBe("material");
     expect(agreement?.terms?.equipment).toEqual({
-      type: "fighter",
+      type: "aircraft",
       perTick: 0.5,
     });
     // The hash knows the equipment: a world that forgot the fighters differs.

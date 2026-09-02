@@ -208,7 +208,7 @@ function convoyShareOf(
       ? 1
       : Math.min(
           1,
-          (state.nations[nation].stockpile[equipmentIndex("convoy")] ?? 0) /
+          (state.nations[nation].stockpile[equipmentIndex("ships")] ?? 0) /
             wanted,
         );
   context.convoys.set(nation, share);
@@ -718,7 +718,7 @@ export const tradeSystem: System = {
         if (change !== 0) crates.push([index, change]);
       }
       const held =
-        state.nations[nation].stockpile[equipmentIndex("convoy")] ?? 0;
+        state.nations[nation].stockpile[equipmentIndex("ships")] ?? 0;
       if (held > 0) {
         let wanted = 0;
         for (const agreement of context.live) {
@@ -728,7 +728,7 @@ export const tradeSystem: System = {
           wanted += convoysWantedFor(agreement, route);
         }
         const worn = Math.min(held, CONVOY_WEAR * Math.min(held, wanted));
-        if (worn > 0) crates.push([equipmentIndex("convoy"), -worn]);
+        if (worn > 0) crates.push([equipmentIndex("ships"), -worn]);
       }
       if (crates.length > 0) {
         events.push({ kind: "stockpile_changed", nation, delta: crates });

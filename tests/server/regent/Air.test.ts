@@ -32,7 +32,7 @@ describe("the regent in the air", () => {
     // Nation 2 flies fighters over my capital's zone from a base of its own.
     const theirs = capitalOf(state, 2);
     setBuilding(state, theirs, "air_base", 1);
-    formation(state, 2, theirs, "fighter_wing", sky, "air_superiority");
+    formation(state, 2, theirs, "wing", sky, "air_superiority");
     expect(situation(state, 1).airThreat.get(sky) ?? 0).toBeGreaterThan(0);
   });
 
@@ -50,26 +50,26 @@ describe("the regent in the air", () => {
     setBuilding(state, capital, "military_factory", 3);
     const lines = () =>
       state.nations[1].productionLines.map((line) => line.equipment);
-    for (let i = 0; i < 4 && !lines().includes("fighter"); i++) visit(state);
-    expect(lines()).toContain("fighter");
+    for (let i = 0; i < 4 && !lines().includes("aircraft"); i++) visit(state);
+    expect(lines()).toContain("aircraft");
 
     // 3. With fighters in store, a wing is raised at that base.
-    state.nations[1].stockpile[equipmentIndex("fighter")] = 100;
+    state.nations[1].stockpile[equipmentIndex("aircraft")] = 100;
     const raised = ofKind(visit(state), "formation_raised");
     expect(raised).toHaveLength(1);
-    expect(raised[0].template).toBe("fighter_wing");
+    expect(raised[0].template).toBe("wing");
     expect(raised[0].base).toBe(first[0].provinceId);
 
     // 4. Filled, it flies air superiority over exactly the threatened zone.
     const wing = state.nations[1].formations[0];
-    wing.equipment[equipmentIndex("fighter")] = 24;
+    wing.equipment[equipmentIndex("aircraft")] = 24;
     const sent = ofKind(visit(state), "formation_assigned");
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({
-      formationId: wing.id,
-      zone: sky,
-      mission: "air_superiority",
-    });
+    expect(sent[0]).toMatchObject({ formationId: wing.id, zone: sky });
+    // Which of the two orders it flies is the temperament's (decision 0030):
+    // the aggressive kind supports the attack, the careful kind takes the
+    // sky. Both are over the threatened zone, which is the rule under test.
+    expect(["air_superiority", "ground_support"]).toContain(sent[0].mission);
     // And is left alone once it is where it should be.
     expect(ofKind(visit(state), "formation_assigned")).toHaveLength(0);
   });
@@ -80,7 +80,7 @@ describe("the regent in the air", () => {
       state,
       1,
       capital,
-      "fighter_wing",
+      "wing",
       sky,
       "air_superiority",
       REGENT_STAND_DOWN / 2,
@@ -97,11 +97,11 @@ describe("the regent in the air", () => {
 
   test("never raises more wings than the stock and the temperament allow", () => {
     setBuilding(state, capital, "air_base", 1);
-    state.nations[1].stockpile[equipmentIndex("fighter")] = 10_000;
+    state.nations[1].stockpile[equipmentIndex("aircraft")] = 10_000;
     const cap = 1 + Math.round(situation(state, 1).temperament.air * 3);
     for (let i = 0; i < cap + 4; i++) visit(state);
     const wings = state.nations[1].formations.filter(
-      (f) => f.template === "fighter_wing",
+      (f) => f.template === "wing",
     );
     expect(wings.length).toBeLessThanOrEqual(cap);
     expect(wings.length).toBeGreaterThan(0);

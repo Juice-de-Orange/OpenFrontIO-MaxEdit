@@ -108,16 +108,9 @@ export const EQUIPMENT_MATERIALS: Record<
   EquipmentType,
   Partial<Record<Resource, number>>
 > = {
-  infantry_equipment: { material: 0.22 },
-  artillery: { material: 0.34 },
-  armour: { material: 0.66 },
-  fighter: { material: 0.45 },
-  bomber: { material: 0.6 },
-  transport: { material: 0.32 },
-  convoy: { material: 0.25 },
-  submarine: { material: 0.46 },
-  escort: { material: 0.4 },
-  capital_ship: { material: 0.78 },
+  infantry: { material: 0.22 },
+  aircraft: { material: 0.5 },
+  ships: { material: 0.45 },
 };
 
 // ---------------------------------------------------------------------------

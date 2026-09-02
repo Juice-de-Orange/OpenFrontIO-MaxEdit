@@ -39,7 +39,7 @@ function beachhead(state: WorldState, nation: number, other: number): number {
   const far = coastalOf(state, other);
   state.provinceController[far] = nation;
   setBuilding(state, far, "naval_base", 1);
-  state.nations[nation].stockpile[equipmentIndex("convoy")] = 200;
+  state.nations[nation].stockpile[equipmentIndex("ships")] = 200;
   return home;
 }
 
@@ -70,26 +70,26 @@ describe("the regent at sea", () => {
     expect(situation(state, 1).sea.convoysWanted).toBeGreaterThan(0);
     for (let i = 0; i < 4; i++) visit(state);
     const lines = state.nations[1].productionLines.map((l) => l.equipment);
-    expect(lines).toContain("convoy");
-    expect(lines).toContain("escort");
+    expect(lines).toContain("ships");
+    expect(lines).toContain("ships");
   });
 
   test("the escort duty: a group on convoy_escort over a zone the convoys cross", () => {
     beachhead(state, 1, 2);
-    state.nations[1].stockpile[equipmentIndex("escort")] = 100;
+    state.nations[1].stockpile[equipmentIndex("ships")] = 100;
     const raised = ofKind(visit(state), "formation_raised");
-    expect(raised.map((r) => r.template)).toContain("escort_group");
+    expect(raised.map((r) => r.template)).toContain("fleet");
     const group = state.nations[1].formations.find(
-      (f) => f.template === "escort_group",
+      (f) => f.template === "fleet",
     );
     if (group === undefined) throw new Error("no escort group");
-    group.equipment[equipmentIndex("escort")] = 12;
+    group.equipment[equipmentIndex("ships")] = 12;
 
     const sent = ofKind(visit(state), "formation_assigned").filter(
       (e) => e.formationId === group.id,
     );
     expect(sent).toHaveLength(1);
-    expect(sent[0].mission).toBe("convoy_escort");
+    expect(sent[0].mission).toBe("patrol");
     expect(situation(state, 1).sea.routeZones).toContain(sent[0].zone);
   });
 
@@ -102,21 +102,21 @@ describe("the regent at sea", () => {
     steward(state, 1);
     beachhead(state, 2, 1);
     setBuilding(state, coastalOf(state, 1), "naval_base", 1);
-    state.nations[1].stockpile[equipmentIndex("submarine")] = 100;
+    state.nations[1].stockpile[equipmentIndex("ships")] = 100;
     expect(situation(state, 1).sea.enemySeaZones().length).toBeGreaterThan(0);
 
     const raised = ofKind(visit(state), "formation_raised");
-    expect(raised.map((r) => r.template)).toContain("submarine_flotilla");
+    expect(raised.map((r) => r.template)).toContain("fleet");
     const flotilla = state.nations[1].formations.find(
-      (f) => f.template === "submarine_flotilla",
+      (f) => f.template === "fleet",
     );
     if (flotilla === undefined) throw new Error("no flotilla");
-    flotilla.equipment[equipmentIndex("submarine")] = 20;
+    flotilla.equipment[equipmentIndex("ships")] = 20;
     const sent = ofKind(visit(state), "formation_assigned").filter(
       (e) => e.formationId === flotilla.id,
     );
     expect(sent).toHaveLength(1);
-    expect(sent[0].mission).toBe("convoy_raiding");
+    expect(sent[0].mission).toBe("raiding");
     expect(situation(state, 1).sea.enemySeaZones()).toContain(sent[0].zone);
   });
 
@@ -124,15 +124,15 @@ describe("the regent at sea", () => {
     ({ state } = landWorld());
     steward(state, 1);
     expect(situation(state, 1).coastal).toBe(false);
-    state.nations[1].stockpile[equipmentIndex("escort")] = 100;
-    state.nations[1].stockpile[equipmentIndex("submarine")] = 100;
+    state.nations[1].stockpile[equipmentIndex("ships")] = 100;
+    state.nations[1].stockpile[equipmentIndex("ships")] = 100;
     for (let i = 0; i < 10; i++) {
       const events = visit(state);
       for (const order of queued(events)) {
         expect(["dockyard", "naval_base"]).not.toContain(order.building);
       }
       for (const line of ofKind(events, "production_line_created")) {
-        expect(["convoy", "escort", "submarine", "capital_ship"]).not.toContain(
+        expect(["ships", "ships", "ships", "ships"]).not.toContain(
           line.equipment,
         );
       }

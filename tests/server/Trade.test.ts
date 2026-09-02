@@ -111,14 +111,14 @@ describe("standing trade agreements", () => {
         resource: "material",
         resourcePerTick: 0.5,
         pointsPerTick: 0.25,
-        equipment: { type: "fighter", perTick: 1 },
+        equipment: { type: "aircraft", perTick: 1 },
       },
     });
     const id = state.agreements[state.agreements.length - 1].id;
     applyEvent(state, { kind: "agreement_accepted", agreementId: id });
     for (const nation of [a, b])
       applyEvent(state, { kind: "nation_seen", nation });
-    const fighter = equipmentIndex("fighter");
+    const fighter = equipmentIndex("aircraft");
     state.nations[a].stockpile[fighter] = 100;
 
     const seller = nationTrade(state, a);
@@ -163,14 +163,14 @@ describe("standing trade agreements", () => {
         resource: "material",
         resourcePerTick: 0,
         pointsPerTick: 0.25,
-        equipment: { type: "infantry_equipment", perTick: 2 },
+        equipment: { type: "infantry", perTick: 2 },
       },
     });
     const id = state.agreements[state.agreements.length - 1].id;
     applyEvent(state, { kind: "agreement_accepted", agreementId: id });
     for (const nation of [a, b])
       applyEvent(state, { kind: "nation_seen", nation });
-    const rifles = equipmentIndex("infantry_equipment");
+    const rifles = equipmentIndex("infantry");
     state.nations[a].stockpile[rifles] = 50;
     const seller = nationTrade(state, a);
     expect(seller.resourceOut.material).toBe(0);

@@ -36,7 +36,7 @@ describe("the regent's construction", () => {
     applyEvent(state, {
       kind: "production_line_created",
       nation: 1,
-      equipment: "armour",
+      equipment: "infantry",
     });
     const lines = state.nations[1].productionLines;
     const line = lines[lines.length - 1];

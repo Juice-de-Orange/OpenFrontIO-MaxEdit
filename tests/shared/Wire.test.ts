@@ -131,7 +131,7 @@ describe("the wire protocol", () => {
           productionLines: [
             {
               id: 1,
-              equipment: "infantry_equipment",
+              equipment: "infantry",
               factories: 2,
               efficiency: 0.1,
               outputPerTick: 0.08,
@@ -160,7 +160,7 @@ describe("the wire protocol", () => {
           formations: [
             {
               id: 1,
-              template: "fighter_wing",
+              template: "wing",
               baseProvinceId: 3,
               zone: 4,
               mission: "air_superiority",
@@ -304,10 +304,12 @@ describe("the wire protocol", () => {
     // 18 is the temperament and the equipment trade: every nation carries its
     // ruler's archetype, and a trade's terms may name equipment beside the
     // resource. A v17 client would refuse every full state as malformed.
-    // 19 is the simplification (decision 0029): one resource where there
-    // were four, so `ResourceAmounts` is a different shape and a v18 client
-    // would read every economy wrong rather than not at all.
-    expect(PROTOCOL_VERSION).toBe(19);
+    // 19 was one resource where there were four (decision 0029); 20 is
+    // three equipment types where there were ten and two formation
+    // templates where there were five (decision 0030). Both change the
+    // shape of an economy rather than adding to it, so an older client
+    // would read every number wrong rather than not at all.
+    expect(PROTOCOL_VERSION).toBe(20);
   });
 
   test("a trade's terms may name equipment, and need not (decision 0027)", () => {
@@ -317,7 +319,7 @@ describe("the wire protocol", () => {
       pointsPerTick: 1,
     };
     expect(TradeTermsSchema.safeParse(plain).success).toBe(true);
-    const armed = { ...plain, equipment: { type: "fighter", perTick: 1 } };
+    const armed = { ...plain, equipment: { type: "aircraft", perTick: 1 } };
     expect(TradeTermsSchema.safeParse(armed).success).toBe(true);
     // A type the stockpile does not know is malformed, not a game rule.
     expect(
@@ -329,7 +331,7 @@ describe("the wire protocol", () => {
     expect(
       TradeTermsSchema.safeParse({
         ...plain,
-        equipment: { type: "fighter", perTick: Infinity },
+        equipment: { type: "aircraft", perTick: Infinity },
       }).success,
     ).toBe(false);
   });

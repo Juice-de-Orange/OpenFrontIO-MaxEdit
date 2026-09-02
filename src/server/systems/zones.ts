@@ -85,8 +85,7 @@ export function contestOf(
   kind: ZoneKind,
 ): Map<number, number> {
   const contest = new Map<number, number>();
-  const contesting: Mission =
-    kind === "air" ? "air_superiority" : "sea_control";
+  const contesting: Mission = kind === "air" ? "air_superiority" : "patrol";
   for (let nation = 1; nation <= state.nationCount; nation++) {
     let power = 0;
     for (const formation of inZone(state, nation, zone, kind)) {

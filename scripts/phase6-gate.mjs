@@ -45,7 +45,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 19;
+const PROTOCOL_VERSION = 20;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -838,8 +838,8 @@ async function main() {
     }
   }
 
-  const rifles = await createLine(player, "infantry_equipment", "rifles");
-  const guns = await createLine(player, "artillery", "guns");
+  const rifles = await createLine(player, "infantry", "rifles");
+  const guns = await createLine(player, "infantry", "guns");
   const held = player.economy.militaryFactoriesTotal;
   log(`  ${held} military factor${held === 1 ? "y" : "ies"} to work with`);
 

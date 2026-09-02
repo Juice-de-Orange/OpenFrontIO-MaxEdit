@@ -47,7 +47,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 19;
+const PROTOCOL_VERSION = 20;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -584,7 +584,7 @@ async function main() {
   // fast clock: a wing is 18 aircraft at 14 industry points each.
   const bomberIndex = 4;
   const wanted = WINGS * BOMBER_WING;
-  await industrialise(attacker, "bomber", 12, "bombers");
+  await industrialise(attacker, "aircraft", 12, "bombers");
   log(`  making ${wanted} bombers for ${WINGS} wing(s)...`);
   await stock(attacker, bomberIndex, wanted, `${wanted} bombers in store`);
 
@@ -592,7 +592,7 @@ async function main() {
   for (let i = 0; i < WINGS; i++) {
     const before = new Set(attacker.economy.formations.map((f) => f.id));
     const ack = await attacker.command(
-      { kind: "raise_formation", provinceId: base.id, template: "bomber_wing" },
+      { kind: "raise_formation", provinceId: base.id, template: "wing" },
       `wing-${i}`,
     );
     if (!ack.accepted) {
@@ -694,7 +694,7 @@ async function main() {
   const supplyBefore = supplyAt();
   const heldBefore = defender.controllers[garrisonAt];
 
-  await send("interdiction", "interdict");
+  await send("ground_support", "interdict");
   await defender.ticks(20);
   const supplyAfter = supplyAt();
 
@@ -767,7 +767,7 @@ async function main() {
   await defender.ticks(20);
   const industryBefore = defender.economy.constructionPerTick;
 
-  await send("strategic_bombing", "bomb");
+  await send("ground_support", "bomb");
   await defender.ticks(20);
   const industryAfter = defender.economy.constructionPerTick;
 
@@ -823,15 +823,15 @@ async function main() {
   // and 12 guns at four, so the industry it needs splits about two to one —
   // and a split that ignores the costs leaves one line finished and the other
   // still the bottleneck, with every division stuck at the worse ratio.
-  await industrialise(defender, "infantry_equipment", 3, "defence-rifles");
-  await industrialise(defender, "artillery", 1, "defence-guns");
+  await industrialise(defender, "infantry", 3, "defence-rifles");
+  await industrialise(defender, "infantry", 1, "defence-guns");
   const offence = await industrialise(
     attacker,
-    "infantry_equipment",
+    "infantry",
     3,
     "offence-rifles",
   );
-  await industrialise(attacker, "artillery", 1, "offence-guns");
+  await industrialise(attacker, "infantry", 1, "offence-guns");
   if (
     !check(
       attacker.economy.productionLines.find((l) => l.id === offence)
@@ -1019,7 +1019,7 @@ async function main() {
           {
             kind: "assign_factories",
             lineId: line.id,
-            factories: on ? (line.equipment === "artillery" ? 1 : 3) : 0,
+            factories: on ? (line.equipment === "infantry" ? 1 : 3) : 0,
           },
           `${tag}-${i}-${line.id}`,
         );

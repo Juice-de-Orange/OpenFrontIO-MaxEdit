@@ -131,6 +131,53 @@ describe("a snapshot from before the simplification", () => {
     expect(restored.view().nations[1].resources.material).toBe(RESOURCE_CAP);
   });
 
+  test("ten equipment types fold into three, and five templates into two", () => {
+    const world = build();
+    const fresh = world.snapshot();
+    const restored = build();
+    // The old order: rifles, guns, armour, fighters, bombers, transports,
+    // convoys, submarines, escorts, capital ships.
+    const kit = [10, 20, 30, 4, 5, 6, 1, 2, 3, 4];
+    restored.restoreFrom({
+      ...fresh,
+      hashVersion: 7,
+      nations: fresh.nations.map((nation) => ({
+        ...nation,
+        stockpile: [...kit],
+        productionLines: [
+          {
+            id: 1,
+            equipment: "fighter" as never,
+            factories: 2,
+            efficiency: 0.5,
+          },
+        ],
+        divisions: [{ id: 1, province: 0, equipment: [...kit] }],
+        formations: [
+          {
+            id: 1,
+            template: "battle_fleet" as never,
+            base: 0,
+            zone: 3,
+            mission: "convoy_escort" as never,
+            equipment: [...kit],
+          },
+        ],
+      })),
+    });
+
+    const nation = restored.view().nations[1];
+    // infantry = rifles + guns + armour + transports; aircraft = the two
+    // aircraft; ships = the four hulls.
+    expect(nation.stockpile).toEqual([66, 9, 10]);
+    expect(nation.productionLines[0].equipment).toBe("aircraft");
+    expect(nation.divisions[0].equipment).toEqual([66, 9, 10]);
+    expect(nation.formations[0].template).toBe("fleet");
+    expect(nation.formations[0].mission).toBe("patrol");
+    // And the ramp it had earned is not thrown away by the translation.
+    expect(nation.productionLines[0].efficiency).toBe(0.5);
+  });
+
   test("a snapshot this build wrote itself is not touched", () => {
     const world = build();
     world.view().nations[1].resources.material = 123;

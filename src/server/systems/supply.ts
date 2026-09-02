@@ -219,7 +219,7 @@ export function supplyReach(
       state,
       zone,
       nation,
-      "interdiction",
+      "ground_support",
       "air",
       (a, b) => atPeace(state, a, b),
     );
@@ -246,8 +246,7 @@ export function supplyReach(
   // pure reading of the state.
   const routes = seaSupplyRoutes(state, nation);
   if (routes.length > 0) {
-    const stock =
-      state.nations[nation].stockpile[equipmentIndex("convoy")] ?? 0;
+    const stock = state.nations[nation].stockpile[equipmentIndex("ships")] ?? 0;
     const wanted = routes.reduce((sum, route) => sum + route.convoysWanted, 0);
     const carried =
       SEA_SUPPLY_FLOOR +
@@ -284,12 +283,12 @@ export function netRaidOver(
     state,
     zone,
     nation,
-    "convoy_raiding",
+    "raiding",
     "naval",
     (a, b) => atPeace(state, a, b),
   );
   if (raid <= 0) return 0;
-  const escort = missionEffect(state, zone, nation, "convoy_escort", "naval");
+  const escort = missionEffect(state, zone, nation, "patrol", "naval");
   return raid * Math.max(0, 1 - ESCORT_COVER * escort);
 }
 
@@ -366,7 +365,7 @@ export const supplySystem: System = {
       const routes = seaSupplyRoutes(state, nation);
       if (routes.length > 0) {
         const held =
-          state.nations[nation].stockpile[equipmentIndex("convoy")] ?? 0;
+          state.nations[nation].stockpile[equipmentIndex("ships")] ?? 0;
         if (held > 0) {
           const wanted = routes.reduce(
             (sum, route) => sum + route.convoysWanted,
@@ -377,7 +376,7 @@ export const supplySystem: System = {
             events.push({
               kind: "stockpile_changed",
               nation,
-              delta: [[equipmentIndex("convoy"), -worn]],
+              delta: [[equipmentIndex("ships"), -worn]],
             });
           }
         }
