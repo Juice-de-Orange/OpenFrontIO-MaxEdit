@@ -179,6 +179,30 @@ describe("a snapshot from before the simplification", () => {
     expect(nation.productionLines[0].efficiency).toBe(0.5);
   });
 
+  test("a queued building that no longer exists is dropped, not carried", () => {
+    // The live world found this one: a queue entry naming a dockyard reads
+    // its cost out of a table that no longer has it, and the construction
+    // system threw on it every tick for ever.
+    const world = build();
+    const fresh = world.snapshot();
+    const restored = build();
+    restored.restoreFrom({
+      ...fresh,
+      hashVersion: 8,
+      nations: fresh.nations.map((nation) => ({
+        ...nation,
+        constructionQueue: [
+          { id: 1, provinceId: 0, building: "dockyard" as never, progress: 10 },
+          { id: 2, provinceId: 0, building: "civilian_factory", progress: 5 },
+        ],
+      })),
+    });
+    const queue = restored.view().nations[1].constructionQueue;
+    expect(queue.map((order) => order.building)).toEqual(["civilian_factory"]);
+    // And a tick over it does not throw.
+    expect(() => restored.step()).not.toThrow();
+  });
+
   test("a snapshot this build wrote itself is not touched", () => {
     const world = build();
     world.view().nations[1].resources.material = 123;

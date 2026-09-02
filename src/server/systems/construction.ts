@@ -69,7 +69,20 @@ export const constructionSystem: System = {
         const infrastructure = effectiveInfrastructure(state, order.provinceId);
         const rate =
           points * (1 + infrastructure * INFRASTRUCTURE_CONSTRUCTION_BONUS);
-        const cost = BUILDINGS[order.building].cost;
+        // **A building this build does not know is dropped, not thrown on.**
+        // Only a snapshot from before a building was removed can put one
+        // here, and a queue entry is not worth a dead tick every five
+        // seconds for ever (invariant 2: worse, never a wall).
+        const spec = BUILDINGS[order.building];
+        if (spec === undefined) {
+          events.push({
+            kind: "construction_cancelled",
+            nation,
+            orderId: order.id,
+          });
+          continue;
+        }
+        const cost = spec.cost;
         const remaining = cost - order.progress;
 
         if (rate < remaining) {

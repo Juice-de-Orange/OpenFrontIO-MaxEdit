@@ -375,8 +375,16 @@ function migrateToSixBuildings(
     }
   }
   const known = new Set<string>(TECH_IDS);
+  const standing = new Set<string>(BUILDING_TYPES);
   const nations = snapshot.nations.map((nation) => ({
     ...nation,
+    // **The queue as well as the rows.** An order for a building that no
+    // longer exists reads its cost out of a table that no longer has it, and
+    // the construction system throws on it every tick for ever — which is
+    // exactly what the live world did the minute this shipped without it.
+    constructionQueue: nation.constructionQueue.filter((order) =>
+      standing.has(order.building),
+    ),
     unlockedTechs: (nation.unlockedTechs ?? []).filter((tech) =>
       known.has(tech),
     ),
