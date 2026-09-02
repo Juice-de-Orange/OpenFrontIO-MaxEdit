@@ -1946,6 +1946,15 @@ is the knob.
 name greys the nations and says why; the diplomacy list of another player
 shows your name where a regent's persona would be. Accounts from before
 (yours included) stay anonymous.
+0o. **The zones**: press `z` — pale cyan seams between air zones on land,
+pale sand between sea zones on the water, under the territory fill. Off by
+default. Say whether they read at all: the fill sits over them and the first
+colours vanished under it entirely.
+0p. **The icons**: seven of this fork's own — round civilian factory,
+hexagonal military factory, dockyard with a crane, refinery with a flame,
+aeroplane, anchor, crates. The SVGs are in `resources/images/structures/`
+and `npm run gen-structure-atlas` rebuilds the atlas; say which ones do not
+read and they are a path edit away.
 
 The four before them:
 

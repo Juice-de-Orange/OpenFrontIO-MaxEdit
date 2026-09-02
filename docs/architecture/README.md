@@ -276,7 +276,13 @@ progress as tiles from the attacking border inward) and the war's markers (a
 ring per contested province, a pulsing circle per invasion beach);
 `StructureAdapter` turns the building counts into the `UnitState`s the
 inherited structure passes draw — one icon per (province, type) on a tile
-chosen by hash, the count as the level. `structuresDirty` is an edge the
+chosen by hash, the count as the level. The icons are columns 6–12 of
+`resources/atlases/icon-atlas.png`, rendered from `resources/images/structures/`
+by `scripts/generate-structure-atlas.mjs` (`npm run gen-structure-atlas`,
+headless Chromium); `STRUCTURE_ORDER` in `render/types/UnitType.ts` is the
+one column table, and `tests/build/StructureAtlas.test.ts` pins the PNG's
+width to it. The air and sea zones are two more map layers
+(`world/ZoneBorders.ts`), off until `z`. `structuresDirty` is an edge the
 adapter sets and `frameData()` consumes: left true it rebuilds every
 instance a tick, left false it draws nothing after the first frame, and
 neither says anything.

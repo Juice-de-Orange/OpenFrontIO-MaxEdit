@@ -39,6 +39,7 @@ import type {
   UnitState,
 } from "../types/Renderer";
 import {
+  STRUCTURE_ORDER,
   UT_ATOM_BOMB,
   UT_HYDROGEN_BOMB,
   UT_MIRV,
