@@ -4,7 +4,12 @@ import {
   type HudActions,
   type HudModel,
 } from "../../../src/client/world/ui/Hud";
-import { t, type StringKey } from "../../../src/client/world/ui/strings";
+import {
+  currentLanguage,
+  setLanguage,
+  t,
+  type StringKey,
+} from "../../../src/client/world/ui/strings";
 import type { Province } from "../../../src/shared/map/Province";
 import { TerrainType } from "../../../src/shared/map/Terrain";
 import type { NationEconomyView } from "../../../src/shared/protocol/Wire";
@@ -127,6 +132,7 @@ function actions(): HudActions {
     assignFormation: vi.fn(),
     disbandFormation: vi.fn(),
     chooseNation: vi.fn(),
+    changeLanguage: vi.fn(),
   };
 }
 
@@ -277,5 +283,43 @@ describe("the string catalogue", () => {
     );
     expect(t("hud.orderAccepted")).toBe("Order accepted.");
     expect(t("hud.orderAccepted")).not.toMatch(/\d/);
+  });
+});
+
+describe("the language picker", () => {
+  test("the bar offers both languages and hands the choice to the client", () => {
+    const wired = actions();
+    // A second HUD beside the one beforeEach built would leave two bars, and
+    // the query below would find the wrong one.
+    document.body.replaceChildren();
+    document.head.replaceChildren();
+    hud = new Hud(wired);
+    hud.update(model());
+    const picker = document.querySelector<HTMLSelectElement>(
+      "#world-menu select.lang",
+    );
+    expect(picker).not.toBeNull();
+    expect([...(picker?.options ?? [])].map((o) => o.value)).toEqual([
+      "en",
+      "de",
+    ]);
+    expect(picker?.value).toBe("en"); // jsdom's navigator.language is en-US
+    if (picker === null) throw new Error("no picker");
+    picker.value = "de";
+    picker.dispatchEvent(new Event("change"));
+    expect(wired.changeLanguage).toHaveBeenCalledWith("de");
+  });
+
+  test("setLanguage switches the catalogue and remembers the choice", () => {
+    setLanguage("de");
+    try {
+      expect(currentLanguage()).toBe("de");
+      expect(t("queue.title")).toBe("Bauschlange");
+      expect(localStorage.getItem("world.language")).toBe("de");
+    } finally {
+      setLanguage("en");
+      localStorage.removeItem("world.language");
+    }
+    expect(t("queue.title")).toBe("Construction queue");
   });
 });

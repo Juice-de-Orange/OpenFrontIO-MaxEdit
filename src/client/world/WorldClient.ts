@@ -37,7 +37,7 @@ import {
 import { ProvinceTileIndex } from "./ProvinceTileIndex";
 import { Hud, type HudModel } from "./ui/Hud";
 import { fetchOffer, showStartScreen } from "./ui/StartScreen";
-import { t } from "./ui/strings";
+import { setLanguage, t } from "./ui/strings";
 import { WorldSocket } from "./WorldSocket";
 
 const DEFAULT_WORLD = "world-0";
@@ -394,6 +394,12 @@ export async function startWorldClient(
       send({ kind: "raise_division", provinceId: province }),
     startResearch: (slot, tech) => send({ kind: "start_research", slot, tech }),
     cancelResearch: (slot) => send({ kind: "cancel_research", slot }),
+    changeLanguage: (language) => {
+      setLanguage(language);
+      // The built-once forms keep their labels until the page is rebuilt,
+      // and a reload costs nothing here: the state is the server's.
+      window.location.reload();
+    },
     cancelAttack: (province) =>
       send({ kind: "cancel_attack", provinceId: province }),
     navalInvade: (divisionId, province) =>

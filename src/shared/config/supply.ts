@@ -37,7 +37,8 @@ export const SUPPLY_INFRASTRUCTURE_RELIEF = 0.06;
 /** However good the roads, a hop is still a hop. */
 export const SUPPLY_MIN_HOP_COST = 0.4;
 
-/** Supply one division draws. Flat for now; §6.6 wants it per equipment. */
+/** Supply a full division draws. A division draws in proportion to the cost
+ * of the equipment it holds, so this is the ceiling, not a flat fee (§6.6). */
 export const SUPPLY_PER_DIVISION = 1;
 
 /**

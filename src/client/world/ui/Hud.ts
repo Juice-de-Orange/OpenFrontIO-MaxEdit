@@ -80,7 +80,14 @@ import {
   perDay,
   share,
 } from "./Format";
-import { t, type HelpKey, type StringKey } from "./strings";
+import {
+  currentLanguage,
+  LANGUAGES,
+  t,
+  type HelpKey,
+  type Language,
+  type StringKey,
+} from "./strings";
 
 const STYLE = `
 #world-hud, #world-hud * { box-sizing: border-box; }
@@ -177,6 +184,11 @@ const STYLE = `
 #world-menu .clock {
   margin-left: auto; font-size: 13px; color: #aab4c4; white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+#world-menu select.lang {
+  width: auto; margin: 0 0 0 .6rem; padding: .15rem .3rem; font-size: 12px;
+  background: rgba(255,255,255,.05); color: #d8dee8;
+  border: 1px solid rgba(255,255,255,.10); border-radius: 6px;
 }
 #world-menu .who {
   margin-left: .9rem; padding-left: .9rem;
@@ -338,6 +350,8 @@ export interface HudActions {
   cancelAttack(province: number): void;
   /** Send a division across the sea at a hostile coast (§6.8). */
   navalInvade(divisionId: number, province: number): void;
+  /** Switch the HUD's language. The client remembers it and reloads. */
+  changeLanguage(language: Language): void;
   /** Set how the world plays this nation when nobody is (§6.10). */
   configureRegent(
     enabled: boolean,
@@ -506,6 +520,24 @@ export class Hud {
     this.clock = document.createElement("span");
     this.clock.className = "clock";
     bar.append(this.clock);
+
+    // The language, beside the clock. The HUD used to pick it from the
+    // browser once and offer no way to disagree.
+    const language = document.createElement("select");
+    language.className = "lang";
+    language.title = t("hud.language");
+    language.setAttribute("aria-label", t("hud.language"));
+    for (const code of LANGUAGES) {
+      const option = document.createElement("option");
+      option.value = code;
+      option.textContent = code.toUpperCase();
+      language.append(option);
+    }
+    language.value = currentLanguage();
+    language.addEventListener("change", () =>
+      this.actions.changeLanguage(language.value as Language),
+    );
+    bar.append(language);
 
     // Who you are, on the right. Reading the URL used to be the only way.
     this.identity = document.createElement("div");
@@ -835,7 +867,9 @@ export class Hud {
     this.queuePanel.hidden = economy === null || this.open !== "queue";
     if (economy === null) return;
 
-    const children: Node[] = [heading(t("queue.title"))];
+    const children: Node[] = [
+      ...this.explained("help.queue", heading(t("queue.title"))),
+    ];
     if (economy.queue.length === 0) {
       children.push(muted(t("queue.empty")), hint(t("queue.howToBuild")));
     }
@@ -930,7 +964,10 @@ export class Hud {
           10,
         ),
       ),
-      row(t("province.slots"), fraction(used, province.buildingSlots)),
+      ...this.explained(
+        "help.province.slots",
+        row(t("province.slots"), fraction(used, province.buildingSlots)),
+      ),
       row(t("province.deposits"), depositLine(province) ?? t("province.none")),
     ];
 
@@ -1239,7 +1276,10 @@ export class Hud {
         `${amount(economy.manpower)} / ${amount(economy.manpowerCap)}`,
       ),
       spacer(),
-      heading(t("production.lines")),
+      ...this.explained(
+        "help.production.lines",
+        heading(t("production.lines")),
+      ),
     ];
 
     if (economy.productionLines.length === 0) {
@@ -1332,7 +1372,13 @@ export class Hud {
     );
     children.push(open, openButton);
 
-    children.push(spacer(), heading(t("production.stockpile")));
+    children.push(
+      spacer(),
+      ...this.explained(
+        "help.production.stockpile",
+        heading(t("production.stockpile")),
+      ),
+    );
     const stocked = EQUIPMENT_TYPES.filter(
       (type, index) => (economy.stockpile[index] ?? 0) >= 0.5,
     );
@@ -1349,7 +1395,13 @@ export class Hud {
     }
 
     if (economy.attacks.length > 0) {
-      children.push(spacer(), heading(t("production.fronts")));
+      children.push(
+        spacer(),
+        ...this.explained(
+          "help.production.fronts",
+          heading(t("production.fronts")),
+        ),
+      );
       for (const attack of economy.attacks) {
         const item = document.createElement("div");
         item.className = "line";
@@ -1371,7 +1423,13 @@ export class Hud {
       }
     }
 
-    children.push(spacer(), heading(t("production.divisions")));
+    children.push(
+      spacer(),
+      ...this.explained(
+        "help.production.divisions",
+        heading(t("production.divisions")),
+      ),
+    );
     if (economy.divisions.length === 0) {
       children.push(muted(t("production.noDivisions")));
     }
@@ -1550,7 +1608,10 @@ export class Hud {
 
     const children: Node[] = [
       heading(t("diplomacy.title")),
-      row(t("diplomacy.trust"), amount(model.trust[nation] ?? 0)),
+      ...this.explained(
+        "help.diplomacy.trust",
+        row(t("diplomacy.trust"), amount(model.trust[nation] ?? 0)),
+      ),
       row(
         t("diplomacy.tradeBalance"),
         `${perDay(model.economy.tradePointsIn)} / ${perDay(model.economy.tradePointsOut)}`,
@@ -1609,7 +1670,13 @@ export class Hud {
       children.push(item);
     }
 
-    children.push(spacer(), heading(t("diplomacy.standing")));
+    children.push(
+      spacer(),
+      ...this.explained(
+        "help.diplomacy.agreements",
+        heading(t("diplomacy.standing")),
+      ),
+    );
     if (standing.length === 0)
       children.push(muted(t("diplomacy.noneStanding")));
     for (const agreement of standing) {

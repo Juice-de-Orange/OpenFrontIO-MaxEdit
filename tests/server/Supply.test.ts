@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import {
+  divisionDemand,
   supplyCoverage,
   supplyOf,
   supplyReach,
@@ -14,6 +15,7 @@ import {
 import { DIVISION_MANPOWER } from "../../src/shared/config/rates";
 import {
   SUPPLY_ATTRITION,
+  SUPPLY_PER_DIVISION,
   SUPPLY_RANGE,
   SUPPLY_SOURCE_THROUGHPUT,
 } from "../../src/shared/config/supply";
@@ -108,19 +110,45 @@ describe("supply over the province graph", () => {
     const sources = supplySources(state, nation).length;
     expect(supplyCoverage(state, nation)).toBe(1);
 
-    // One more division than the sources can feed, and coverage falls for
-    // everyone rather than the last one going without: degrade, never block.
+    // One more full division than the sources can feed, and coverage falls
+    // for everyone rather than the last one going without: degrade, never
+    // block. Full, because a division draws in proportion to what it holds
+    // (§6.6) — empty ones would draw nothing and prove nothing.
     const raise = sources * SUPPLY_SOURCE_THROUGHPUT + 1;
     for (let i = 0; i < raise; i++) {
       state.nations[nation].divisions.push({
         id: 1000 + i,
         province: capital,
-        equipment: new Array<number>(10).fill(0),
+        equipment: [100, 12, 0, 0, 0, 0, 0, 0, 0, 0],
       });
     }
     const coverage = supplyCoverage(state, nation);
     expect(coverage).toBeLessThan(1);
     expect(coverage).toBeGreaterThan(0);
+  });
+
+  test("a division draws supply in proportion to the equipment it holds (§6.6)", () => {
+    const full = { equipment: [100, 12, 0, 0, 0, 0, 0, 0, 0, 0] };
+    const half = { equipment: [50, 6, 0, 0, 0, 0, 0, 0, 0, 0] };
+    const empty = { equipment: new Array<number>(10).fill(0) };
+    expect(divisionDemand(full)).toBeCloseTo(SUPPLY_PER_DIVISION, 10);
+    expect(divisionDemand(half)).toBeCloseTo(SUPPLY_PER_DIVISION / 2, 10);
+    expect(divisionDemand(empty)).toBe(0);
+    // Type matters, not just count: twelve guns cost what forty-eight rifles
+    // do, and eat like it.
+    const guns = { equipment: [0, 12, 0, 0, 0, 0, 0, 0, 0, 0] };
+    const rifles = { equipment: [48, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
+    expect(divisionDemand(guns)).toBeCloseTo(divisionDemand(rifles), 10);
+    // And a nation of empty divisions has full coverage: nothing is asked.
+    const state = world.view();
+    for (let i = 0; i < 20; i++) {
+      state.nations[nation].divisions.push({
+        id: 2000 + i,
+        province: capital,
+        equipment: new Array<number>(10).fill(0),
+      });
+    }
+    expect(supplyCoverage(state, nation)).toBe(1);
   });
 
   test("an unsupplied division wastes away, and a supplied one does not", () => {

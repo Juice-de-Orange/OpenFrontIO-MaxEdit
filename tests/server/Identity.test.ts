@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { MemoryStore } from "../../src/server/db/MemoryStore";
 import { hashToken, IdentityService } from "../../src/server/net/Identity";
-import { openSeason } from "../../src/server/world/Season";
+import { openSeason, regentFocusFor } from "../../src/server/world/Season";
 import { World } from "../../src/server/world/World";
 import { WorldRunner } from "../../src/server/world/WorldRunner";
 import { mapFixture } from "../util/worldFixture";
@@ -127,7 +127,21 @@ describe("identity", () => {
       // The claimed nation keeps decision 0018's default; every other one is
       // played from here on (§6.10's promise, kept by decision 0019).
       expect(state.nations[nation].regent.enabled).toBe(nation !== 2);
+      // Each with a focus of its own, drawn from the seed and reproducible —
+      // it went through the log as a command, so a replay re-rolls nothing.
+      if (nation !== 2) {
+        expect(state.nations[nation].regent.focus).toBe(
+          regentFocusFor(state.worldSeed, nation),
+        );
+      }
     }
+    // Over a full map the draw uses every focus, so the world is not fifty
+    // identical stewards.
+    const foci = new Set<string>();
+    for (let nation = 1; nation <= 52; nation++) {
+      foci.add(regentFocusFor(state.worldSeed, nation));
+    }
+    expect(foci.size).toBe(4);
 
     // Idempotent: a restart opens nothing a second time, so the command log
     // does not grow by a nation count every boot.

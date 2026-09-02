@@ -127,6 +127,7 @@ function actions(): HudActions {
     assignFormation: vi.fn(),
     disbandFormation: vi.fn(),
     chooseNation: vi.fn(),
+    changeLanguage: vi.fn(),
   };
 }
 
@@ -192,7 +193,10 @@ describe("the diplomacy panel", () => {
     hud.update(
       model({ agreements: [agreement({ accepted: false, parties: [2, 1] })] }),
     );
-    const buttons = Array.from(panel().querySelectorAll("button"));
+    // Not the circled-i buttons: they explain, they do not act.
+    const buttons = Array.from(
+      panel().querySelectorAll<HTMLButtonElement>("button:not(.info)"),
+    );
     buttons[0].click();
     expect(calls.acceptAgreement).toHaveBeenCalledWith(1);
     buttons[1].click();

@@ -252,6 +252,3 @@ export const RESOURCE_CAP = 5000;
 
 /** And the same for one equipment type. */
 export const EQUIPMENT_CAP = 100_000;
-
-/** Divisions a nation starts with, in its capital. */
-export const STARTING_DIVISIONS = 2;

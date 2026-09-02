@@ -103,6 +103,7 @@ function actions(): HudActions {
     assignFormation: vi.fn(),
     disbandFormation: vi.fn(),
     chooseNation: vi.fn(),
+    changeLanguage: vi.fn(),
   };
 }
 

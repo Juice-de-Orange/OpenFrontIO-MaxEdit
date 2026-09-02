@@ -10,8 +10,9 @@
  *
  * So: one file, both languages, and `de` typed as `Record<Key, string>` so a
  * missing German string is a compile error rather than an English word in the
- * middle of a German sentence. When the HUD grows a language picker of its
- * own, this merges into `resources/lang/` and this file becomes the loader.
+ * middle of a German sentence. The picker in the bar (`setLanguage`) switches
+ * the catalogue and remembers the choice in `localStorage`; merging into
+ * `resources/lang/` is a separate step for when there is a third language.
  *
  * English is the source language; German is maintained in the same commit.
  */
@@ -27,6 +28,7 @@ const en = {
   "hud.notConnected": "Not connected to the world.",
   "hud.orderAccepted": "Order accepted.",
   "hud.info": "What is this?",
+  "hud.language": "Language",
   "hud.orderRefused": "Order refused: {reason}",
   "hud.clock": "Day {day} \u00b7 {hour}:00",
 
@@ -280,6 +282,22 @@ const en = {
     "A wing is raised where an air base stands and a fleet where a naval base stands. The button appears in that province's panel and nowhere else. Build the base first.",
   "help.air.reach":
     "A wing flies over its base's own zone and the zones bordering it. Farther zones are listed greyed and cannot be chosen. A base nearer the front is the answer.",
+  "help.queue":
+    "Worked from the top: the front item gets the construction points, the rest wait their turn. A civilian factory is about ten in-game days of a young nation's whole output.",
+  "help.production.lines":
+    "A line ties military factories to one equipment type. Its efficiency climbs slowly while it runs unchanged, and falls back to the floor the moment you switch what it makes — the switch button names the price.",
+  "help.production.stockpile":
+    "Everything the lines make lands here. Divisions, wings and fleets draw from it to reach full strength, and every battle destroys some of it for good.",
+  "help.production.divisions":
+    "Strength is equipment held against a full division; supply is how much of what it needs gets through. A weak division needs the stockpile; an unsupplied one needs a hub or a shorter line.",
+  "help.production.fronts":
+    "A standing attack on a province. It grinds every tick and costs equipment while it stands. Calling it off loses its progress.",
+  "help.diplomacy.trust":
+    "Public, 0 to 100, and spent by breaking agreements: a little for a trade, a lot for an alliance, almost all of it for attacking a nation you promised not to. It never comes back.",
+  "help.diplomacy.agreements":
+    "Every agreement stands until one side gives notice — no durations, no renewals. Notice takes one in-game day and costs trust, and the other side is told at once.",
+  "help.province.slots":
+    "Every building but roads and mines takes a slot, and a queued order holds its slot too. When they are full, more land is the only way to more.",
 
   "start.eyebrow": "A world that keeps running",
   "start.title": "Choose your nation",
@@ -325,6 +343,7 @@ const de: Record<StringKey, string> = {
   "hud.notConnected": "Keine Verbindung zur Welt.",
   "hud.orderAccepted": "Befehl angenommen.",
   "hud.info": "Was ist das?",
+  "hud.language": "Sprache",
   "hud.orderRefused": "Befehl abgelehnt: {reason}",
   "hud.clock": "Tag {day} \u00b7 {hour}:00",
 
@@ -578,6 +597,22 @@ const de: Record<StringKey, string> = {
     "Eine Staffel wird aufgestellt, wo eine Luftwaffenbasis steht, eine Flotte, wo eine Marinebasis steht. Der Knopf erscheint im Panel dieser Provinz und nirgends sonst. Erst die Basis bauen.",
   "help.air.reach":
     "Eine Staffel fliegt über die Zone ihrer Basis und die angrenzenden Zonen. Weiter entfernte Zonen stehen ausgegraut in der Liste und lassen sich nicht wählen. Eine Basis näher an der Front ist die Antwort.",
+  "help.queue":
+    "Von oben abgearbeitet: das vorderste Vorhaben bekommt die Bauleistung, der Rest wartet. Eine Zivilfabrik kostet etwa zehn Spieltage der gesamten Leistung einer jungen Nation.",
+  "help.production.lines":
+    "Eine Linie bindet Militärfabriken an einen Ausrüstungstyp. Ihre Effizienz steigt langsam, solange sie unverändert läuft, und fällt auf den Boden zurück, sobald du umstellst — der Umstellknopf nennt den Preis.",
+  "help.production.stockpile":
+    "Alles, was die Linien fertigen, landet hier. Divisionen, Staffeln und Flotten ziehen daraus, um auf volle Stärke zu kommen, und jede Schlacht zerstört einen Teil davon endgültig.",
+  "help.production.divisions":
+    "Stärke ist gehaltene Ausrüstung gegen eine volle Division; Versorgung ist, wie viel vom Bedarf ankommt. Eine schwache Division braucht das Lager, eine unversorgte ein Depot oder eine kürzere Linie.",
+  "help.production.fronts":
+    "Ein stehender Angriff auf eine Provinz. Er mahlt jeden Tick und kostet Ausrüstung, solange er steht. Abbrechen verliert den Fortschritt.",
+  "help.diplomacy.trust":
+    "Öffentlich, 0 bis 100, und verbraucht durch gebrochene Abkommen: wenig für einen Handel, viel für ein Bündnis, fast alles für den Angriff auf eine Nation, der du Nichtangriff versprochen hast. Es kommt nie zurück.",
+  "help.diplomacy.agreements":
+    "Jedes Abkommen gilt, bis eine Seite kündigt — keine Laufzeiten, keine Verlängerungen. Die Kündigung braucht einen Spieltag, kostet Vertrauen, und die andere Seite erfährt es sofort.",
+  "help.province.slots":
+    "Jedes Gebäude außer Straßen und Minen belegt einen Bauplatz, und ein eingereihter Auftrag hält seinen Platz ebenfalls. Sind sie voll, führt nur mehr Land zu mehr.",
 
   "start.eyebrow": "Eine Welt, die weiterläuft",
   "start.title": "Wähle deine Nation",
@@ -613,19 +648,48 @@ const de: Record<StringKey, string> = {
 
 const CATALOGUES: Record<string, Record<StringKey, string>> = { en, de };
 
+export type Language = "en" | "de";
+export const LANGUAGES: readonly Language[] = ["en", "de"];
+const LANGUAGE_KEY = "world.language";
+
 /**
- * The language, from the browser, once.
- *
- * No picker yet — one belongs with the account screens rather than ahead of
- * them. Anything that is not German gets English.
+ * The language: what the player chose last, else the browser's. Anything that
+ * is not German gets English. Storage can be unavailable (a private window,
+ * a locked-down browser); then the choice lasts for the page.
  */
-function language(): string {
+function language(): Language {
+  try {
+    const chosen = localStorage.getItem(LANGUAGE_KEY);
+    if (chosen === "en" || chosen === "de") return chosen;
+  } catch {
+    // no storage: fall through to the browser
+  }
   const preferred =
     typeof navigator === "undefined" ? "en" : (navigator.language ?? "en");
   return preferred.toLowerCase().startsWith("de") ? "de" : "en";
 }
 
-const catalogue = CATALOGUES[language()];
+let current: Language = language();
+let catalogue = CATALOGUES[current];
+
+export function currentLanguage(): Language {
+  return current;
+}
+
+/**
+ * Switch the catalogue and remember the choice. The panels built once
+ * (diplomacy, air, regent) keep their old labels until the page reloads,
+ * which is why the client reloads after calling this.
+ */
+export function setLanguage(next: Language): void {
+  current = next;
+  catalogue = CATALOGUES[next];
+  try {
+    localStorage.setItem(LANGUAGE_KEY, next);
+  } catch {
+    // no storage: the choice lasts for the page
+  }
+}
 
 /** The keys behind the HUD's ⓘ buttons: prose, not labels. */
 export type HelpKey = Extract<StringKey, `help.${string}`>;

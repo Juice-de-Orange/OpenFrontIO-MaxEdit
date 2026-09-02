@@ -46,7 +46,13 @@ import {
   SUPPLY_RANGE,
   SUPPLY_SOURCE_THROUGHPUT,
 } from "src/shared/config/supply";
-import { equipmentIndex } from "src/shared/economy/Equipment";
+import {
+  DIVISION_TEMPLATE,
+  EQUIPMENT,
+  EQUIPMENT_TYPES,
+  equipmentIndex,
+  type EquipmentType,
+} from "src/shared/economy/Equipment";
 import { seaPath } from "src/shared/map/SeaGraph";
 import type { System } from ".";
 import {
@@ -255,8 +261,7 @@ export function supplyReach(
       const cut =
         INTERDICTION_MAX *
         interdictionOver(state.map.provinces[route.province].airZone);
-      const sea =
-        base * carried * (1 - SEA_RAID_SUPPLY_MAX * raid) * (1 - cut);
+      const sea = base * carried * (1 - SEA_RAID_SUPPLY_MAX * raid) * (1 - cut);
       if (sea > (reach.get(route.province) ?? 0)) {
         reach.set(route.province, sea);
       }
@@ -297,12 +302,43 @@ export function netRaidOver(
  * nation's arithmetic. The same reasoning applies inside one.
  */
 export function supplyCoverage(state: WorldState, nation: number): number {
-  const divisions = state.nations[nation].divisions.length;
-  if (divisions === 0) return 1;
+  let demand = 0;
+  for (const division of state.nations[nation].divisions) {
+    demand += divisionDemand(division);
+  }
+  if (demand <= 0) return 1;
   const capacity =
     supplySources(state, nation).length * SUPPLY_SOURCE_THROUGHPUT;
-  const demand = divisions * SUPPLY_PER_DIVISION;
   return Math.max(0, Math.min(1, capacity / demand));
+}
+
+/** What a full division's equipment costs, the yardstick for demand. */
+const TEMPLATE_COST = (
+  Object.keys(DIVISION_TEMPLATE) as EquipmentType[]
+).reduce(
+  (sum, type) => sum + (DIVISION_TEMPLATE[type] ?? 0) * EQUIPMENT[type].cost,
+  0,
+);
+
+/**
+ * What one division draws: `SUPPLY_PER_DIVISION` for a full one, and in
+ * proportion to the cost of what it actually holds below that (§6.6 —
+ * "proportional to their equipment and type"). Cost is the one per-type
+ * weight the equipment table has, and it is the honest one: a gun eats more
+ * than a rifle in the field as it did at the factory. An empty division
+ * draws nothing, which is also what stops a freshly raised army from
+ * starving the one that was already there (the "bottomless pit" of phase 8).
+ */
+export function divisionDemand(division: {
+  equipment: readonly number[];
+}): number {
+  let held = 0;
+  for (let index = 0; index < division.equipment.length; index++) {
+    const type = EQUIPMENT_TYPES[index];
+    if (type === undefined) continue;
+    held += Math.max(0, division.equipment[index]) * EQUIPMENT[type].cost;
+  }
+  return (SUPPLY_PER_DIVISION * held) / TEMPLATE_COST;
 }
 
 /** What one division is actually getting, 0..1. Reach times coverage. */
