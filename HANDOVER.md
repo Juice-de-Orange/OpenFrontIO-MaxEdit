@@ -2319,49 +2319,36 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**The evening's questions, 2026-09-02**, each a yes or a no:
+**Open for Max, as of the night of 2026-09-02.** Everything that was a
+question earlier in the day was either answered or overtaken by the
+simplification; what is left is short.
 
-1. Decision 0025 (a capital is lost when owned, not held): accept, or revert
-   the one word in `tradeContext`.
-2. Decision 0026 (trust regrowth): leave `TRUST_REGROWTH_PER_DAY` at 0, or
-   set a value — 1 is the number to try, and the help text changes with it.
-3. ~~`REGENT_FOCUS_RESEED=1` once on the host~~ **Done, 19:35.** Thirty-one
-   of the fifty-two moved onto the focus their archetype asks for; the other
-   twenty-one are nineteen builders and scholars already on `economy` and the
-   two nations a player holds, which the world never touches (invariant 7).
-   The commands were read back out of the log and compared against the seed:
-   thirty-one reseeded, none mismatched. The compose file had never forwarded
-   the flag to the container, which is why this could not be done this
-   morning.
-4. ~~**Redeploy with the day's work.**~~ **Done, 2026-09-02 19:25.**
-   Protocol 18 and hash version 6 went to the host with Max's go-ahead: dump
-   `world-20260902-172432.dump` first, then the morning's sequence. The world
-   resumed at tick 16980 against 16988 when it was killed, and the one new
-   line in the log is the one decision 0016 promised — _state-hash check
-   skipped for this load, written by hash version 5, this build computes 6,
-   the next snapshot re-arms the check_. Public surface checked from
-   outside, live browser smoke green on the watching path.
+1. **Look at it and say what reads.** The checklist below, 0e–0s. The
+   afternoon's three are 0q (the archetype on a nation), 0r (a trade
+   carrying equipment) and 0s (the names on the map); the evening changed
+   the shape of almost everything else, so the older items want a second
+   look rather than their first.
+2. **Decision 0025** (a capital is lost when owned, not held): accept, or
+   revert the one word in `tradeContext`.
+3. **Decision 0026** (trust regrowth): leave `TRUST_REGROWTH_PER_DAY` at 0,
+   or set a value — 1 is the number to try, and the help text changes with
+   it.
+4. **Off-host backup target and the internal ntfy URL** (see "Deployed").
+5. **The phase-12 gate's clock starts again.** The seven days run from the
+   reset, not from the first deployment, so the earliest re-run is
+   2026-09-09.
 
-   **The reseed did not come with it.** The log's "0 unclaimed nation(s)
-   handed to their regents" is the season already being open; the fifty
-   regents still carry the focus they were opened with, and only
-   `REGENT_FOCUS_RESEED=1` on one start changes that. It is still question 3.
+Decisions 0027 to 0032 are written as Accepted because they were built to
+Max's instruction. The judgement calls inside them, named where they are
+made: the marshal attacking under `military` (a deviation from §6.10's four
+foci, 0028); `ships` doubling as the merchant marine (0030); and strategic
+bombing being dropped rather than rehomed (0030).
 
-5. The review page, 0e–0s: which icons and colours read, which do not;
-   0q to 0s are the afternoon's (archetype, equipment trade, map names).
-6. Off-host backup target and the internal ntfy URL (see "Deployed").
-7. Decision 0027 (a trade may carry equipment) and 0028 (temperament) are
-   written as Accepted because they were built to Max's instruction; the
-   one judgement call inside them is the marshal attacking under
-   `military`, which is a deviation from §6.10's four foci and is named as
-   such in 0028.
-
-**Still to build, scoped on 2026-09-02** (nothing here waits on a decision
-except where it says so):
-
-**All four items below were built on the afternoon of 2026-09-02** and are
-kept here with what they turned into, because the reasoning is what a later
-phase will want:
+**Nothing on the build list is open.** Everything scoped on 2026-09-02 was
+built the same day, and the evening's simplification then went through some
+of it again — the dockyard and the refinery named below no longer exist
+(decisions 0029 and 0032), and the regent builds a port instead. The list is
+kept because the reasoning is what a later phase will want:
 
 - ~~**The regent, second pass.**~~ Built: `src/server/systems/regent/`, one
   rule a file, driven by a temperament per ruler (decision 0028). Border
