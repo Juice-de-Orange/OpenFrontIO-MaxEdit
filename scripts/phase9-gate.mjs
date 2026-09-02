@@ -311,10 +311,25 @@ function findStage(spectator, provinces) {
     if (beach === undefined) continue;
     const defender = spectator.controllers[beach.id];
 
-    // A trade partner on the far side that is not the invasion's victim.
-    const partner = across
-      .map((province) => spectator.controllers[province.id])
-      .find((nation) => nation !== defender);
+    // **A trade partner with no land path to the island at all.** Not merely
+    // one with a coast across the water: a nation can hold ground on both
+    // landmasses, and then `tradeRouteBetween` finds a land route, the trade
+    // needs no convoys, and the raiding half of this gate measures nothing —
+    // which is exactly what it did on the map with the real borders, where
+    // the largest island's neighbour turned out to be reachable overland.
+    const strangers = new Set();
+    for (const nation of new Set(
+      across.map((province) => spectator.controllers[province.id]),
+    )) {
+      const onOurMass = provinces.some(
+        (province) =>
+          spectator.controllers[province.id] === nation &&
+          mass.has(province.id),
+      );
+      if (!onOurMass) strangers.add(nation);
+    }
+    if (!strangers.has(defender)) continue;
+    const partner = [...strangers].find((nation) => nation !== defender);
 
     const home = shore.find((province) => province.seaZone === beach.seaZone);
     if (home === undefined) continue;

@@ -1685,50 +1685,128 @@ The first phase-10 gate marched an army of nobody: since the front became a
 rate, `claim_province` walks into any undefended province, so a relentless
 attacker needed no army at all and the regent's one garrison stopped it at
 the capital. That measured a caretaker. The rewritten gate builds its
-opponent an arms industry, three divisions and a bomber wing, and then
-measures the steward against it.
+opponent — two more arms plants, a supply hub at the staging, three
+divisions and a bomber wing — and then measures the steward against it. All
+four runs below are on a **fresh** world (`docker compose down -v`), which
+matters more than it sounds: see the note after them.
 
 ```
 phase-10 gate
-  world world-0 at tick 136768, 50 ms a tick
-  nation 3 is left to its regent; nation 4 marches on its capital in province 25, 3 hop(s) behind the border
+  world world-0 at tick 1828, 50 ms a tick
+  nation 4 is left to its regent; nation 3 marches on its capital in province 61, 5 hop(s) behind the border
   the invader queued 2 more arms plant(s)
-  the invader has 3 military factories
-  the invader builds a supply hub at its staging (province 66)
-  the invader builds an air base in province 66 (zone 1; the front is zone 1)
+  the invader builds a supply hub at its staging (province 21)
+  the invader builds an air base in province 20 (zone 1; the front is zone 2)
   the invader's stockpile holds 3 divisions' worth
-  3 invader division(s) at the border, strength 0.99, 0.99, 0.91
-  the invader's bomber wing flies ground support over zone 1
+  3 invader division(s) at the border, strength 1.00, 0.52, 0.00
+  the invader's bomber wing flies ground support over zone 2
   the regent takes over: defence, half a point a tick for the market
 
-  ok    the opponent was active: 6 standing attacks ordered, an army at strength 1.00, bombers over the front
-  ok    the capital in province 25 is still the regent's after 2000 tick(s)
-  ok    it holds 32 of the 37 provinces it started with (86%; sixty needed)
-  ok    it raised an army and stood it at the border: 1 division(s), 1 of them facing nation 4
+  ok    the opponent was active: 7 standing attacks ordered, an army at strength 1.00, bombers over the front
+  ok    the capital in province 61 is still the regent's after 2000 tick(s)
+  ok    it holds 24 of the 30 provinces it started with (80%; sixty needed)
+  ok    it raised an army and stood it at the border: 1 division(s), 1 of them facing nation 3
   ok    and armed them as it went (1 of 1 still filling)
   ok    its stockpile is spent, which is why the army stopped at 1 of the 3 its land could carry
   ok    it answered the sky: an air base stands
   note  the regent holds 1 arms plant(s), so there is no idle factory for a fighter line — §6.10 staffs idle factories and never takes one off the rifles
-  ok    the construction queue is non-empty now and was on 99 of 100 samples
+  ok    the construction queue was working on 99 of 100 samples and is non-empty now, with 41 free slot(s) to build in
   ok    1 production line(s) ran and not one was reset
   ok    and the research slots are at work
-  the window: 1 → 1 arms plant(s), 32 → 0 rifles, 0 → 1 division(s); queued supply_hub, dockyard, naval_base
-  ok    the world stayed healthy throughout (0 ms behind at tick 140404)
+  the window: 1 → 1 arms plant(s), 0 → 1 rifles, 0 → 1 division(s); queued supply_hub, air_base, civilian_factory
 PASS
 ```
 
-Two things in that transcript are the whole point. The steward held 86% of
-its ground against an armed, air-supported offensive rather than everything
-but the capital. And the last line is a temperament reading its own map: a
-coastal ruler spent its window on a hub, a dockyard and a naval base, which
-is not what the builder two nations over would have done.
+Eighty per cent of its ground held against an armed, air-supported
+offensive, and an air base built in answer to the bombers — against the old
+gate's "everything but the capital".
 
-The counter-proofs: `--break=asleep` switches the regent off and the same
-offensive takes the capital; `--break=blind` needs the world started with
-`REGENT_BREAK=blind`, which makes `assess` report an empty sky, and the air
-answer falls while everything before it stands. A second scenario,
-`--scenario=sea`, puts an island nation under the regent with a trade across
-the water and measures the §6.10 escort duty.
+The two counter-proofs, on their own fresh worlds:
+
+```
+node scripts/phase10-gate.mjs --break=asleep
+  ok    the opponent was active: 8 standing attacks ordered, an army at strength 1.00, bombers over the front
+  FAIL  the capital in province 61 is still the regent's after 81 tick(s)
+  FAIL  it raised an army and stood it at the border: 0 division(s)
+  FAIL  it answered the sky with an air base (none queued, none built)
+  FAIL  the construction queue was working on 0 of 5 samples and is empty now, with 78 free slot(s) to build in
+  FAIL  0 production line(s) ran
+  FAIL  and the research slots are at work
+
+REGENT_BREAK=blind ... && node scripts/phase10-gate.mjs --break=blind
+  ok    the capital in province 61 is still the regent's after 2000 tick(s)
+  ok    it holds 24 of the 30 provinces it started with (80%; sixty needed)
+  ok    it raised an army and stood it at the border: 1 division(s), 1 of them facing nation 3
+  FAIL  it answered the sky with an air base (none queued, none built)
+  ok    the construction queue was working on 99 of 100 samples
+  ok    1 production line(s) ran and not one was reset
+```
+
+The blind run is the same pair, the same offensive, the same everything —
+and exactly one check falls. That is what a counter-proof is for: without it
+"the regent answered the sky" is a sentence about a world in which a base
+happened to be built.
+
+And the sea scenario, on the one nation in Europe with no land border at
+all:
+
+```
+node scripts/phase10-gate.mjs --scenario=sea
+  nation 50 has no land border at all: 9 coastal province(s), home port in province 666 (sea zone 0)
+  nation 21 offers the island a standing trade in steel
+  ok    a convoy line runs on the yards (infantry_equipment, convoy, escort)
+  ok    and an escort line beside it — the §6.10 duty, in steel
+  ok    an escort group was raised (2, strength 1.00, 1.00)
+  ok    and put on convoy_escort over a zone its convoys cross
+  ok    the construction queue was working on 199 of 200 samples
+PASS
+```
+
+**Run every gate on a fresh world, and this one twice over.** The runs before
+these left conquests behind, and the next run's pair selection then picked a
+different, worse pair — a ten-province nation with its capital two hops from
+the border, which falls to a march before a steward's first thought. That is
+not a finding about the regent; it is a finding about a world three gates had
+already chewed. The gate now insists on a capital three to five hops back and
+on both nations having room to lose ground in, and every run above starts
+from `docker compose down -v`.
+
+### Phases 7 and 9 re-run on the equipment trade (2026-09-02)
+
+Phase 7 grew a second lane: the seller opens a rifles line, stocks a few,
+and offers them beside the steel. Both flows move, both are paid for in
+construction points, and both survive the restart — which is the part that
+matters, because the equipment term lives in the snapshot (decision 0027)
+and a restore that dropped it would show up as a half-price flow.
+
+```
+  ok    a second lane carrying rifles beside the steel is offerable (accepted)
+  ok    the buyer sees the equipment named in the terms
+  ok    rifles arrive in the buyer's stockpile (0.0 → 2.5)
+  ok    the buyer pays for both lanes (0.500/tick against 0.25/tick for one)
+  ok    and the seller is paid for both (0.500/tick)
+```
+
+Phase 9 needed a fix of its own, and it is the same lesson twice: **the map
+changed under the gate.** Its stage is "an island, a beach across one shared
+sea zone, a trade partner on the far side", and since the real borders
+(decision 0021) the largest island it finds shares a _land_ path with its
+partner elsewhere on the map. `tradeRouteBetween` then routes the trade
+overland, the trade needs no convoys, and the raiding half of the gate
+measures a route nobody is sailing — two green checks turned red without a
+line of simulation changing. The stage now requires a partner with **no
+province at all on the island's landmass**, and the numbers come back exactly
+where they were before the equipment change:
+
+```
+  ok    raiding the route cut the trade income: 0.500 -> 0.460 oil a tick, with no land engagement
+  ok    the convoys themselves are being sunk: 1.70 lost under the raid against 0.16 to wear alone
+  ok    raiding the route starved the beachhead: supply 100.0% -> 92.0%
+PASS
+```
+
+That equality is the real result: `tradeFlowRate` replaced two copies of the
+convoy price and moved nothing.
 
 ## What the phase-6 gate was really asking
 

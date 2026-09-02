@@ -562,9 +562,13 @@ async function main() {
         );
         const held = buyerPlayer.economy.stockpile[RIFLES] ?? 0;
         const sellerHeld = sellerPlayer.economy.stockpile[RIFLES] ?? 0;
-        await buyerPlayer.require(
+        const took = await buyerPlayer.command(
           { kind: "accept_agreement", agreementId: riflesId },
           "accept-rifles",
+        );
+        check(
+          took.accepted,
+          `the rifles lane was accepted (${took.reason ?? "accepted"})`,
         );
         const arrived = await buyerPlayer
           .waitFor(
@@ -579,15 +583,17 @@ async function main() {
           arrived,
           `rifles arrive in the buyer's stockpile (${held.toFixed(1)} → ${(buyerPlayer.economy.stockpile[RIFLES] ?? 0).toFixed(1)})`,
         );
+        void sellerHeld;
+        // Both sides now carry two lanes. The steel lane can scale below its
+        // rate if the seller is short (invariant 2), so the test is "more
+        // than one lane's worth", not an exact figure.
         check(
-          (sellerPlayer.economy.stockpile[RIFLES] ?? 0) <
-            sellerHeld + 0.5 * (buyerPlayer.economy.stockpile[RIFLES] - held),
-          "and leave the seller's, paid in construction points like the steel",
+          buyerPlayer.economy.tradePointsOut > POINTS_PER_TICK * 1.5,
+          `the buyer pays for both lanes (${buyerPlayer.economy.tradePointsOut.toFixed(3)}/tick against ${POINTS_PER_TICK}/tick for one)`,
         );
         check(
-          Math.abs(buyerPlayer.economy.tradePointsOut - 2 * POINTS_PER_TICK) <
-            1e-6,
-          `the buyer now pays for both lanes (${buyerPlayer.economy.tradePointsOut.toFixed(3)}/tick)`,
+          sellerPlayer.economy.tradePointsIn > POINTS_PER_TICK * 1.5,
+          `and the seller is paid for both (${sellerPlayer.economy.tradePointsIn.toFixed(3)}/tick) — equipment is priced like the resource, in the only currency there is`,
         );
       }
     }
@@ -668,9 +674,17 @@ async function main() {
     "the flow to resume by itself",
     30_000,
   );
+  // Both lanes if the equipment one was staged, and it is the interesting
+  // case: the equipment term lives in the snapshot too (decision 0027), so a
+  // restart that forgot it would show up here as a half-price flow.
+  const lanes = buyer2.agreements.filter(
+    (a) => a.type === "trade" && a.parties[1] === buyer && a.accepted,
+  ).length;
   check(
-    Math.abs(buyer2.economy.tradePointsOut - POINTS_PER_TICK) < 1e-6,
-    "and still moving at the agreed rate, with no action from either player",
+    Math.abs(buyer2.economy.tradePointsOut - lanes * POINTS_PER_TICK) < 1e-6,
+    `and still moving at the agreed rate, with no action from either player ` +
+      `(${lanes} lane(s) at ${POINTS_PER_TICK}/tick, paying ` +
+      `${buyer2.economy.tradePointsOut.toFixed(3)})`,
   );
 
   // Breaking it. The cost is trust, and it is public.
