@@ -319,3 +319,67 @@ describe("the front", () => {
     expect(world.controllerSnapshot()).toEqual(before);
   });
 });
+
+describe("the battle report (decision 0023)", () => {
+  let world: World;
+
+  beforeEach(() => {
+    ({ world } = build());
+  });
+
+  test("a contested tick reports one battle, with both sides' numbers", () => {
+    const { attacker, defender, province, from } = border(world);
+    const state = world.view() as WorldState;
+    garrison(state, defender, province);
+    garrison(state, attacker, from);
+    order(world, attacker, province);
+
+    const changes = world.step();
+    const reports = changes.events.filter(
+      (event) => event.kind === "battle_resolved",
+    );
+    expect(reports).toHaveLength(1);
+    const report = reports[0];
+    if (report.kind !== "battle_resolved") throw new Error("unreachable");
+    expect(report).toMatchObject({ province, attacker, defender });
+    expect(report.attackerStrength).toBeGreaterThan(0);
+    expect(report.defenderStrength).toBeGreaterThan(0);
+    // A battle costs both sides (§6.3), and the report says how much.
+    expect(report.attackerLoss).toBeGreaterThan(0);
+    expect(report.defenderLoss).toBeGreaterThan(0);
+    // The advance is the same number the front moved by.
+    const attack = world.view().nations[attacker].attacks[0];
+    expect(attack.progress).toBeCloseTo(Math.max(0, report.advance), 10);
+    // Signed modifiers, not multipliers: level ground is 0, not 1.
+    expect(Math.abs(report.terrain)).toBeLessThan(1);
+    expect(Math.abs(report.air)).toBeLessThan(1);
+  });
+
+  test("a march into empty ground is not a battle and files no report", () => {
+    const { attacker, province } = border(world);
+    order(world, attacker, province);
+    const changes = world.step();
+    expect(
+      changes.events.some((event) => event.kind === "battle_resolved"),
+    ).toBe(false);
+  });
+
+  test("the report changes nothing: applying it is a no-op", () => {
+    const state = world.view() as WorldState;
+    const before = JSON.stringify(state.nations.map((n) => n.attacks));
+    applyEvent(state, {
+      kind: "battle_resolved",
+      province: 0,
+      attacker: 1,
+      defender: 2,
+      attackerStrength: 1,
+      defenderStrength: 1,
+      terrain: 0,
+      air: 0,
+      advance: 0.01,
+      attackerLoss: 1,
+      defenderLoss: 1,
+    });
+    expect(JSON.stringify(state.nations.map((n) => n.attacks))).toBe(before);
+  });
+});

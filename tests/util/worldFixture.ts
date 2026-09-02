@@ -14,14 +14,12 @@
  */
 
 import { generateProvinceMap } from "../../src/build/GenerateProvinceMap";
+import type { NationSeed } from "../../src/server/world/World";
 import {
   decodeProvinceMap,
   type ProvinceMap,
 } from "../../src/shared/map/ProvinceMap";
-import type {
-  MapDescriptor,
-  NationStatic,
-} from "../../src/shared/protocol/Wire";
+import type { MapDescriptor } from "../../src/shared/protocol/Wire";
 
 const LAND = 0x80;
 
@@ -36,7 +34,7 @@ export interface FixtureOptions {
 export interface Fixture {
   map: ProvinceMap;
   descriptor: MapDescriptor;
-  nations: NationStatic[];
+  nations: NationSeed[];
 }
 
 /** A rectangle of land with a one-tile ocean margin, cut into provinces. */

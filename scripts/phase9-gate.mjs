@@ -41,7 +41,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 16;
+const PROTOCOL_VERSION = 17;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -377,7 +377,9 @@ async function buildYards(player, provinces, nation, want, tag, avoid = -1) {
       (lastReason === null ? "" : ` (last refusal: ${lastReason})`),
   );
   if (queued === 0 && player.economy.dockyardsTotal < want) {
-    log(`  a world this gate cannot use: ${tag} cannot build a single dockyard`);
+    log(
+      `  a world this gate cannot use: ${tag} cannot build a single dockyard`,
+    );
     process.exit(2);
   }
   await player.waitUntil(

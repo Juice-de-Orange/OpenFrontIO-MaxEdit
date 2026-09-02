@@ -35,7 +35,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -423,6 +423,13 @@ export const NationStaticSchema = z.object({
   /** Renderer palette slot. 1-based; 0 means unowned. */
   smallID: z.number().int().positive(),
   name: z.string(),
+  /** A flag file under `resources/flags`, from the map manifest, if it has one. */
+  flag: z.string().optional(),
+  /**
+   * The head of state the regent plays as. Derived from the world seed and
+   * never stored, so it moves no state hash (docs/decisions/0023).
+   */
+  ruler: z.string(),
 });
 export type NationStatic = z.infer<typeof NationStaticSchema>;
 
@@ -602,6 +609,12 @@ export const NationEconomySchema = z.object({
   manpowerCap: z.number(),
   productionLines: z.array(ProductionLineSchema),
   divisions: z.array(DivisionSchema),
+  /**
+   * Civilian factories in the provinces the nation holds. Where its
+   * construction comes from — a question the interface could not answer
+   * without it.
+   */
+  civilianFactories: z.number().int().nonnegative(),
   /** Factories assigned to a line, against those the nation holds. */
   militaryFactoriesAssigned: z.number().int().nonnegative(),
   militaryFactoriesTotal: z.number().int().nonnegative(),
@@ -710,6 +723,38 @@ export const FrontViewSchema = z.object({
 export type FrontView = z.infer<typeof FrontViewSchema>;
 
 /**
+ * One battle this tick, as its two parties see it.
+ *
+ * Everything `combat.ts` computed and used to throw away but `progress`:
+ * both sides' engaged strength, the modifiers, how far the line moved and
+ * what it cost. Sent only to the attacker and the defender, and to nobody
+ * else — a spectator sees the front, not the numbers. Both parties see
+ * *both* strengths, which is a deliberate departure from the rule that the
+ * other side's assignments are not on the wire (`ZoneSchema`): a nation
+ * standing in the fight knows what it is fighting (docs/decisions/0023).
+ *
+ * Per tick, like every rate on the wire; the HUD shows it per day. Transient:
+ * it is in no snapshot and no hash, and a fresh client gets the next one.
+ */
+export const BattleViewSchema = z.object({
+  province: z.number().int().nonnegative(),
+  attacker: z.number().int().positive(),
+  defender: z.number().int().positive(),
+  /** Engaged strength in division equivalents, supply already applied. */
+  attackerStrength: z.number().nonnegative(),
+  defenderStrength: z.number().nonnegative(),
+  /** Signed modifiers: terrain on the defence, air on the attack. 0.25 is +25%. */
+  terrain: z.number(),
+  air: z.number(),
+  /** Share of the province the line moved this tick; negative is pushed back. */
+  advancePerTick: z.number(),
+  /** Equipment destroyed this tick, summed over types. */
+  attackerLossPerTick: z.number().nonnegative(),
+  defenderLossPerTick: z.number().nonnegative(),
+});
+export type BattleView = z.infer<typeof BattleViewSchema>;
+
+/**
  * One division at sea, as anyone may see it (§6.8: "the units are visible
  * and vulnerable in transit"). The visibility is what makes the crossing
  * answerable: a defender who sees it coming has the whole transit to put a
@@ -813,6 +858,12 @@ export const DeltaSchema = z.object({
   fronts: z.array(FrontViewSchema),
   /** Every division at sea, in full every tick, as on the full state. */
   invasions: z.array(InvasionViewSchema),
+  /**
+   * The battles this session's nation fought this tick — as attacker or as
+   * defender. Empty for a spectator, and empty on a quiet tick. Not on the
+   * full state: it is this tick's report, and the next tick brings the next.
+   */
+  battles: z.array(BattleViewSchema),
   /** Where the season stands, every tick. Small and load-bearing. */
   victory: VictoryViewSchema,
   /** This session's own economy, recomputed every tick, or null when watching. */

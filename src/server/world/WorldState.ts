@@ -32,10 +32,6 @@ import {
   TRUST_START,
 } from "src/shared/config/diplomacy";
 import type { Resource } from "src/shared/config/provinces";
-import {
-  DEFAULT_REGENT,
-  type RegentConfig,
-} from "src/shared/config/regent";
 import { RESOURCES } from "src/shared/config/provinces";
 import {
   DOCKYARD_OUTPUT,
@@ -46,6 +42,7 @@ import {
   MILITARY_FACTORY_OUTPUT,
   RESOURCE_CAP,
 } from "src/shared/config/rates";
+import { DEFAULT_REGENT, type RegentConfig } from "src/shared/config/regent";
 import {
   MAX_RESEARCH_SLOTS,
   modifiersOf,
@@ -848,7 +845,30 @@ export type WorldEvent =
       progress: number;
     }
   /** Withdrawn, or spent: the province is theirs and the order has nothing left. */
-  | { kind: "attack_ended"; nation: number; province: number };
+  | { kind: "attack_ended"; nation: number; province: number }
+  /**
+   * A battle was fought this tick: what met what, and what came of it.
+   *
+   * Applies nothing — the equipment and the progress arrive as their own
+   * events — and exists so the socket layer can tell both parties what the
+   * fight looked like (docs/decisions/0023). Transient by construction: it
+   * changes no state, so it is in no snapshot and no hash.
+   */
+  | {
+      kind: "battle_resolved";
+      province: number;
+      attacker: number;
+      defender: number;
+      attackerStrength: number;
+      defenderStrength: number;
+      /** Signed: `TERRAIN_DEFENCE - 1`. */
+      terrain: number;
+      /** Signed: the ground-support multiplier less one. */
+      air: number;
+      advance: number;
+      attackerLoss: number;
+      defenderLoss: number;
+    };
 
 /**
  * Apply one event. The only writer of this object.
@@ -1276,6 +1296,10 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
       if (at >= 0) attacks.splice(at, 1);
       return;
     }
+
+    case "battle_resolved":
+      // A report, not a change. See the event's own comment.
+      return;
 
     case "construction_finished": {
       const nation = state.nations[event.nation];

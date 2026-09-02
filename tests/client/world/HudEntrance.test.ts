@@ -42,6 +42,7 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
     manpowerCap: 10000,
     productionLines: [],
     divisions: [],
+    civilianFactories: 3,
     militaryFactoriesAssigned: 0,
     militaryFactoriesTotal: 4,
     dockyardsAssigned: 0,
@@ -85,8 +86,8 @@ function model(over: Partial<HudModel> = {}): HudModel {
   return {
     nation: 1,
     nations: [
-      { smallID: 1, name: "Testland" },
-      { smallID: 2, name: "Otherland" },
+      { smallID: 1, name: "Testland", ruler: "Test Ruler" },
+      { smallID: 2, name: "Otherland", ruler: "Other Ruler" },
     ],
     provinces: [province()],
     controllers: [1],
@@ -98,6 +99,7 @@ function model(over: Partial<HudModel> = {}): HudModel {
     victory: { holders: null, heldSinceTick: null, winner: null },
     fronts: [],
     invasions: [],
+    battles: [],
     tick: 0,
     selected: 0,
     ...over,

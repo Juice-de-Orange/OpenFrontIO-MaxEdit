@@ -84,3 +84,4 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0020](0020-blocs-are-transitive-and-winning-stops-nothing.md) | Victory blocs are transitive, and winning stops nothing                   | Accepted |
 | [0021](0021-nations-wear-their-real-borders.md)                | Nations wear their real borders, grown from Natural Earth outlines        | Accepted |
 | [0022](0022-which-nations-are-taken-is-public.md)              | Which nations are taken is public; who took them is not                   | Accepted |
+| [0023](0023-a-battle-is-reported-to-both-sides.md)             | A battle is reported to both its parties, and a nation has a face         | Accepted |

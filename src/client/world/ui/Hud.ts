@@ -63,6 +63,7 @@ import { TerrainType } from "src/shared/map/Terrain";
 import { zoneInReach } from "src/shared/map/Zones";
 import type {
   AgreementView,
+  BattleView,
   FrontView,
   InvasionView,
   NationEconomyView,
@@ -185,6 +186,7 @@ const STYLE = `
   /* Shrinkable, so a long spectator line yields before the buttons do. */
   min-width: 0; overflow: hidden; text-overflow: ellipsis;
 }
+#world-menu .who .flag { height: .95rem; width: auto; border-radius: 2px; }
 #world-menu .who .swatch {
   width: .8rem; height: .8rem; border-radius: 3px;
   border: 1px solid rgba(0,0,0,.5);
@@ -297,6 +299,8 @@ export interface HudModel {
   fronts: FrontView[];
   /** Every crossing under way, public: §6.8's defence is seeing it come. */
   invasions: InvasionView[];
+  /** This tick's battles this nation is party to. Empty for a spectator. */
+  battles: BattleView[];
   /**
    * The world's tick, for the clock. One tick is one in-game hour (§4), and
    * without a clock every "12/day" on screen is a number with no scale.
@@ -569,7 +573,8 @@ export class Hud {
     swatch.style.background = nationCss(model.nation);
     const name = document.createElement("span");
     name.textContent = nationName(model, model.nation);
-    box.replaceChildren(swatch, name);
+    const flag = flagOf(model, model.nation);
+    box.replaceChildren(...(flag === null ? [] : [flag]), swatch, name);
   }
 
   /**
@@ -678,6 +683,11 @@ export class Hud {
       ...this.explained(
         "help.economy.construction",
         row(t("economy.construction"), perDay(netConstruction)),
+      ),
+      // Where it comes from. "Where does my construction come from" had no
+      // answer on screen until the count was on the wire (protocol 17).
+      muted(
+        t("economy.civilianFactories", { count: economy.civilianFactories }),
       ),
       ...(Math.abs(traded) > 1e-9
         ? this.explained(
@@ -952,6 +962,35 @@ export class Hud {
         bar,
         muted(t("province.frontTaken", { share: share(front.progress) })),
       );
+      // The numbers, for the two nations in the fight (decision 0023). Per
+      // day, like everything else on screen; the wire is per tick.
+      const battle = model.battles.find((it) => it.province === id);
+      if (battle !== undefined) {
+        children.push(
+          heading(t("battle.title")),
+          row(
+            t("battle.strength"),
+            t("battle.divisions", {
+              attacker: amount(battle.attackerStrength),
+              defender: amount(battle.defenderStrength),
+            }),
+          ),
+          row(
+            t("battle.modifiers"),
+            `${percent(battle.terrain)} \u00b7 ${percent(battle.air)}`,
+          ),
+          row(
+            t("battle.advance"),
+            t("battle.perDay", {
+              value: percent(battle.advancePerTick * TICKS_PER_DAY),
+            }),
+          ),
+          row(
+            t("battle.losses"),
+            `${perDay(battle.attackerLossPerTick)} \u00b7 ${perDay(battle.defenderLossPerTick)}`,
+          ),
+        );
+      }
     }
     const landing = model.invasions.find((it) => it.to === id);
     if (landing !== undefined) {
@@ -1670,11 +1709,10 @@ export class Hud {
     if (who === null) return;
     for (const option of Array.from(who.options)) {
       const id = Number(option.value);
-      const name =
-        model.nations.find((n) => n.smallID === id)?.name ?? `#${id}`;
-      const label = `${name} — ${t("diplomacy.trustShort", {
-        trust: amount(model.trust[id] ?? 0),
-      })}`;
+      const label = `${nationWithRuler(model, id)} — ${t(
+        "diplomacy.trustShort",
+        { trust: amount(model.trust[id] ?? 0) },
+      )}`;
       if (option.textContent !== label) option.textContent = label;
     }
   }
@@ -1894,9 +1932,10 @@ export class Hud {
       if (other.smallID === nation) continue;
       const option = document.createElement("option");
       option.value = String(other.smallID);
-      option.textContent = `${other.name} — ${t("diplomacy.trustShort", {
-        trust: amount(model.trust[other.smallID] ?? 0),
-      })}`;
+      option.textContent = `${nationWithRuler(model, other.smallID)} — ${t(
+        "diplomacy.trustShort",
+        { trust: amount(model.trust[other.smallID] ?? 0) },
+      )}`;
       who.append(option);
     }
     const what = document.createElement("select");
@@ -2209,6 +2248,32 @@ function effectLine(effect: TechEffect): string {
     );
   }
   return parts.join(" \u00b7 ");
+}
+
+/**
+ * A nation with the name of whoever runs it — the regent's persona, derived
+ * on the server from the world seed (decision 0023). The player's own nation
+ * is shown by name alone: they are not their regent.
+ */
+function nationWithRuler(model: HudModel, id: number): string {
+  const nation = model.nations.find((n) => n.smallID === id);
+  if (nation === undefined) return `#${id}`;
+  if (id === model.nation) return nation.name;
+  return t("nation.withRuler", { name: nation.name, ruler: nation.ruler });
+}
+
+/** The nation's flag from the map manifest, or null when the map has none. */
+function flagOf(model: HudModel, id: number): HTMLElement | null {
+  const flag = model.nations.find((n) => n.smallID === id)?.flag;
+  if (flag === undefined) return null;
+  const img = document.createElement("img");
+  img.className = "flag";
+  img.alt = "";
+  img.src = `/flags/${flag}.svg`;
+  // A deployment that does not ship `resources/flags` shows no flag rather
+  // than a broken image.
+  img.addEventListener("error", () => img.remove());
+  return img;
 }
 
 function heading(text: string): HTMLElement {

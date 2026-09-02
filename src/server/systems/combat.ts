@@ -93,6 +93,16 @@ function engaged(
   };
 }
 
+/** Equipment destroyed by a set of loss events, summed over every type. */
+function destroyed(events: readonly WorldEvent[]): number {
+  let total = 0;
+  for (const event of events) {
+    if (event.kind !== "division_equipment_changed") continue;
+    for (const [, delta] of event.delta) total -= Math.min(0, delta);
+  }
+  return total;
+}
+
 /** Equipment destroyed in a set of divisions, as a share of what each holds. */
 function losses(
   nation: number,
@@ -263,14 +273,33 @@ export const combatSystem: System = {
             defender <= 0 || defender > state.nationCount
               ? 0
               : nationModifiers(state, defender).defenderLoss;
-          events.push(
-            ...losses(nation, attacker.divisions, ATTACKER_LOSS),
-            ...losses(
-              defender,
-              holding.divisions,
-              Math.max(0, DEFENDER_LOSS * (1 + shelter)),
-            ),
+          const attackerLosses = losses(
+            nation,
+            attacker.divisions,
+            ATTACKER_LOSS,
           );
+          const defenderLosses = losses(
+            defender,
+            holding.divisions,
+            Math.max(0, DEFENDER_LOSS * (1 + shelter)),
+          );
+          events.push(...attackerLosses, ...defenderLosses);
+          // **The report.** Everything this tick computed and used to throw
+          // away but `progress`, for the two nations in the fight. The roll
+          // is left out: luck explains nothing a player can act on.
+          events.push({
+            kind: "battle_resolved",
+            province,
+            attacker: nation,
+            defender,
+            attackerStrength: attacker.strength,
+            defenderStrength: holding.strength,
+            terrain: terrain - 1,
+            air: air - 1,
+            advance,
+            attackerLoss: destroyed(attackerLosses),
+            defenderLoss: destroyed(defenderLosses),
+          });
         }
       }
     }

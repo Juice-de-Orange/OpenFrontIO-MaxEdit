@@ -38,6 +38,7 @@ import {
 } from "src/shared/protocol/Wire";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { World, WorldChanges } from "../world/World";
+import type { WorldEvent } from "../world/WorldState";
 import type { IdentityService } from "./Identity";
 
 /** How long a connection may stay silent before sending `hello`. */
@@ -597,11 +598,18 @@ export class WorldSocketServer {
     const fronts = this.world.frontsView();
     const invasions = this.world.invasionsView();
     const victory = this.world.victoryView();
+    // This tick's battles, filtered per party below. A spectator gets the
+    // front (public) and none of the numbers (decision 0023).
+    const battles = changes.events.filter(
+      (event): event is Extract<WorldEvent, { kind: "battle_resolved" }> =>
+        event.kind === "battle_resolved",
+    );
     const spectatorPayload = encodeServer({
       ...shared,
       trust,
       fronts,
       invasions,
+      battles: [],
       victory,
       agreements: this.world.agreementsFor(null),
       economy: null,
@@ -621,6 +629,23 @@ export class WorldSocketServer {
           trust,
           fronts,
           invasions,
+          battles: battles
+            .filter(
+              (battle) =>
+                battle.attacker === s.nation || battle.defender === s.nation,
+            )
+            .map((battle) => ({
+              province: battle.province,
+              attacker: battle.attacker,
+              defender: battle.defender,
+              attackerStrength: battle.attackerStrength,
+              defenderStrength: battle.defenderStrength,
+              terrain: battle.terrain,
+              air: battle.air,
+              advancePerTick: battle.advance,
+              attackerLossPerTick: battle.attackerLoss,
+              defenderLossPerTick: battle.defenderLoss,
+            })),
           victory,
           agreements: this.world.agreementsFor(s.nation),
           economy: this.economyView(s.nation),
@@ -655,6 +680,7 @@ export class WorldSocketServer {
         progress: order.progress,
       })),
       ...this.world.tradeView(nation),
+      ...this.world.industryView(nation),
       ...this.world.militaryView(nation, economy.sufficiency),
     };
   }

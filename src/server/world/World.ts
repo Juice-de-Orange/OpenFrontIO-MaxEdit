@@ -37,6 +37,11 @@ import {
   TRUST_COST,
   TRUST_START,
 } from "src/shared/config/diplomacy";
+import {
+  INVASION_MIN_CONTROL,
+  INVASION_TICKS_PER_ZONE,
+  SEA_SUPPLY_RANGE,
+} from "src/shared/config/naval";
 import type { Resource } from "src/shared/config/provinces";
 import { OCCUPATION_TICKS, RESOURCES } from "src/shared/config/provinces";
 import {
@@ -44,6 +49,13 @@ import {
   STARTING_CAPITAL_BUILDINGS,
   STARTING_RESOURCES,
 } from "src/shared/config/rates";
+import {
+  DEFAULT_REGENT,
+  MAX_REGENT_MARKET_BUDGET,
+  REGENT_FOCI,
+  type RegentFocus,
+} from "src/shared/config/regent";
+import { rulerName } from "src/shared/config/rulers";
 import {
   MAX_RESEARCH_SLOTS,
   slotsFor,
@@ -59,17 +71,18 @@ import {
 } from "src/shared/economy/Buildings";
 import { EQUIPMENT, equipmentIndex } from "src/shared/economy/Equipment";
 import {
-  ZONE_KINDS,
   FORMATIONS,
   formationTemplateIndex,
   MISSIONS,
   missionSuitsKind,
+  ZONE_KINDS,
 } from "src/shared/economy/Formations";
 import {
   decodeProvinceMap,
   type ProvinceMap,
   type ProvinceMapMeta,
 } from "src/shared/map/ProvinceMap";
+import { seaPath } from "src/shared/map/SeaGraph";
 import { terrainHashFnv1a } from "src/shared/map/TerrainHash";
 import type {
   AgreementView,
@@ -84,20 +97,8 @@ import type {
 } from "src/shared/protocol/Wire";
 import { SYSTEMS } from "../systems";
 import { measureNation, type NationEconomy } from "../systems/economy";
-import { supplyCoverage, supplyOf, supplyReach } from "../systems/supply";
-import {
-  INVASION_MIN_CONTROL,
-  INVASION_TICKS_PER_ZONE,
-  SEA_SUPPLY_RANGE,
-} from "src/shared/config/naval";
-import {
-  DEFAULT_REGENT,
-  MAX_REGENT_MARKET_BUDGET,
-  REGENT_FOCI,
-  type RegentFocus,
-} from "src/shared/config/regent";
-import { seaPath } from "src/shared/map/SeaGraph";
 import { tradeRouteBetween } from "../systems/routes";
+import { supplyCoverage, supplyOf, supplyReach } from "../systems/supply";
 import { isDeadPartner, nationTrade } from "../systems/trade";
 import {
   contestOf,
@@ -106,9 +107,9 @@ import {
   zoneInReach,
 } from "../systems/zones";
 import {
-  AT_SEA,
   applyEvent,
   assignedFactories,
+  AT_SEA,
   atPeace,
   availableFactories,
   countBuilding,
@@ -150,7 +151,15 @@ const MAX_AGREEMENTS = 24;
 interface ManifestNation {
   name: string;
   coordinates: [number, number];
+  /** A file under `resources/flags`, without the extension. */
+  flag?: string;
 }
+
+/**
+ * A nation as the map hands it over: everything static but the ruler, which
+ * the world derives from its own seed unless the caller already has one.
+ */
+export type NationSeed = Omit<NationStatic, "ruler"> & { ruler?: string };
 
 interface MapManifest {
   map: { width: number; height: number };
@@ -303,12 +312,20 @@ export class World {
   /** Commands waiting for the tick they were accepted for. */
   private readonly pending = new Map<number, WorldCommand[]>();
 
+  readonly nations: NationStatic[];
+
   private constructor(
     readonly descriptor: MapDescriptor,
-    readonly nations: NationStatic[],
+    nations: NationSeed[],
     readonly map: ProvinceMap,
     worldSeed = 0,
   ) {
+    // Rulers are a function of the seed, so every start of this world names
+    // the same people and no snapshot has to carry them (decision 0023).
+    this.nations = nations.map((nation) => ({
+      ...nation,
+      ruler: nation.ruler ?? rulerName(worldSeed, nation.smallID),
+    }));
     // Ownership starts from the partition: a province belongs to the nation
     // whose territory it was cut out of, so no province starts split across a
     // border. Slot 0 stays "unowned".
@@ -380,9 +397,12 @@ export class World {
       );
     }
 
-    const nations: NationStatic[] = (manifest.nations ?? []).map((n, i) => ({
+    // The flag has been in every manifest since phase 0 and was dropped here
+    // until protocol 17; the ruler is derived in the constructor.
+    const nations: NationSeed[] = (manifest.nations ?? []).map((n, i) => ({
       smallID: i + 1,
       name: n.name,
+      flag: n.flag,
     }));
 
     const descriptor: MapDescriptor = {
@@ -403,7 +423,7 @@ export class World {
    */
   static create(
     descriptor: MapDescriptor,
-    nations: NationStatic[],
+    nations: NationSeed[],
     map: ProvinceMap,
     worldSeed = 0,
   ): World {
@@ -432,6 +452,24 @@ export class World {
 
   provinceCount(): number {
     return this.state.provinceOwner.length;
+  }
+
+  /**
+   * Where a nation's construction comes from: civilian factories in the
+   * provinces it holds. A count, for the interface; what they produce is
+   * `economyOf`'s business.
+   */
+  industryView(nation: number): { civilianFactories: number } {
+    let civilianFactories = 0;
+    for (let province = 0; province < this.map.provinces.length; province++) {
+      if (this.state.provinceController[province] !== nation) continue;
+      civilianFactories += countBuilding(
+        this.state,
+        province,
+        "civilian_factory",
+      );
+    }
+    return { civilianFactories };
   }
 
   /** Read-only for everything outside this class. Only events may write it. */
@@ -470,8 +508,7 @@ export class World {
    * what makes garrisoning the beach a real answer to it.
    */
   invasionsView(): { attacker: number; to: number; ticksLeft: number }[] {
-    const invasions: { attacker: number; to: number; ticksLeft: number }[] =
-      [];
+    const invasions: { attacker: number; to: number; ticksLeft: number }[] = [];
     for (let nation = 1; nation <= this.state.nationCount; nation++) {
       for (const transit of this.state.nations[nation].seaTransits) {
         invasions.push({

@@ -363,6 +363,7 @@ export async function startWorldClient(
     victory: { holders: null, heldSinceTick: null, winner: null },
     fronts: [],
     invasions: [],
+    battles: [],
     tick: 0,
     selected: null,
   };
@@ -452,6 +453,8 @@ export async function startWorldClient(
         model.victory = state.victory;
         model.fronts = state.fronts;
         model.invasions = state.invasions;
+        // This tick's report is not on the full state; the next delta brings one.
+        model.battles = [];
         model.tick = state.tick;
 
         if (!view || !adapter) {
@@ -519,6 +522,7 @@ export async function startWorldClient(
         model.victory = delta.victory;
         model.fronts = delta.fronts;
         model.invasions = delta.invasions;
+        model.battles = delta.battles;
         model.tick = delta.tick;
 
         if (!view || !adapter) {

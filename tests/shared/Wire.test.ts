@@ -51,7 +51,7 @@ describe("the wire protocol", () => {
           terrainHash: 99,
           partitionHash: 1234,
         },
-        nations: [{ smallID: 1, name: "One" }],
+        nations: [{ smallID: 1, name: "One", ruler: "Alma Falk", flag: "ie" }],
         nation: 1,
         owners: [1, 0],
         controllers: [1, 2],
@@ -91,6 +91,7 @@ describe("the wire protocol", () => {
         economy: {
           nation: 1,
           resources: { steel: 200, oil: 100, aluminium: 100, rubber: 50 },
+          civilianFactories: 3,
           extractionPerTick: { steel: 0.25, oil: 0, aluminium: 0, rubber: 0 },
           demandPerTick: { steel: 0.2, oil: 0, aluminium: 0.04, rubber: 0 },
           sufficiency: 1,
@@ -175,6 +176,7 @@ describe("the wire protocol", () => {
         agreements: [],
         fronts: [],
         invasions: [],
+        battles: [],
         victory: { holders: null, heldSinceTick: null, winner: null },
         economy: null,
       },
@@ -188,6 +190,7 @@ describe("the wire protocol", () => {
         agreements: [],
         fronts: [],
         invasions: [],
+        battles: [],
         victory: { holders: null, heldSinceTick: null, winner: null },
         economy: null,
       },
@@ -280,6 +283,11 @@ describe("the wire protocol", () => {
     // 16 is the season (§10): `victory` rides on every full state and delta
     // — who stands on the threshold, since when, and once, who won. A v15
     // client would play a season that had already been decided.
-    expect(PROTOCOL_VERSION).toBe(16);
+    //
+    // 17 is the war made legible (HANDOVER "The next plan", step 4): a
+    // `battles` report to both parties on every delta, a derived ruler and
+    // the manifest's flag on every nation, and the civilian factory count on
+    // the economy. A v16 client would refuse every delta as malformed.
+    expect(PROTOCOL_VERSION).toBe(17);
   });
 });
