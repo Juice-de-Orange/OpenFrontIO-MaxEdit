@@ -299,6 +299,17 @@ export const TradeTermsSchema = z.object({
   resourcePerTick: z.number().finite(),
   /** Construction points the other side sends back. No second currency. */
   pointsPerTick: z.number().finite(),
+  /**
+   * Equipment beside — or instead of — the resource (§10, decision 0027).
+   * Optional rather than nullable so a v17 client's terms parse unchanged.
+   * The limits live in the world, like the others.
+   */
+  equipment: z
+    .object({
+      type: z.enum(EQUIPMENT_TYPES),
+      perTick: z.number().finite(),
+    })
+    .optional(),
 });
 export type TradeTermsView = z.infer<typeof TradeTermsSchema>;
 

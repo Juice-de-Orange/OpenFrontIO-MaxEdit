@@ -255,6 +255,11 @@ const en = {
   "diplomacy.noneStanding":
     "None. Every agreement here lasts until somebody ends it.",
   "diplomacy.terms": "{rate} {resource} for {points} construction",
+  "diplomacy.termsEquipment": "{rate} {equipment} for {points} construction",
+  "diplomacy.termsBoth":
+    "{rate} {resource} and {equipmentRate} {equipment} for {points} construction",
+  "diplomacy.goodsResource": "A resource",
+  "diplomacy.goodsEquipment": "Equipment",
   "diplomacy.youSend": "You send {terms}",
   "diplomacy.youReceive": "You receive {terms}",
   "diplomacy.cancel": "Give notice — costs {trust} trust",
@@ -328,6 +333,8 @@ const en = {
     "A population-scaled cap that regrows slowly. Raising a division or a wing spends it and nothing gives it back faster — a fresh world takes a couple of in-game days to have any at all.",
   "help.diplomacy.offers":
     "Proposals made to you. Accepting a trade starts the flow on the next tick; the terms are seen only by the two of you, and everyone else sees only that you are talking.",
+  "help.diplomacy.equipment":
+    "A trade may carry equipment instead of, or beside, a resource — rifles, fighters, convoys — priced in the same construction points. Buying arms costs the points that would have built factories, and a nation that buys everything never climbs a production line's efficiency ramp. Over water the crates ride convoys like everything else.",
   "help.diplomacy.flows":
     "The standing trades as they actually move, per day: what arrives, what leaves, and the construction points paid or received. A route across water moves on convoys and can be raided.",
 
@@ -608,6 +615,11 @@ const de: Record<StringKey, string> = {
   "diplomacy.noneStanding":
     "Keine. Jedes Abkommen hier läuft, bis es jemand beendet.",
   "diplomacy.terms": "{rate} {resource} für {points} Bau",
+  "diplomacy.termsEquipment": "{rate} {equipment} für {points} Bau",
+  "diplomacy.termsBoth":
+    "{rate} {resource} und {equipmentRate} {equipment} für {points} Bau",
+  "diplomacy.goodsResource": "Ein Rohstoff",
+  "diplomacy.goodsEquipment": "Ausrüstung",
   "diplomacy.youSend": "Du lieferst {terms}",
   "diplomacy.youReceive": "Du erhältst {terms}",
   "diplomacy.cancel": "Kündigen — kostet {trust} Vertrauen",
@@ -681,6 +693,8 @@ const de: Record<StringKey, string> = {
     "Eine bevölkerungsabhängige Obergrenze, die langsam nachwächst. Eine Division oder Staffel aufzustellen verbraucht sie, und nichts gibt sie schneller zurück — eine frische Welt braucht ein paar Spieltage, bis überhaupt etwas da ist.",
   "help.diplomacy.offers":
     "An dich gerichtete Vorschläge. Einen Handel anzunehmen startet den Fluss im nächsten Tick; die Bedingungen sehen nur ihr beide, alle anderen sehen nur, dass ihr verhandelt.",
+  "help.diplomacy.equipment":
+    "Ein Handel kann statt oder neben einem Rohstoff Ausrüstung tragen — Gewehre, Jäger, Geleitzüge — bezahlt in denselben Baupunkten. Waffen kaufen kostet die Punkte, die Fabriken gebaut hätten, und wer alles kauft, klettert nie die Effizienzrampe einer Linie hinauf. Über Wasser fahren die Kisten auf Geleitzügen wie alles andere.",
   "help.diplomacy.flows":
     "Die laufenden Handelsflüsse, wie sie sich tatsächlich bewegen, pro Tag: was ankommt, was abgeht, und die gezahlte oder erhaltene Bauleistung. Eine Route über Wasser läuft auf Konvois und kann gejagt werden.",
 

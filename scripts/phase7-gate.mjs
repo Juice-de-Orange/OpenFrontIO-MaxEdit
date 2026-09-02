@@ -464,6 +464,135 @@ async function main() {
       `(${selling.tradeResourcePerTick[RESOURCE].toFixed(3)}/tick)`,
   );
 
+  // §10 / decision 0027: a second lane between the same two, carrying
+  // equipment. The seller needs something in the warehouse to send, so a
+  // rifles line runs first and the gate waits for a modest stock. The
+  // measurement is the crates moving on the wire: the buyer's stockpile
+  // rises and the seller's falls, at the agreed rate, paid in points.
+  {
+    const RIFLES = 0; // EQUIPMENT_TYPES index of infantry_equipment
+    const CRATES_PER_TICK = 0.5;
+    const before = new Set(
+      sellerPlayer.economy.productionLines.map((l) => l.id),
+    );
+    const opened = await sellerPlayer.command(
+      { kind: "create_production_line", equipment: "infantry_equipment" },
+      "rifles-line",
+    );
+    let stocked = false;
+    if (opened.accepted) {
+      await sellerPlayer.waitFor(
+        (p) => p.economy.productionLines.some((l) => !before.has(l.id)),
+        "the rifles line to appear",
+        30_000,
+      );
+      const line = sellerPlayer.economy.productionLines.find(
+        (l) => !before.has(l.id),
+      );
+      const idle =
+        sellerPlayer.economy.militaryFactoriesTotal -
+        sellerPlayer.economy.militaryFactoriesAssigned;
+      if (idle > 0) {
+        await sellerPlayer.command(
+          { kind: "assign_factories", lineId: line.id, factories: idle },
+          "rifles-staff",
+        );
+      }
+      stocked = await sellerPlayer
+        .waitFor(
+          (p) => (p.economy.stockpile[RIFLES] ?? 0) >= 20 * CRATES_PER_TICK,
+          "a few rifles in store",
+          180_000,
+        )
+        .then(() => true)
+        .catch(() => false);
+    }
+    if (!stocked) {
+      log(
+        "  note  the seller could not stock rifles in time; the equipment lane is not measured on this world",
+      );
+    } else {
+      const lane = await sellerPlayer.command(
+        {
+          kind: "propose_agreement",
+          to: buyer,
+          type: "trade",
+          terms: {
+            resource: RESOURCE,
+            resourcePerTick: 0,
+            pointsPerTick: POINTS_PER_TICK,
+            equipment: { type: "infantry_equipment", perTick: CRATES_PER_TICK },
+          },
+        },
+        "offer-rifles",
+      );
+      check(
+        lane.accepted,
+        `a second lane carrying rifles beside the steel is offerable (${lane.reason ?? "accepted"})`,
+      );
+      if (lane.accepted) {
+        await sellerPlayer.waitFor(
+          (p) =>
+            p.agreements.some(
+              (a) =>
+                a.parties[0] === seller &&
+                a.parties[1] === buyer &&
+                !a.accepted &&
+                a.terms?.equipment,
+            ),
+          "the rifles offer to appear",
+          30_000,
+        );
+        const riflesId = sellerPlayer.agreements.find(
+          (a) =>
+            a.parties[0] === seller &&
+            a.parties[1] === buyer &&
+            !a.accepted &&
+            a.terms?.equipment,
+        ).id;
+        await buyerPlayer.waitFor(
+          (p) => p.agreement(riflesId) !== undefined,
+          "the rifles offer to arrive",
+          30_000,
+        );
+        check(
+          buyerPlayer.agreement(riflesId)?.terms?.equipment?.type ===
+            "infantry_equipment",
+          "the buyer sees the equipment named in the terms",
+        );
+        const held = buyerPlayer.economy.stockpile[RIFLES] ?? 0;
+        const sellerHeld = sellerPlayer.economy.stockpile[RIFLES] ?? 0;
+        await buyerPlayer.require(
+          { kind: "accept_agreement", agreementId: riflesId },
+          "accept-rifles",
+        );
+        const arrived = await buyerPlayer
+          .waitFor(
+            (p) =>
+              (p.economy.stockpile[RIFLES] ?? 0) > held + CRATES_PER_TICK * 4,
+            "rifles to arrive",
+            60_000,
+          )
+          .then(() => true)
+          .catch(() => false);
+        check(
+          arrived,
+          `rifles arrive in the buyer's stockpile (${held.toFixed(1)} → ${(buyerPlayer.economy.stockpile[RIFLES] ?? 0).toFixed(1)})`,
+        );
+        check(
+          (sellerPlayer.economy.stockpile[RIFLES] ?? 0) <
+            sellerHeld + 0.5 * (buyerPlayer.economy.stockpile[RIFLES] - held),
+          "and leave the seller's, paid in construction points like the steel",
+        );
+        check(
+          Math.abs(buyerPlayer.economy.tradePointsOut - 2 * POINTS_PER_TICK) <
+            1e-6,
+          `the buyer now pays for both lanes (${buyerPlayer.economy.tradePointsOut.toFixed(3)}/tick)`,
+        );
+      }
+    }
+  }
+
   if (BREAK === "survives") {
     // Cancelled, and *watched off the wire* until it is actually gone. The
     // first version of this counter-proof slept for a notice period instead

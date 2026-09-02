@@ -163,9 +163,27 @@ export interface ResearchSlot {
 export interface TradeTerms {
   /** The resource the first party sends. */
   resource: Resource;
+  /** May be zero when equipment travels instead (§10, decision 0027). */
   resourcePerTick: number;
   /** Construction points the second party sends back (§6.5: no second currency). */
   pointsPerTick: number;
+  /**
+   * Equipment the first party sends beside the resource, priced by the same
+   * points. Absent on a plain resource trade, and absent rather than null so
+   * a snapshot written before decision 0027 reads back unchanged.
+   */
+  equipment?: { type: EquipmentType; perTick: number };
+}
+
+/** A copy that shares nothing with the original: the terms nest one level. */
+export function copyTerms(terms: TradeTerms): TradeTerms {
+  const copied: TradeTerms = {
+    resource: terms.resource,
+    resourcePerTick: terms.resourcePerTick,
+    pointsPerTick: terms.pointsPerTick,
+  };
+  if (terms.equipment !== undefined) copied.equipment = { ...terms.equipment };
+  return copied;
 }
 
 /**
@@ -1140,7 +1158,7 @@ export function applyEvent(state: WorldState, event: WorldEvent): void {
         id: state.nextAgreementId++,
         type: event.type,
         parties: [event.nation, event.other],
-        terms: event.terms === null ? null : { ...event.terms },
+        terms: event.terms === null ? null : copyTerms(event.terms),
         accepted: false,
         noticeAt: null,
         noticeBy: null,

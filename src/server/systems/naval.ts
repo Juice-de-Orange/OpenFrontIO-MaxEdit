@@ -39,6 +39,7 @@ import {
 } from "src/shared/config/naval";
 import { equipmentIndex } from "src/shared/economy/Equipment";
 import { FORMATIONS } from "src/shared/economy/Formations";
+import { tradeFlowRate } from "src/shared/economy/Trade";
 import type { System } from ".";
 import { atPeace, type WorldEvent, type WorldState } from "../world/WorldState";
 import { netRaidOver, seaSupplyRoutes } from "./supply";
@@ -202,7 +203,7 @@ export const navalSystem: System = {
         // at `zones × rate` and zones was 0.
         wanted +=
           CONVOYS_PER_TRADE_FLOW_ZONE *
-          agreement.terms.resourcePerTick *
+          tradeFlowRate(agreement.terms) *
           Math.max(1, route.zones);
         for (const zone of route.path) {
           raid = Math.max(raid, netRaidOver(state, nation, zone));

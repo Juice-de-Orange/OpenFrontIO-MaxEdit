@@ -23,6 +23,7 @@ import {
   MARKET_BUY_POINTS,
   MARKET_SELL_POINTS,
   MAX_MARKET_PER_TICK,
+  MAX_TRADE_EQUIPMENT_PER_TICK,
   MAX_TRADE_POINTS_PER_TICK,
   MAX_TRADE_RESOURCE_PER_TICK,
   TRUST_COST,
@@ -2050,12 +2051,32 @@ export class Hud {
       option.textContent = t(`agreement.${type}` as StringKey);
       what.append(option);
     }
+    // What travels: a resource, or equipment (§10, decision 0027). One
+    // lane a trade on this form; a player who wants both offers twice.
+    const goods = document.createElement("select");
+    for (const kind of ["resource", "equipment"] as const) {
+      const option = document.createElement("option");
+      option.value = kind;
+      option.textContent = t(
+        kind === "resource"
+          ? "diplomacy.goodsResource"
+          : "diplomacy.goodsEquipment",
+      );
+      goods.append(option);
+    }
     const give = document.createElement("select");
     for (const resource of RESOURCES) {
       const option = document.createElement("option");
       option.value = resource;
       option.textContent = t(`economy.${resource}` as StringKey);
       give.append(option);
+    }
+    const giveEquipment = document.createElement("select");
+    for (const type of EQUIPMENT_TYPES) {
+      const option = document.createElement("option");
+      option.value = type;
+      option.textContent = t(`equipment.${type}` as StringKey);
+      giveEquipment.append(option);
     }
     // Per day, and starting at a trade somebody might actually offer rather
     // than at zero: half a unit and a quarter of a construction point per
@@ -2071,12 +2092,23 @@ export class Hud {
       TICKS_PER_DAY * 0.25,
     );
     const terms = document.createElement("div");
-    terms.append(give, pair(rate, price));
+    terms.append(goods, give, giveEquipment, pair(rate, price));
     const offer = document.createElement("button");
     const syncTerms = (): void => {
       terms.hidden = what.value !== "trade";
+      const equipment = goods.value === "equipment";
+      give.hidden = equipment;
+      giveEquipment.hidden = !equipment;
+      // Equipment has its own, lower ceiling; the field says so.
+      const ceiling =
+        (equipment
+          ? MAX_TRADE_EQUIPMENT_PER_TICK
+          : MAX_TRADE_RESOURCE_PER_TICK) * TICKS_PER_DAY;
+      rate.max = String(ceiling);
+      if (Number(rate.value) > ceiling) rate.value = String(ceiling);
     };
     what.addEventListener("change", syncTerms);
+    goods.addEventListener("change", syncTerms);
     syncTerms();
     offer.textContent = t("diplomacy.send");
     offer.addEventListener("click", () => {
@@ -2085,21 +2117,34 @@ export class Hud {
         Number(who.value),
         type,
         type === "trade"
-          ? {
-              resource: give.value as Resource,
-              // Per day on the screen, per tick on the wire, and clamped on
-              // the way out. The server checks the same limits and its answer
-              // is the one that counts (§7) — this is about never handing it
-              // something it has to refuse.
-              resourcePerTick: clamped(rate) / TICKS_PER_DAY,
-              pointsPerTick: clamped(price) / TICKS_PER_DAY,
-            }
+          ? goods.value === "equipment"
+            ? {
+                resource: give.value as Resource,
+                resourcePerTick: 0,
+                pointsPerTick: clamped(price) / TICKS_PER_DAY,
+                equipment: {
+                  type: giveEquipment.value as EquipmentType,
+                  perTick: clamped(rate) / TICKS_PER_DAY,
+                },
+              }
+            : {
+                resource: give.value as Resource,
+                // Per day on the screen, per tick on the wire, and clamped
+                // on the way out. The server checks the same limits and its
+                // answer is the one that counts (§7) — this is about never
+                // handing it something it has to refuse.
+                resourcePerTick: clamped(rate) / TICKS_PER_DAY,
+                pointsPerTick: clamped(price) / TICKS_PER_DAY,
+              }
           : null,
       );
     });
     form.append(
       spacer(),
-      heading(t("diplomacy.propose")),
+      ...this.explained(
+        "help.diplomacy.equipment",
+        heading(t("diplomacy.propose")),
+      ),
       who,
       what,
       terms,
@@ -2152,10 +2197,28 @@ export class Hud {
 
 /** One trade's terms in a line, per day like everything else on screen. */
 function termsLine(terms: TradeTermsView): string {
+  const points = perDay(terms.pointsPerTick);
+  const equipment = terms.equipment;
+  if (equipment !== undefined && terms.resourcePerTick <= 0) {
+    return t("diplomacy.termsEquipment", {
+      equipment: t(`equipment.${equipment.type}` as StringKey),
+      rate: perDay(equipment.perTick),
+      points,
+    });
+  }
+  if (equipment !== undefined) {
+    return t("diplomacy.termsBoth", {
+      resource: t(`economy.${terms.resource}` as StringKey),
+      rate: perDay(terms.resourcePerTick),
+      equipment: t(`equipment.${equipment.type}` as StringKey),
+      equipmentRate: perDay(equipment.perTick),
+      points,
+    });
+  }
   return t("diplomacy.terms", {
     resource: t(`economy.${terms.resource}` as StringKey),
     rate: perDay(terms.resourcePerTick),
-    points: perDay(terms.pointsPerTick),
+    points,
   });
 }
 

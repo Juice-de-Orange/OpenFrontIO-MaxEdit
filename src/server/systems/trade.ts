@@ -49,9 +49,14 @@ import {
 } from "src/shared/config/naval";
 import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
-import { RESOURCE_CAP } from "src/shared/config/rates";
+import { EQUIPMENT_CAP, RESOURCE_CAP } from "src/shared/config/rates";
 import { TICKS_PER_DAY } from "src/shared/config/time";
-import { equipmentIndex } from "src/shared/economy/Equipment";
+import {
+  EQUIPMENT_TYPES,
+  equipmentIndex,
+  type EquipmentType,
+} from "src/shared/economy/Equipment";
+import { tradeFlowRate } from "src/shared/economy/Trade";
 import type { System } from ".";
 import {
   agreementIsLive,
@@ -73,6 +78,9 @@ export interface NationTrade {
   resourceOut: Record<Resource, number>;
   /** Resource units arriving, per resource. */
   resourceIn: Record<Resource, number>;
+  /** Equipment leaving and arriving, indexed like the stockpile (§10). */
+  equipmentOut: number[];
+  equipmentIn: number[];
 }
 
 function zeroed(): Record<Resource, number> {
@@ -164,7 +172,7 @@ function convoysWantedFor(agreement: Agreement, route: TradeRoute): number {
   if (route.kind !== "sea" || agreement.terms === null) return 0;
   return (
     CONVOYS_PER_TRADE_FLOW_ZONE *
-    agreement.terms.resourcePerTick *
+    tradeFlowRate(agreement.terms) *
     Math.max(1, route.zones)
   );
 }
@@ -264,12 +272,73 @@ function deliveryScale(
   context: TradeContext,
 ): number {
   if (agreement.terms === null) return 0;
-  return resourceShare(
-    state,
-    agreement.parties[0],
-    agreement.terms.resource,
-    context,
+  const seller = agreement.parties[0];
+  // Resource and equipment scale together: one exchange, one figure
+  // (invariant 2), so a partner short of rifles sends less steel too rather
+  // than being paid in full for half a delivery.
+  let scale =
+    agreement.terms.resourcePerTick > 0
+      ? resourceShare(state, seller, agreement.terms.resource, context)
+      : 1;
+  if (agreement.terms.equipment !== undefined) {
+    scale = Math.min(
+      scale,
+      equipmentShare(state, seller, agreement.terms.equipment.type, context),
+    );
+  }
+  return scale;
+}
+
+/** Equipment of one type a nation has promised to send out this tick. */
+function equipmentOwed(
+  nation: number,
+  type: EquipmentType,
+  context: TradeContext,
+): number {
+  let owed = 0;
+  for (const agreement of context.live) {
+    if (agreement.parties[0] !== nation) continue;
+    if (agreement.terms?.equipment?.type !== type) continue;
+    owed += agreement.terms.equipment.perTick;
+  }
+  return owed;
+}
+
+/** The share of its equipment promises a nation can keep this tick, 0..1. */
+function equipmentShare(
+  state: WorldState,
+  nation: number,
+  type: EquipmentType,
+  context: TradeContext,
+): number {
+  const owed = equipmentOwed(nation, type, context);
+  if (owed <= 0) return 1;
+  const held = state.nations[nation].stockpile[equipmentIndex(type)] ?? 0;
+  return Math.max(0, Math.min(1, held / owed));
+}
+
+/** Room on the buyer's shelves for the equipment arriving, 0..1. */
+function equipmentIntake(
+  state: WorldState,
+  nation: number,
+  type: EquipmentType,
+  context: TradeContext,
+): number {
+  let incoming = 0;
+  for (const agreement of context.live) {
+    if (agreement.parties[1] !== nation) continue;
+    if (agreement.terms?.equipment?.type !== type) continue;
+    incoming +=
+      agreement.terms.equipment.perTick *
+      deliveryScale(state, agreement, context);
+  }
+  if (incoming <= 0) return 1;
+  const room = Math.max(
+    0,
+    EQUIPMENT_CAP -
+      (state.nations[nation].stockpile[equipmentIndex(type)] ?? 0),
   );
+  return Math.max(0, Math.min(1, room / incoming));
 }
 
 /**
@@ -447,12 +516,25 @@ function scaleOf(
   context: TradeContext,
 ): number {
   if (agreement.terms === null) return 0;
-  return Math.min(
+  const buyer = agreement.parties[1];
+  let scale = Math.min(
     deliveryScale(state, agreement, context),
-    pointsShare(state, agreement.parties[1], context),
-    intakeShare(state, agreement.parties[1], agreement.terms.resource, context),
+    pointsShare(state, buyer, context),
     routeScale(state, agreement, context),
   );
+  if (agreement.terms.resourcePerTick > 0) {
+    scale = Math.min(
+      scale,
+      intakeShare(state, buyer, agreement.terms.resource, context),
+    );
+  }
+  if (agreement.terms.equipment !== undefined) {
+    scale = Math.min(
+      scale,
+      equipmentIntake(state, buyer, agreement.terms.equipment.type, context),
+    );
+  }
+  return scale;
 }
 
 /** Everything one nation's standing commitments move this tick. */
@@ -466,6 +548,8 @@ export function nationTrade(
     pointsIn: 0,
     resourceOut: zeroed(),
     resourceIn: zeroed(),
+    equipmentOut: new Array<number>(EQUIPMENT_TYPES.length).fill(0),
+    equipmentIn: new Array<number>(EQUIPMENT_TYPES.length).fill(0),
   };
 
   for (const agreement of context.live) {
@@ -474,13 +558,20 @@ export function nationTrade(
     if (seller !== nation && buyer !== nation) continue;
     const scale = scaleOf(state, agreement, context);
     if (scale <= 0) continue;
-    const { resource, resourcePerTick, pointsPerTick } = agreement.terms;
+    const { resource, resourcePerTick, pointsPerTick, equipment } =
+      agreement.terms;
+    const crates =
+      equipment === undefined
+        ? null
+        : [equipmentIndex(equipment.type), equipment.perTick * scale];
     if (seller === nation) {
       flow.resourceOut[resource] += resourcePerTick * scale;
       flow.pointsIn += pointsPerTick * scale;
+      if (crates !== null) flow.equipmentOut[crates[0]] += crates[1];
     } else {
       flow.resourceIn[resource] += resourcePerTick * scale;
       flow.pointsOut += pointsPerTick * scale;
+      if (crates !== null) flow.equipmentIn[crates[0]] += crates[1];
     }
   }
 
@@ -617,9 +708,15 @@ export const tradeSystem: System = {
       }
       if (moved) events.push({ kind: "resources_changed", nation, delta });
 
-      // 3. Seaborne trade wears the convoys that carry it (§6.3), the same
-      //    small standing cost sea supply pays in `supply.ts`. Raiding
-      //    losses are the naval system's, one system later.
+      // 3. Equipment the trade moved (§10), and the convoys seaborne trade
+      //    wears out carrying it (§6.3) — the same small standing cost sea
+      //    supply pays in `supply.ts`. Raiding losses are the naval
+      //    system's, one system later. One stockpile event a nation.
+      const crates: [number, number][] = [];
+      for (let index = 0; index < EQUIPMENT_TYPES.length; index++) {
+        const change = flow.equipmentIn[index] - flow.equipmentOut[index];
+        if (change !== 0) crates.push([index, change]);
+      }
       const held =
         state.nations[nation].stockpile[equipmentIndex("convoy")] ?? 0;
       if (held > 0) {
@@ -631,13 +728,10 @@ export const tradeSystem: System = {
           wanted += convoysWantedFor(agreement, route);
         }
         const worn = Math.min(held, CONVOY_WEAR * Math.min(held, wanted));
-        if (worn > 0) {
-          events.push({
-            kind: "stockpile_changed",
-            nation,
-            delta: [[equipmentIndex("convoy"), -worn]],
-          });
-        }
+        if (worn > 0) crates.push([equipmentIndex("convoy"), -worn]);
+      }
+      if (crates.length > 0) {
+        events.push({ kind: "stockpile_changed", nation, delta: crates });
       }
     }
 

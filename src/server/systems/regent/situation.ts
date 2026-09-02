@@ -23,6 +23,7 @@ import {
   type Temperament,
 } from "src/shared/config/temperament";
 import { AIR_MISSIONS } from "src/shared/economy/Formations";
+import { tradeFlowRate } from "src/shared/economy/Trade";
 import {
   agreementIsLive,
   assignedFactories,
@@ -46,6 +47,7 @@ import {
   type SeaSupplyRoute,
 } from "../supply";
 import { hostileMissionEffect } from "../zones";
+import { regentBreak } from "./break";
 
 export interface Border {
   /** Hostile provinces next door: not mine, held by somebody I am not at peace with. */
@@ -141,7 +143,7 @@ function seaZonesOf(
     if (agreement.parties[1] === nation) {
       convoysWanted +=
         CONVOYS_PER_TRADE_FLOW_ZONE *
-        agreement.terms.resourcePerTick *
+        tradeFlowRate(agreement.terms) *
         Math.max(1, route.zones);
     }
   }
@@ -202,7 +204,9 @@ export function assess(
   for (const p of mine) myAirZones.add(map.provinces[p].airZone);
   const airThreat = new Map<number, number>();
   const peace = (a: number, b: number): boolean => atPeace(state, a, b);
-  for (const zone of [...myAirZones].sort((a, b) => a - b)) {
+  // A blind steward (break.ts) sees an empty sky: the gate's counter-proof.
+  const sky = regentBreak() === "blind" ? [] : [...myAirZones];
+  for (const zone of sky.sort((a, b) => a - b)) {
     let worst = 0;
     for (const mission of AIR_MISSIONS) {
       worst = Math.max(

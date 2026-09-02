@@ -5,6 +5,7 @@ import {
   encodeClient,
   encodeServer,
   PROTOCOL_VERSION,
+  TradeTermsSchema,
   type ClientMessage,
   type ServerMessage,
 } from "../../src/shared/protocol/Wire";
@@ -301,5 +302,25 @@ describe("the wire protocol", () => {
     // ruler's archetype, and a trade's terms may name equipment beside the
     // resource. A v17 client would refuse every full state as malformed.
     expect(PROTOCOL_VERSION).toBe(18);
+  });
+
+  test("a trade's terms may name equipment, and need not (decision 0027)", () => {
+    const plain = { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 1 };
+    expect(TradeTermsSchema.safeParse(plain).success).toBe(true);
+    const armed = { ...plain, equipment: { type: "fighter", perTick: 1 } };
+    expect(TradeTermsSchema.safeParse(armed).success).toBe(true);
+    // A type the stockpile does not know is malformed, not a game rule.
+    expect(
+      TradeTermsSchema.safeParse({
+        ...plain,
+        equipment: { type: "tanks", perTick: 1 },
+      }).success,
+    ).toBe(false);
+    expect(
+      TradeTermsSchema.safeParse({
+        ...plain,
+        equipment: { type: "fighter", perTick: Infinity },
+      }).success,
+    ).toBe(false);
   });
 });

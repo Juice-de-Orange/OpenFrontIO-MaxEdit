@@ -17,6 +17,7 @@ import { PgStore } from "./db/PgStore";
 import type { WorldStore } from "./db/Store";
 import { IdentityService } from "./net/Identity";
 import { WorldSocketServer } from "./net/WsServer";
+import { setRegentBreak, type RegentBreak } from "./systems/regent/break";
 import { openSeason } from "./world/Season";
 import { World } from "./world/World";
 import { WorldRunner } from "./world/WorldRunner";
@@ -82,6 +83,28 @@ function tickInterval(): number {
   return parsed;
 }
 
+/**
+ * `REGENT_BREAK=blind` makes every regent blind to hostile air, so the
+ * phase-10 gate can prove its air checks fail. Test worlds only: it is
+ * refused unless `WORLD_TICK_MS` is set too, because a production world
+ * whose stewards cannot see the sky would be a world quietly losing.
+ */
+const REGENT_BREAK = regentBreakFromEnv();
+
+function regentBreakFromEnv(): RegentBreak {
+  const raw = process.env.REGENT_BREAK;
+  if (raw === undefined || raw.trim() === "") return null;
+  if (raw !== "blind") {
+    throw new Error(`REGENT_BREAK=${raw} is not a break this world knows`);
+  }
+  if (TICK_INTERVAL_MS === TICK_MS) {
+    throw new Error(
+      "REGENT_BREAK is for gate worlds only: set WORLD_TICK_MS as well",
+    );
+  }
+  return raw;
+}
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RESOURCES = path.resolve(here, "..", "..", "resources");
 
@@ -140,6 +163,13 @@ async function main(): Promise<void> {
       `[world] WORLD_TICK_MS=${TICK_INTERVAL_MS} overrides the ${TICK_MS} ms ` +
         `tick. This world runs ${(TICK_MS / TICK_INTERVAL_MS).toFixed(1)}x ` +
         `real time and is not a production world.`,
+    );
+  }
+  if (REGENT_BREAK !== null) {
+    setRegentBreak(REGENT_BREAK);
+    console.warn(
+      `[world] REGENT_BREAK=${REGENT_BREAK}: every regent is ${REGENT_BREAK} ` +
+        `to hostile air. This is a gate's counter-proof, not a world to play.`,
     );
   }
 

@@ -20,6 +20,7 @@ import {
 import { RESOURCES } from "../../src/shared/config/provinces";
 import { RESOURCE_CAP } from "../../src/shared/config/rates";
 import { TICKS_PER_DAY } from "../../src/shared/config/time";
+import { equipmentIndex } from "../../src/shared/economy/Equipment";
 import { mapFixture } from "../util/worldFixture";
 
 /**
@@ -96,6 +97,87 @@ describe("standing trade agreements", () => {
     expect(constructionAvailable(state, b)).toBeCloseTo(made - 0.25);
     expect(constructionAvailable(state, a)).toBeCloseTo(
       measureNation(state, a).construction + 0.25,
+    );
+  });
+
+  test("equipment rides beside the resource, priced by the same points (§10)", () => {
+    const state = world.view() as WorldState;
+    applyEvent(state, {
+      kind: "agreement_proposed",
+      nation: a,
+      other: b,
+      type: "trade",
+      terms: {
+        resource: "steel",
+        resourcePerTick: 0.5,
+        pointsPerTick: 0.25,
+        equipment: { type: "fighter", perTick: 1 },
+      },
+    });
+    const id = state.agreements[state.agreements.length - 1].id;
+    applyEvent(state, { kind: "agreement_accepted", agreementId: id });
+    for (const nation of [a, b])
+      applyEvent(state, { kind: "nation_seen", nation });
+    const fighter = equipmentIndex("fighter");
+    state.nations[a].stockpile[fighter] = 100;
+
+    const seller = nationTrade(state, a);
+    const buyer = nationTrade(state, b);
+    expect(seller.resourceOut.steel).toBeCloseTo(0.5);
+    expect(seller.equipmentOut[fighter]).toBeCloseTo(1);
+    expect(buyer.equipmentIn[fighter]).toBeCloseTo(1);
+    expect(buyer.pointsOut).toBeCloseTo(0.25);
+
+    // And the tick moves the crates: one stockpile event a nation.
+    const events = tradeSystem.run(state, state.tick);
+    const moved = events.filter((e) => e.kind === "stockpile_changed") as {
+      nation: number;
+      delta: [number, number][];
+    }[];
+    expect(moved.find((e) => e.nation === a)?.delta).toContainEqual([
+      fighter,
+      -1,
+    ]);
+    expect(moved.find((e) => e.nation === b)?.delta).toContainEqual([
+      fighter,
+      1,
+    ]);
+
+    // An armoury short of fighters scales the whole exchange (invariant 2):
+    // half the aircraft, half the steel, half the price.
+    state.nations[a].stockpile[fighter] = 0.5;
+    const short = nationTrade(state, a);
+    expect(short.equipmentOut[fighter]).toBeCloseTo(0.5);
+    expect(short.resourceOut.steel).toBeCloseTo(0.25);
+    expect(short.pointsIn).toBeCloseTo(0.125);
+  });
+
+  test("equipment alone is a trade: the resource rate may be zero", () => {
+    const state = world.view() as WorldState;
+    applyEvent(state, {
+      kind: "agreement_proposed",
+      nation: a,
+      other: b,
+      type: "trade",
+      terms: {
+        resource: "steel",
+        resourcePerTick: 0,
+        pointsPerTick: 0.25,
+        equipment: { type: "infantry_equipment", perTick: 2 },
+      },
+    });
+    const id = state.agreements[state.agreements.length - 1].id;
+    applyEvent(state, { kind: "agreement_accepted", agreementId: id });
+    for (const nation of [a, b])
+      applyEvent(state, { kind: "nation_seen", nation });
+    const rifles = equipmentIndex("infantry_equipment");
+    state.nations[a].stockpile[rifles] = 50;
+    const seller = nationTrade(state, a);
+    expect(seller.resourceOut.steel).toBe(0);
+    expect(seller.equipmentOut[rifles]).toBeCloseTo(2);
+    expect(seller.pointsIn).toBeCloseTo(0.25);
+    expect(constructionAvailable(state, b)).toBeCloseTo(
+      measureNation(state, b).construction - 0.25,
     );
   });
 

@@ -134,6 +134,13 @@ export const PRESENCE_REFRESH_TICKS = 5 * TICKS_PER_DAY;
  */
 export const MAX_TRADE_RESOURCE_PER_TICK = 5;
 export const MAX_TRADE_POINTS_PER_TICK = 5;
+/**
+ * And the most equipment (§10, decision 0027). Lower than a resource on
+ * purpose: a military factory makes a fraction of a unit a tick, so two a
+ * tick is already a partner's whole arms industry, and it is the efficiency
+ * ramp (§6.2) that keeps buying from replacing building.
+ */
+export const MAX_TRADE_EQUIPMENT_PER_TICK = 2;
 
 /**
  * The world market's rates, in construction points per unit of resource.

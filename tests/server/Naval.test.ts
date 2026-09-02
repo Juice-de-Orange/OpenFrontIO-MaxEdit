@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { navalSystem } from "../../src/server/systems/naval";
+import { assess } from "../../src/server/systems/regent/situation";
 import { tradeRouteBetween } from "../../src/server/systems/routes";
 import { seaSupplyRoutes, supplyReach } from "../../src/server/systems/supply";
 import { nationTrade } from "../../src/server/systems/trade";
@@ -27,6 +28,7 @@ import {
   type FormationTemplate,
   type Mission,
 } from "../../src/shared/economy/Formations";
+import { tradeFlowRate } from "../../src/shared/economy/Trade";
 import { islandFixture } from "../util/worldFixture";
 
 /**
@@ -269,6 +271,43 @@ describe("the sea half of phase 9", () => {
     const route = tradeRouteBetween(state, 1, 2);
     expect(route.kind).toBe("sea");
     if (route.kind === "sea") expect(route.zones).toBeGreaterThanOrEqual(1);
+  });
+
+  test("crates of equipment want convoys exactly like the resource does (§10)", () => {
+    state.provinceController[beachhead] = 2;
+    // Two trades across the same water, the same total rate: one in steel,
+    // one in steel and rifles. Trade, naval and the regent price them
+    // through one function, so the convoys wanted are the same.
+    const wanted = (terms: {
+      resourcePerTick: number;
+      equipment?: { type: "infantry_equipment"; perTick: number };
+    }) => {
+      const before = state.agreements.length;
+      applyEvent(state, {
+        kind: "agreement_proposed",
+        nation: 2,
+        other: 1,
+        type: "trade",
+        terms: { resource: "steel", pointsPerTick: 0.25, ...terms } as never,
+      });
+      const id = state.agreements[before].id;
+      applyEvent(state, { kind: "agreement_accepted", agreementId: id });
+      for (const nation of [1, 2])
+        applyEvent(state, { kind: "nation_seen", nation });
+      const convoys = assess(state, 1, 12).sea.convoysWanted;
+      applyEvent(state, { kind: "agreement_dissolved", agreementId: id });
+      return convoys;
+    };
+    const steel = wanted({ resourcePerTick: 1.5 });
+    const mixed = wanted({
+      resourcePerTick: 0.5,
+      equipment: { type: "infantry_equipment", perTick: 1 },
+    });
+    expect(steel).toBeGreaterThan(0);
+    expect(mixed).toBeCloseTo(steel);
+    expect(
+      tradeFlowRate({ resourcePerTick: 0.5, equipment: { perTick: 1 } }),
+    ).toBe(1.5);
   });
 
   test("an invasion is refused where §6.8 says it must be", () => {

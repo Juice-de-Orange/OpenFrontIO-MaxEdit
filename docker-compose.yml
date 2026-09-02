@@ -49,6 +49,9 @@ services:
       # Only ever set by a gate. A real world ticks every five seconds; see
       # the note on TICK_INTERVAL_MS in src/server/Main.ts.
       WORLD_TICK_MS: ${WORLD_TICK_MS:-}
+      # The phase-10 gate's counter-proof: "blind" stewards. Refused by the
+      # server unless WORLD_TICK_MS is set too.
+      REGENT_BREAK: ${REGENT_BREAK:-}
       # Arms identity and opens the season (phase 11, decision 0019). Unset
       # for a workbench world; a deployment sets it to "open".
       WORLD_SEASON: ${WORLD_SEASON:-}

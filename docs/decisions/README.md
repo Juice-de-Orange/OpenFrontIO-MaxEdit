@@ -88,4 +88,5 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0024](0024-a-player-may-give-a-name-and-it-stays-on-the-account.md) | A player may give a name, and it lives on the account, never in the world | Accepted |
 | [0025](0025-a-capital-is-lost-when-it-is-owned-by-somebody-else.md)  | A capital is lost when it is owned by somebody else, not when it is held  | Proposed |
 | [0026](0026-trust-may-regrow-at-a-rate-that-defaults-to-none.md)     | Trust may regrow, at a rate that is a constant and defaults to none       | Proposed |
+| [0027](0027-a-trade-may-carry-equipment-from-the-proposer.md)        | A trade may carry equipment from the proposer, priced like the resource   | Accepted |
 | [0028](0028-every-ruler-has-a-temperament.md)                        | Every ruler has a temperament, and the regent plays it                    | Accepted |

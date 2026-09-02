@@ -32,6 +32,7 @@ import { WING_MANPOWER } from "src/shared/config/air";
 import {
   AGREEMENT_TYPES,
   MAX_MARKET_PER_TICK,
+  MAX_TRADE_EQUIPMENT_PER_TICK,
   MAX_TRADE_POINTS_PER_TICK,
   MAX_TRADE_RESOURCE_PER_TICK,
   TRUST_COST,
@@ -77,7 +78,11 @@ import {
   BUILDINGS,
   type BuildingType,
 } from "src/shared/economy/Buildings";
-import { EQUIPMENT, equipmentIndex } from "src/shared/economy/Equipment";
+import {
+  EQUIPMENT,
+  EQUIPMENT_TYPES,
+  equipmentIndex,
+} from "src/shared/economy/Equipment";
 import {
   FORMATIONS,
   formationTemplateIndex,
@@ -120,6 +125,7 @@ import {
   AT_SEA,
   atPeace,
   availableFactories,
+  copyTerms,
   countBuilding,
   createWorldState,
   divisionStrength,
@@ -206,7 +212,7 @@ export interface WorldChanges {
  * a changed function cannot tell corruption from its own history. That is
  * what lets a season survive a deploy (docs/decisions/0016).
  */
-export const STATE_HASH_VERSION = 5;
+export const STATE_HASH_VERSION = 6;
 
 /**
  * Everything needed to put the world back, and nothing that can be derived.
@@ -748,7 +754,7 @@ export class World {
       agreements: this.state.agreements.map((agreement) => ({
         ...agreement,
         parties: [...agreement.parties] as [number, number],
-        terms: agreement.terms === null ? null : { ...agreement.terms },
+        terms: agreement.terms === null ? null : copyTerms(agreement.terms),
       })),
       nextAgreementId: this.state.nextAgreementId,
       nations: this.state.nations.map((nation) => ({
@@ -960,7 +966,7 @@ export class World {
     this.state.agreements = (snapshot.agreements ?? []).map((agreement) => ({
       ...agreement,
       parties: [...agreement.parties] as [number, number],
-      terms: agreement.terms === null ? null : { ...agreement.terms },
+      terms: agreement.terms === null ? null : copyTerms(agreement.terms),
     }));
     this.state.nextAgreementId =
       snapshot.nextAgreementId ??
@@ -1132,6 +1138,12 @@ export class World {
       );
       mixFloat(agreement.terms?.resourcePerTick ?? 0);
       mixFloat(agreement.terms?.pointsPerTick ?? 0);
+      // Hash version 6: the equipment a trade may carry (decision 0027).
+      const equipment = agreement.terms?.equipment;
+      mix(
+        equipment === undefined ? -1 : EQUIPMENT_TYPES.indexOf(equipment.type),
+      );
+      mixFloat(equipment?.perTick ?? 0);
     }
     return hash >>> 0;
   }
@@ -1506,13 +1518,27 @@ export class World {
           // schema, where a rate of zero — what an untouched form sends — was
           // a protocol violation and closed the socket for good. A rate the
           // world will not take is a game rule like any other (§7).
+          //
+          // A trade carries a resource, equipment, or both (§10, decision
+          // 0027): the resource rate may be zero only when equipment rides.
           if (
-            terms.resourcePerTick <= 0 ||
-            terms.resourcePerTick > MAX_TRADE_RESOURCE_PER_TICK
+            terms.resourcePerTick < 0 ||
+            terms.resourcePerTick > MAX_TRADE_RESOURCE_PER_TICK ||
+            (terms.resourcePerTick <= 0 && terms.equipment === undefined)
           ) {
             return (
               `a trade has to move between 0 and ` +
               `${MAX_TRADE_RESOURCE_PER_TICK * TICKS_PER_DAY} ${terms.resource} a day`
+            );
+          }
+          if (
+            terms.equipment !== undefined &&
+            (terms.equipment.perTick <= 0 ||
+              terms.equipment.perTick > MAX_TRADE_EQUIPMENT_PER_TICK)
+          ) {
+            return (
+              `a trade has to move between 0 and ` +
+              `${MAX_TRADE_EQUIPMENT_PER_TICK * TICKS_PER_DAY} ${terms.equipment.type} a day`
             );
           }
           if (
@@ -1559,10 +1585,13 @@ export class World {
               agreement.parties.includes(other)
             );
           }
+          // The same goods: resource and equipment type alike. Rifles for
+          // steel and rifles for oil are two lanes; rifles twice is one.
           return (
             agreement.parties[0] === nation &&
             agreement.parties[1] === other &&
-            agreement.terms?.resource === terms?.resource
+            agreement.terms?.resource === terms?.resource &&
+            agreement.terms?.equipment?.type === terms?.equipment?.type
           );
         });
         if (standing) {

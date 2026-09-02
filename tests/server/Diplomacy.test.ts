@@ -7,6 +7,7 @@ import {
 } from "../../src/server/world/WorldState";
 import {
   AGREEMENT_NOTICE_TICKS,
+  MAX_TRADE_EQUIPMENT_PER_TICK,
   TRUST_COST,
   TRUST_START,
 } from "../../src/shared/config/diplomacy";
@@ -410,6 +411,59 @@ describe("agreements", () => {
     expect(world.rejectionFor({ nation: 1, body: market })).toMatch(/a day/);
   });
 
+  test("equipment terms obey their own ceiling, need a rate, and are one lane each (§10)", () => {
+    const offer = (terms: unknown): string | null =>
+      world.rejectionFor({
+        nation: 1,
+        body: {
+          kind: "propose_agreement",
+          to: 2,
+          type: "trade",
+          terms: terms as never,
+        },
+      });
+    const rifles = (perTick: number, resourcePerTick = 0) => ({
+      resource: "steel" as const,
+      resourcePerTick,
+      pointsPerTick: 1,
+      equipment: { type: "infantry_equipment" as const, perTick },
+    });
+    // The ceiling is the equipment's own, and it is lower than a resource's.
+    expect(offer(rifles(0))).toMatch(/a day/);
+    expect(offer(rifles(MAX_TRADE_EQUIPMENT_PER_TICK + 1))).toMatch(/a day/);
+    expect(offer(rifles(-1))).toMatch(/a day/);
+    // A resource rate of zero is fine when equipment rides, and refused alone.
+    expect(offer(rifles(1))).toBeNull();
+    expect(
+      offer({ resource: "steel", resourcePerTick: 0, pointsPerTick: 1 }),
+    ).toMatch(/a day/);
+    // The shape passes the wire either way: limits are the world's (§7).
+    expect(
+      CommandBodySchema.safeParse({
+        kind: "propose_agreement",
+        to: 2,
+        type: "trade",
+        terms: rifles(99),
+      }).success,
+    ).toBe(true);
+
+    // One lane per goods: rifles twice is a duplicate, rifles beside a plain
+    // steel trade is not.
+    send(world, {
+      nation: 1,
+      body: {
+        kind: "propose_agreement",
+        to: 2,
+        type: "trade",
+        terms: rifles(1),
+      },
+    });
+    expect(offer(rifles(1))).toMatch(/already/);
+    expect(
+      offer({ resource: "steel", resourcePerTick: 1, pointsPerTick: 1 }),
+    ).toBeNull();
+  });
+
   test("agreements, trust and market orders come back from a snapshot", () => {
     send(world, {
       nation: 1,
@@ -417,7 +471,12 @@ describe("agreements", () => {
         kind: "propose_agreement",
         to: 2,
         type: "trade",
-        terms: { resource: "oil", resourcePerTick: 0.5, pointsPerTick: 1 },
+        terms: {
+          resource: "oil",
+          resourcePerTick: 0.5,
+          pointsPerTick: 1,
+          equipment: { type: "fighter", perTick: 0.5 },
+        },
       },
     });
     const id = agreementId(world);
@@ -453,6 +512,20 @@ describe("agreements", () => {
     expect(restored.stateHash()).toBe(before);
     const agreement = restored.view().agreements.find((a) => a.id === id);
     expect(agreement?.terms?.resource).toBe("oil");
+    expect(agreement?.terms?.equipment).toEqual({
+      type: "fighter",
+      perTick: 0.5,
+    });
+    // The hash knows the equipment: a world that forgot the fighters differs.
+    const forgetful = build();
+    forgetful.restoreFrom({
+      ...snapshot,
+      agreements: (snapshot.agreements ?? []).map((a) => ({
+        ...a,
+        terms: a.terms === null ? null : { ...a.terms, equipment: undefined },
+      })),
+    });
+    expect(forgetful.stateHash()).not.toBe(before);
     expect(restored.view().nations[2].trust).toBe(
       TRUST_START - TRUST_COST.alliance,
     );
