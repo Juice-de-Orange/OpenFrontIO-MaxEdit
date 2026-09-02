@@ -15,6 +15,47 @@ traps have already been paid for.
 
 ## Where we are
 
+**The game got about two thirds smaller, on the player's say-so
+(2026-09-02, evening).** His words: _"das game ist viel zu kompliziert,
+kannst du es ca 70% simpler machen. und ich habe keine ahnung welche
+ressourcen man hat."_ What a player had in front of them, and has now:
+
+|                     | before | now |
+| ------------------- | ------ | --- |
+| Resources           | 4      | 1   |
+| Equipment types     | 10     | 3   |
+| Formation templates | 5      | 2   |
+| Missions            | 8      | 4   |
+| Buildings           | 10     | 8   |
+
+Four decisions carry it. **0029**: one resource, `material`, and the three
+numbers everything is paid out of — material, build, men — in the menu bar at
+all times, each with the direction it is moving. The synthetic refineries
+went with the fourth resource, because there is nothing left to convert into
+anything. **0030**: three equipment types, one per kind of unit; two
+templates, a wing and a fleet; two missions each. `ships` is the merchant
+marine as well as the navy, so the hulls that carry your trade are the hulls
+that guard it. **0031**: you _draw_ the water a fleet patrols — drag a box on
+the map, the client takes the zone it caught most of, and the same
+`assign_formation` goes out as before.
+
+And the forces are on the map at last: a division is a counter with its own
+number in the province it holds, a wing is a plane over its zone, a fleet is
+a ship over its water. Same atlas, same passes as the buildings —
+`ForcesAdapter` beside `StructureAdapter`.
+
+**Two hash bumps and two protocol bumps in one evening** (7, 8; 19, 20), and
+both are translated on restore rather than refused: stockpiles fold
+ten-into-three, building rows re-index around the two holes the refineries
+left, templates and missions are renamed, and a production line keeps the
+ramp it earned. `tests/server/SnapshotMigration.test.ts` is the proof.
+
+**The host is still on protocol 19 / hash 7** — the evening's redeploy has
+not happened. It needs one, and the client and world must move together.
+
+Still to come on the same thread: the building list (8 → 6), the tech list
+(10 → 4), and the panel count (6 → 3).
+
 **The regent plays the whole game now, and every ruler plays it differently
 (2026-09-02, afternoon).** `src/server/systems/regent/` is a directory: one
 rule a file — garrison, war, build, production, air, sea, research, market —
