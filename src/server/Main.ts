@@ -39,6 +39,13 @@ const MAP_ID = process.env.MAP_ID ?? "europe";
  * should.
  */
 const SEASON = process.env.WORLD_SEASON === "open";
+/**
+ * An operator's one-off, read only on a season world: move every regent-run
+ * nation's focus onto the seed's draw (Season.ts). Set it, start the world,
+ * remove it; leaving it set is harmless, because a second start finds
+ * nothing to move.
+ */
+const RESEED_FOCUS = process.env.REGENT_FOCUS_RESEED === "1";
 
 /**
  * The tick interval, overridable for gates.
@@ -147,10 +154,15 @@ async function main(): Promise<void> {
 
   const identity = new IdentityService(store, WORLD_ID);
   if (SEASON) {
-    const opened = await openSeason(world, runner, store, WORLD_ID);
+    const opening = await openSeason(world, runner, store, WORLD_ID, {
+      reseedFocus: RESEED_FOCUS,
+    });
     console.info(
-      `[world] season world: identity armed, ${opened} unclaimed nation(s) ` +
-        `handed to their regents`,
+      `[world] season world: identity armed, ${opening.opened} unclaimed ` +
+        `nation(s) handed to their regents` +
+        (RESEED_FOCUS
+          ? `, ${opening.reseeded} regent focus(es) re-seeded`
+          : ""),
     );
   }
 

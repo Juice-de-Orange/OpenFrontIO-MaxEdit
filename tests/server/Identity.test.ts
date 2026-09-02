@@ -131,8 +131,11 @@ describe("identity", () => {
     const player = (await identity.register("Max")).account;
     expect(await identity.claim(2, player.id)).toBe("ok");
 
-    const opened = await openSeason(world, runner, store, WORLD_ID);
-    expect(opened).toBe(fixture.nations.length - 1);
+    const opening = await openSeason(world, runner, store, WORLD_ID);
+    expect(opening).toEqual({
+      opened: fixture.nations.length - 1,
+      reseeded: 0,
+    });
     await runner.tickOnce();
 
     const state = world.view();
@@ -158,6 +161,49 @@ describe("identity", () => {
 
     // Idempotent: a restart opens nothing a second time, so the command log
     // does not grow by a nation count every boot.
-    expect(await openSeason(world, runner, store, WORLD_ID)).toBe(0);
+    expect(await openSeason(world, runner, store, WORLD_ID)).toEqual({
+      opened: 0,
+      reseeded: 0,
+    });
+
+    // **The operator's re-seed.** Knock every running regent onto the
+    // default focus, as a season opened before the draw existed would have
+    // them; without the flag nothing moves, with it every unclaimed one
+    // returns to the seed's draw and the claimed one is left alone.
+    for (let nation = 1; nation <= fixture.nations.length; nation++) {
+      await runner.submit(nation, {
+        kind: "configure_regent",
+        enabled: true,
+        focus: "economy",
+        marketBudget: 0.25,
+      });
+    }
+    await runner.tickOnce();
+    expect(await openSeason(world, runner, store, WORLD_ID)).toEqual({
+      opened: 0,
+      reseeded: 0,
+    });
+    const reseed = await openSeason(world, runner, store, WORLD_ID, {
+      reseedFocus: true,
+    });
+    await runner.tickOnce();
+    const after = world.view();
+    let moved = 0;
+    for (let nation = 1; nation <= fixture.nations.length; nation++) {
+      const regent = after.nations[nation].regent;
+      if (nation === 2) {
+        expect(regent.focus).toBe("economy"); // the player's, untouched
+        continue;
+      }
+      expect(regent.focus).toBe(regentFocusFor(after.worldSeed, nation));
+      expect(regent.marketBudget).toBe(0.25); // the budget is not the flag's business
+      if (regentFocusFor(after.worldSeed, nation) !== "economy") moved++;
+    }
+    expect(reseed).toEqual({ opened: 0, reseeded: moved });
+    expect(moved).toBeGreaterThan(0);
+    // And a third start with the flag still set writes nothing.
+    expect(
+      await openSeason(world, runner, store, WORLD_ID, { reseedFocus: true }),
+    ).toEqual({ opened: 0, reseeded: 0 });
   });
 });

@@ -43,25 +43,55 @@ export function regentFocusFor(worldSeed: number, nation: number): RegentFocus {
   return REGENT_FOCI[Math.floor(random.next() * REGENT_FOCI.length)];
 }
 
+/**
+ * What the opening did: regents switched on, and — only with `reseedFocus` —
+ * running regents whose focus was moved to the seed's.
+ */
+export interface SeasonOpening {
+  opened: number;
+  reseeded: number;
+}
+
 export async function openSeason(
   world: World,
   runner: WorldRunner,
   store: WorldStore,
   worldId: string,
-): Promise<number> {
+  options: { reseedFocus?: boolean } = {},
+): Promise<SeasonOpening> {
   const claimed = new Set(await store.claimedNations(worldId));
   const state = world.view();
   let opened = 0;
+  let reseeded = 0;
   for (let nation = 1; nation <= world.nations.length; nation++) {
+    // A claimed nation's regent is its player's to configure (invariant 7);
+    // the world never touches it, opening or reseeding.
     if (claimed.has(nation)) continue;
-    if (state.nations[nation].regent.enabled) continue;
+    const regent = state.nations[nation].regent;
+    const focus = regentFocusFor(state.worldSeed, nation);
+    if (regent.enabled) {
+      // **The operator's one-off** (`REGENT_FOCUS_RESEED=1`): a season opened
+      // before regents drew a focus has every steward on the default. Moving
+      // them onto the seed's draw is the same command the opening submits,
+      // through the same log, and only where the focus actually differs — so
+      // the flag can stay set across restarts without writing a line.
+      if (!options.reseedFocus || regent.focus === focus) continue;
+      await runner.submit(nation, {
+        kind: "configure_regent",
+        enabled: true,
+        focus,
+        marketBudget: regent.marketBudget,
+      });
+      reseeded++;
+      continue;
+    }
     await runner.submit(nation, {
       kind: "configure_regent",
       enabled: true,
-      focus: regentFocusFor(state.worldSeed, nation),
+      focus,
       marketBudget: DEFAULT_REGENT.marketBudget,
     });
     opened++;
   }
-  return opened;
+  return { opened, reseeded };
 }
