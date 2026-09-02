@@ -2063,6 +2063,39 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 5. The review page, 0e–0p: which icons and colours read, which do not.
 6. Off-host backup target and the internal ntfy URL (see "Deployed").
 
+**Still to build, scoped on 2026-09-02** (nothing here waits on a decision
+except where it says so):
+
+- **The regent, second pass.** What `systems/regent.ts` does today: one
+  division, in the capital; a supply hub where a division starves; the
+  focus's first building when the queue is empty; rifles and guns on the
+  military factories; the first tech the list offers; the market for the
+  scarcest resource; on `expansion`, one attack on the weakest neighbour.
+  What it does not do: raise a second division, so every province but the
+  capital is a free march for anyone; garrison a border; build a refinery,
+  an air base, a dockyard or a naval base; raise a wing or a fleet or send
+  one anywhere; make convoys, so its sea supply and sea trade sit at the
+  floor; the §6.10 escort duty. The phase-10 gate measured an opponent with
+  no army. A second pass, still rule-based: border garrisons up to what
+  supply and manpower carry, facing the neighbours it has no agreement
+  with; fighters and an air base once an enemy wing is over its zone; a
+  dockyard and a convoy line where it depends on the sea, and escorts over
+  the route (§6.10); a refinery when the market budget cannot cover the
+  shortfall; expansion staged from the border, not the capital. And a
+  harder gate: an opponent with divisions and bombers.
+- **Trade in equipment** (§10's decision, not built): an optional equipment
+  term beside the resource, the flow between stockpiles, convoy cost over
+  the sea, the form. Terms are in the snapshot, so **state hash 6 and a
+  protocol bump** — decision 0016 makes that survivable, not free. Max's go
+  first.
+- **The regent's escort duty** on its own if the second pass is too much at
+  once: enough `escort_group`s on `convoy_escort` over the zones its convoys
+  cross. No hash, no bump.
+- Small: the smoke does not yet press `z`, open a ⓘ, read a name off the
+  map or fill the name field; the naval base and the port share an anchor;
+  the map labels sit on the largest province's centre rather than upstream's
+  largest inscribed rectangle; the built-once forms have no ⓘ.
+
 **Look at it** (the checklist above, 0g–0p) and say what reads and what does
 not. Then, in this order: redeploy the host — protocol 17 means the deployed
 client and world must move together, the world restarts once and resumes
