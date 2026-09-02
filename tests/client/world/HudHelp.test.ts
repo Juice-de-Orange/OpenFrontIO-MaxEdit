@@ -233,6 +233,11 @@ describe("the circled i", () => {
       panel("world-research").querySelector(".help")?.textContent,
     ).toContain("costs nothing but the slot");
     menuButton("Air and sea").click();
+    infoButton("help.air.missions").click();
+    expect(panel("world-air").querySelector(".help")?.textContent).toContain(
+      "Four missions for the sky",
+    );
+    infoButton("help.air.missions").click();
     infoButton("help.air.base").click();
     expect(panel("world-air").querySelector(".help")?.textContent).toContain(
       "Build the base first",

@@ -1873,6 +1873,7 @@ export class Hud {
       // enforced it since phase 8; the dropdown below greys the zones it
       // would refuse.
       ...this.explained("help.air.reach", hint(t("air.reachHint"))),
+      ...this.explained("help.air.missions", hint(t("air.missionsHint"))),
     );
     if (economy.formations.length === 0) {
       children.push(muted(t("air.noFormations")));
