@@ -145,6 +145,14 @@ await page.addInitScript(() => {
     if (attrs !== undefined && attrs !== null && typeof attrs === "object") {
       attrs = { ...attrs };
       delete attrs.failIfMajorPerformanceCaveat;
+      // **The drawing buffer is thrown away after every composite** unless
+      // this is set, and then `drawImage` from the WebGL canvas reads black.
+      // The zone-overlay check below is a before/after of real pixels, so
+      // the test asks for the buffer to be kept — a test-only attribute,
+      // set here rather than in the renderer, where it would cost every
+      // player a frame's memory for nothing.
+      if (type === "webgl2" || type === "webgl")
+        attrs.preserveDrawingBuffer = true;
     }
     return getContext.call(this, type, attrs);
   };
@@ -166,7 +174,25 @@ await page.goto(playing ? `${client}/?nation=${nation}` : `${client}/`, {
 });
 if (!playing) {
   // A season world opens on the nation chooser; watching is a click away and
-  // needs no account (decision 0022).
+  // needs no account (decision 0022). The name field is on the way past it
+  // (decision 0024) — a watcher never sends it, but it has to be there and
+  // it has to take what is typed.
+  try {
+    await page.waitForSelector("#world-start .name input", {
+      timeout: timeoutMs,
+    });
+    await page.fill("#world-start .name input", "Smoke Testerin");
+    const typed = await page.$eval("#world-start .name input", (i) => ({
+      value: i.value,
+      label: i.closest(".name")?.querySelector(".label")?.textContent ?? "",
+    }));
+    ok(
+      typed.value === "Smoke Testerin" && typed.label.length > 0,
+      `the chooser asks for a name and keeps what is typed ("${typed.label.trim()}")`,
+    );
+  } catch {
+    ok(false, "the chooser asks for a name");
+  }
   try {
     await page.click("#world-start .watch", { timeout: timeoutMs });
   } catch {
@@ -267,6 +293,85 @@ if (playing) {
 } else {
   skipped("it offers a build menu or an attack");
 }
+
+// **The zone overlay, in pixels.** `z` toggles the air and sea zone layers
+// (§6.7, §6.8). Nothing in the DOM says whether they drew, so the check
+// counts pixels of the overlay's own colours before and after the key —
+// which is the bug this catches, the overlay's first colour being a blue
+// nobody could see under the territory fill.
+//
+// **Zoomed out first.** An air zone is fifteen to thirty provinces, so the
+// opening camera sits inside one and no zone border crosses the window at
+// all; the first version of this check pressed `z` at the home view, saw
+// the same pixels twice and called a working overlay broken.
+const overlayPixels = () =>
+  page.evaluate(() => {
+    const c = document.getElementById("world-canvas");
+    if (!(c instanceof HTMLCanvasElement)) return null;
+    const off = document.createElement("canvas");
+    off.width = c.width;
+    off.height = c.height;
+    const ctx = off.getContext("2d");
+    if (ctx === null) return null;
+    ctx.drawImage(c, 0, 0);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let found = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i];
+      const g = d[i + 1];
+      const b = d[i + 2];
+      // Pale cyan over land (190,245,255) and pale sand over the sea
+      // (255,250,200) — ZoneBorders.ts, and nothing else on the map is light.
+      if (b > 210 && b - r > 20 && g - r > 8) found++;
+      else if (r > 220 && g > 215 && b > 140 && b < 210) found++;
+    }
+    return found;
+  });
+await page.mouse.move(700, 450);
+for (let i = 0; i < 25; i++) {
+  await page.mouse.wheel(0, 400);
+  await page.waitForTimeout(60);
+}
+await page.waitForTimeout(1200);
+const beforeZ = await overlayPixels().catch(() => null);
+await page.keyboard.press("z");
+await page.waitForTimeout(1500);
+const afterZ = await overlayPixels().catch(() => null);
+ok(
+  beforeZ !== null && afterZ !== null && afterZ > beforeZ + 50,
+  beforeZ === null || afterZ === null
+    ? "z draws the zone overlay (the canvas could not be read)"
+    : `z draws the zone overlay over the map (${beforeZ} → ${afterZ} overlay pixels)`,
+);
+// Back off, and back in, so the screenshot below is the ordinary map.
+await page.keyboard.press("z");
+for (let i = 0; i < 25; i++) {
+  await page.mouse.wheel(0, -400);
+  await page.waitForTimeout(40);
+}
+
+// **The circled i.** Nineteen explanations hang off these buttons and the
+// panel is rebuilt every tick, so the click has to survive the rebuild.
+const help = await page
+  .evaluate(() => {
+    const button = document.querySelector("#world-hud button.info");
+    if (!(button instanceof HTMLButtonElement)) return null;
+    button.click();
+    const key = button.dataset.help ?? "";
+    const text =
+      button.closest("div")?.parentElement?.querySelector(".help")
+        ?.textContent ??
+      document.querySelector("#world-hud .help")?.textContent ??
+      "";
+    return { key, text };
+  })
+  .catch(() => null);
+ok(
+  help !== null && help.text.trim().length > 20,
+  help === null
+    ? "a circled i opens an explanation (no info button found)"
+    : `a circled i opens an explanation (${help.key}: "${help.text.slice(0, 40).trim()}...")`,
+);
 
 ok(
   frames.includes("welcome"),

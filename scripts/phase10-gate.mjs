@@ -89,7 +89,9 @@ const EQ = {
 };
 /** BUILDING_TYPES order (shared/economy/Buildings.ts). */
 const BUILDING_COUNT = 10;
-const B = { dockyard: 2, air_base: 5, naval_base: 6 };
+const B = { military_factory: 1, dockyard: 2, air_base: 5, naval_base: 6 };
+/** An opponent with fewer arms plants than this cannot equip an army in the window. */
+const ARMS_WANTED = 3;
 
 const BREAK = (() => {
   const arg = process.argv.find((a) => a.startsWith("--break="));
@@ -400,12 +402,22 @@ function findPair(spectator, provinces) {
   // between two hamlets measures nothing, because neither side can afford an
   // army, and the first run of this gate timed out waiting for one.
   const ceiling = new Map();
+  // And what each nation can *arm*. Buildings are public in the full state,
+  // so the spectator can count them. Men without rifles are not an opponent:
+  // the first run of this gate marched three divisions at strength 0.00,
+  // because the nation it picked held one military factory.
+  const arms = new Map();
   for (const province of provinces) {
     const holder = spectator.controllers[province.id];
     if (holder <= 0) continue;
     ceiling.set(
       holder,
       (ceiling.get(holder) ?? 0) + province.tileCount * MANPOWER_PER_TILE,
+    );
+    arms.set(
+      holder,
+      (arms.get(holder) ?? 0) +
+        spectator.buildings[province.id * BUILDING_COUNT + B.military_factory],
     );
     if (province.capital && !capitalOf.has(holder)) {
       capitalOf.set(holder, province.id);
@@ -426,12 +438,14 @@ function findPair(spectator, provinces) {
         if (attacker <= 0 || attacker === regent) continue;
         if (hops < 2 || hops > 5) continue;
         // The weaker of the two decides what this pair can show, and the
-        // deeper capital makes the campaign a campaign.
-        const weight = Math.min(
-          ceiling.get(attacker) ?? 0,
-          ceiling.get(regent) ?? 0,
-        );
-        const found = { attacker, regent, capital, hops, weight };
+        // deeper capital makes the campaign a campaign. An attacker with no
+        // arms industry is quartered rather than excluded: on a world where
+        // nobody has three plants the gate still runs, and says so.
+        const plants = arms.get(attacker) ?? 0;
+        const weight =
+          Math.min(ceiling.get(attacker) ?? 0, ceiling.get(regent) ?? 0) *
+          (plants >= ARMS_WANTED ? 1 : 0.25);
+        const found = { attacker, regent, capital, hops, weight, plants };
         if (
           best === null ||
           weight > best.weight ||
@@ -613,14 +627,14 @@ async function land(spectator, provinces) {
     );
     process.exit(2);
   }
-  const { attacker, regent, capital, hops, weight } = pair;
+  const { attacker, regent, capital, hops, weight, plants } = pair;
   log(
     `  nation ${regent} is left to its regent; nation ${attacker} marches ` +
       `on its capital in province ${capital}, ${hops} hop(s) behind the border`,
   );
   log(
-    `  the smaller of the two can support ${Math.round(weight)} men — ` +
-      `${(weight / DIVISION_MANPOWER).toFixed(1)} division(s) at the ceiling`,
+    `  the invader holds ${plants} military factor${plants === 1 ? "y" : "ies"}; ` +
+      `the pair scores ${Math.round(weight)}`,
   );
 
   const steward = new Player(regent);
@@ -718,6 +732,17 @@ async function land(spectator, provinces) {
   log(
     `  the invader has ${factories} military factor${factories === 1 ? "y" : "ies"}`,
   );
+  // **Steel for the rifles.** A line with no steel makes almost nothing
+  // (invariant 2 scaling all the way down), and a nation nobody has played
+  // for a hundred thousand ticks has an empty vault. The world market is
+  // always open and needs no diplomacy (§6.5) — it costs the invader
+  // construction points, which is exactly the price the design intends.
+  for (const resource of ["steel", "oil"]) {
+    await invader.command(
+      { kind: "set_market_order", resource, perTick: 1 },
+      `inv-buy-${resource}`,
+    );
+  }
   const rifles = await createLine(invader, "infantry_equipment", "inv-rifles");
   const guns = await createLine(invader, "artillery", "inv-guns");
   const bombers = await createLine(invader, "bomber", "inv-bombers");
