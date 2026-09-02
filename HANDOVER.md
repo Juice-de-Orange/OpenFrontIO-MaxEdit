@@ -50,8 +50,23 @@ ten-into-three, building rows re-index around the two holes the refineries
 left, templates and missions are renamed, and a production line keeps the
 ramp it earned. `tests/server/SnapshotMigration.test.ts` is the proof.
 
-**The host is still on protocol 19 / hash 7** — the evening's redeploy has
-not happened. It needs one, and the client and world must move together.
+**Deployed, and the world was reset to nothing** (2026-09-02 evening, on
+Max's word). Protocol 20, hash 8, and a _fresh_ world rather than a
+translated one: the simplification changed what a resource is, what
+equipment is and what a formation is, so a season carried across it would
+have been a season nobody could read. `docker compose down -v` took the
+Postgres volume — the world, the log, the snapshots, and the two accounts
+with their claims. The backups are a bind mount and survived; the last state
+of the old season is `world-20260902-190721.dump`.
+
+The new world opened its season at tick 0 and handed **all fifty-two
+nations to their regents**, each on the focus its archetype asks for —
+economy 19, military 18, defence 8, expansion 7. No reseed was needed,
+because a season that opens fresh hands out the focus in the first place.
+Two hundred and eight buildings were standing by tick 37, which is the
+regents playing.
+
+**Everybody registers again**: there are no accounts.
 
 Still to come on the same thread: the building list (8 → 6), the tech list
 (10 → 4), and the panel count (6 → 3).
