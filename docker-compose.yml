@@ -55,6 +55,11 @@ services:
       # Arms identity and opens the season (phase 11, decision 0019). Unset
       # for a workbench world; a deployment sets it to "open".
       WORLD_SEASON: ${WORLD_SEASON:-}
+      # An operator's one-off: move every *unclaimed* nation's regent onto
+      # the focus its ruler's archetype calls for (decision 0028). Idempotent
+      # — it writes only where the focus differs, and never touches a nation
+      # a player holds — so it is safe to leave set, and safe to forget.
+      REGENT_FOCUS_RESEED: ${REGENT_FOCUS_RESEED:-}
     ports:
       - "3000:3000"
     # No restart policy on purpose: the phase-1 gate is to kill this container
