@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { measureNation } from "../../src/server/systems/economy";
 import {
   constructionAvailable,
+  isDeadPartner,
   nationTrade,
   tradeSystem,
+  trustRegrowth,
 } from "../../src/server/systems/trade";
 import { World } from "../../src/server/world/World";
 import { applyEvent, type WorldState } from "../../src/server/world/WorldState";
@@ -12,9 +14,12 @@ import {
   DEAD_PARTNER_TICKS,
   MARKET_BUY_POINTS,
   MARKET_SELL_POINTS,
+  TRUST_MAX,
+  TRUST_REGROWTH_PER_DAY,
 } from "../../src/shared/config/diplomacy";
 import { RESOURCES } from "../../src/shared/config/provinces";
 import { RESOURCE_CAP } from "../../src/shared/config/rates";
+import { TICKS_PER_DAY } from "../../src/shared/config/time";
 import { mapFixture } from "../util/worldFixture";
 
 /**
@@ -157,6 +162,77 @@ describe("standing trade agreements", () => {
     );
     // And it stops moving anything the same tick it is written off.
     expect(nationTrade(state, a).resourceOut.steel).toBe(0);
+  });
+
+  test("a capital that changes hands keeps its nation's agreements until the occupation settles (decision 0025)", () => {
+    const state = world.view() as WorldState;
+    const id = agree(state, a, b, 0.5, 0.25);
+    const capital = state.map.provinces.find(
+      (province) => province.capital && province.nation === b,
+    );
+    if (capital === undefined) throw new Error("the fixture has no capital");
+    // Somebody else stands in it: held, not owned. The agreement stands.
+    applyEvent(state, {
+      kind: "control_changed",
+      province: capital.id,
+      nation: a,
+    });
+    let events = tradeSystem.run(state, state.tick);
+    expect(events.some((event) => event.kind === "agreement_dissolved")).toBe(
+      false,
+    );
+    expect(isDeadPartner(state, b)).toBe(false);
+    // Retaken before the occupation settles: nothing was ever lost.
+    applyEvent(state, {
+      kind: "control_changed",
+      province: capital.id,
+      nation: b,
+    });
+    expect(isDeadPartner(state, b)).toBe(false);
+    // Held long enough that ownership moved (decision 0002): now it is lost,
+    // and the agreement goes at nobody's cost.
+    applyEvent(state, {
+      kind: "control_changed",
+      province: capital.id,
+      nation: a,
+    });
+    applyEvent(state, {
+      kind: "owner_changed",
+      province: capital.id,
+      nation: a,
+    });
+    const trustBefore = state.nations[b].trust;
+    events = tradeSystem.run(state, state.tick);
+    expect(events).toContainEqual({
+      kind: "agreement_dissolved",
+      agreementId: id,
+    });
+    expect(events.some((event) => event.kind === "trust_changed")).toBe(false);
+    expect(state.nations[b].trust).toBe(trustBefore);
+  });
+
+  test("trust regrows only if the world says so, and never past the ceiling (decision 0026)", () => {
+    const state = world.view() as WorldState;
+    applyEvent(state, { kind: "trust_changed", nation: a, delta: -10 });
+    // The default: nothing. A default world carries no trust event unless
+    // somebody cancelled something.
+    expect(trustRegrowth(state, 0)).toEqual([]);
+    expect(
+      tradeSystem
+        .run(state, state.tick)
+        .some((e) => e.kind === "trust_changed"),
+    ).toBe(TRUST_REGROWTH_PER_DAY > 0);
+    // Switched on: one event per nation below the ceiling, a day's worth
+    // spread over the day, and the nations already at the ceiling get none.
+    const events = trustRegrowth(state, 1);
+    expect(events).toEqual([
+      { kind: "trust_changed", nation: a, delta: 1 / TICKS_PER_DAY },
+    ]);
+    for (let i = 0; i < 12 * TICKS_PER_DAY; i++) {
+      for (const event of trustRegrowth(state, 1)) applyEvent(state, event);
+    }
+    expect(state.nations[a].trust).toBe(TRUST_MAX);
+    expect(trustRegrowth(state, 1)).toEqual([]);
   });
 
   test("the world market buys and sells, at a spread that hurts", () => {

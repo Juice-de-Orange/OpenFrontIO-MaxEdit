@@ -39,6 +39,8 @@ import {
   DEAD_PARTNER_TICKS,
   MARKET_BUY_POINTS,
   MARKET_SELL_POINTS,
+  TRUST_MAX,
+  TRUST_REGROWTH_PER_DAY,
 } from "src/shared/config/diplomacy";
 import {
   CONVOY_WEAR,
@@ -48,6 +50,7 @@ import {
 import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
 import { RESOURCE_CAP } from "src/shared/config/rates";
+import { TICKS_PER_DAY } from "src/shared/config/time";
 import { equipmentIndex } from "src/shared/economy/Equipment";
 import type { System } from ".";
 import {
@@ -107,11 +110,19 @@ export interface TradeContext {
 }
 
 export function tradeContext(state: WorldState): TradeContext {
+  // **A capital is lost when it is owned by somebody else, not when it is
+  // held** (decision 0025). Reading the controller made a capital that
+  // changed hands for a single tick dissolve every agreement its nation had,
+  // third parties included — and the only alternative looked like a grace
+  // period, which is a timer, which invariant 3 forbids. Ownership already
+  // carries the grace this needs: it moves only after OCCUPATION_TICKS of
+  // holding (decision 0002), so a capital retaken before the occupation
+  // settles was never lost, and one held for a fortnight is.
   const hasCapital = new Set<number>();
   for (const province of state.map.provinces) {
     if (!province.capital) continue;
-    const holder = state.provinceController[province.id];
-    if (holder > 0) hasCapital.add(holder);
+    const owner = state.provinceOwner[province.id];
+    if (owner > 0) hasCapital.add(owner);
   }
   const context: TradeContext = {
     live: [],
@@ -535,12 +546,42 @@ export function isDeadPartner(
   return !context.hasCapital.has(nation);
 }
 
+/**
+ * Trust coming back, a little a tick, for every nation below the ceiling.
+ *
+ * Nothing at the default (`TRUST_REGROWTH_PER_DAY = 0`): no event is made,
+ * so a tick on a default world carries no `trust_changed` unless somebody
+ * cancelled something, which the dead-partner test relies on. The reducer
+ * clamps at `TRUST_MAX`, so the last step lands exactly on the ceiling. The
+ * regent never emits this (invariant 7): it is the world's clock, not a
+ * steward's decision.
+ */
+export function trustRegrowth(
+  state: WorldState,
+  perDay: number = TRUST_REGROWTH_PER_DAY,
+): WorldEvent[] {
+  if (perDay <= 0) return [];
+  const events: WorldEvent[] = [];
+  for (let nation = 1; nation <= state.nationCount; nation++) {
+    if (state.nations[nation].trust >= TRUST_MAX) continue;
+    events.push({
+      kind: "trust_changed",
+      nation,
+      delta: perDay / TICKS_PER_DAY,
+    });
+  }
+  return events;
+}
+
 export const tradeSystem: System = {
   name: "trade",
 
   run(state: WorldState, tick: number): WorldEvent[] {
     const events: WorldEvent[] = [];
     const context = tradeContext(state);
+    // 0. Trust, coming back if this world lets it. Before the dissolutions so
+    //    that a tick's trust events read in one place.
+    events.push(...trustRegrowth(state));
 
     // 1. Whatever has run out of notice or out of partners. Neither costs
     //    anybody anything: a notice was paid for when it was given, and a

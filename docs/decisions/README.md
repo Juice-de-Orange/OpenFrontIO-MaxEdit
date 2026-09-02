@@ -86,3 +86,5 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0022](0022-which-nations-are-taken-is-public.md)                    | Which nations are taken is public; who took them is not                   | Accepted |
 | [0023](0023-a-battle-is-reported-to-both-sides.md)                   | A battle is reported to both its parties, and a nation has a face         | Accepted |
 | [0024](0024-a-player-may-give-a-name-and-it-stays-on-the-account.md) | A player may give a name, and it lives on the account, never in the world | Accepted |
+| [0025](0025-a-capital-is-lost-when-it-is-owned-by-somebody-else.md)  | A capital is lost when it is owned by somebody else, not when it is held  | Proposed |
+| [0026](0026-trust-may-regrow-at-a-rate-that-defaults-to-none.md)     | Trust may regrow, at a rate that is a constant and defaults to none       | Proposed |

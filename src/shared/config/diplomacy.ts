@@ -57,6 +57,20 @@ export const TRUST_MIN = 0;
 export const TRUST_MAX = 100;
 
 /**
+ * Trust regained per in-game day, back towards `TRUST_MAX`.
+ *
+ * **Zero is §6.5 read literally**: it says what breaking an agreement costs
+ * and nothing about recovery, so nothing recovers. The open question since
+ * phase 7 is whether that makes the first betrayal the last interesting
+ * decision a nation makes. This constant is the answer's knob (decision
+ * 0026, proposed): at 1 a broken non-aggression pact (75) takes 75 in-game
+ * days — two and a half real weeks, nearly half a season — to live down.
+ * At 0 the regrowth emits nothing at all, so a world on the default is the
+ * world phase 7 gated.
+ */
+export const TRUST_REGROWTH_PER_DAY = 0;
+
+/**
  * What cancelling each kind of agreement costs the canceller, in trust.
  *
  * The ordering is §6.5's own, and it is not the obvious one: "Cancelling a

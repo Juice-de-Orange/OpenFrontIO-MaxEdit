@@ -2112,7 +2112,9 @@ None of these blocked the gate, and all are one line in
 `shared/config/diplomacy.ts`. The third was decided on the day and is kept here
 with its answer; the first two are still open.
 
-**Trust never comes back.** §6.5 says what cancelling costs and says nothing
+**Trust never comes back — and since 2026-09-02 that is a constant,
+`TRUST_REGROWTH_PER_DAY = 0`, with the regrowth built and switched off
+(decision 0026, proposed; Max sets the value or leaves it).** §6.5 says what cancelling costs and says nothing
 about recovery, so nothing recovers it: a nation that breaks a non-aggression
 pact spends 75 of its 100 and is diplomatically poor for the rest of the
 season. That may be exactly right — "serial betrayers become diplomatically
@@ -2136,7 +2138,9 @@ observable in a gate run and is unit-tested instead, and an offer to a nation
 nobody has ever played is now accepted rather than refused, because on a young
 world nobody is dead yet.
 
-**And one sharp edge, for the same list.** The other half of the dead-partner
+**And one sharp edge, for the same list — closed on 2026-09-02 by reading
+ownership instead of control (decision 0025, proposed): the occupation clock
+is the grace period, and it was already there.** The other half of the dead-partner
 rule is "has lost its capital", and it is read as _holds no capital right
 now_. A capital that changes hands for a single tick therefore dissolves every
 agreement that nation has, with third parties included. Today that takes a
