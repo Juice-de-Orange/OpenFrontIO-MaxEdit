@@ -120,7 +120,7 @@ rsync -az resources/flags/ HOST:/srv/world/www/flags/
 nation's flag (`/flags/<code>.svg`, the code from the map manifest) in the
 bar and beside its name on the map. In development Vite serves them from
 `resources/`; the production build does not copy `resources/` — it is half a
-gigabyte of maps — so the 928 SVGs (about 4 MB) are shipped by the third
+gigabyte of maps — so the 928 SVGs (22 MB) are shipped by the third
 line. Without it nothing breaks: the badge shows no flag and the map label
 has no icon.
 
