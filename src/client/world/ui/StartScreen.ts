@@ -1,3 +1,7 @@
+import {
+  MAX_PLAYER_NAME,
+  normalisePlayerName,
+} from "src/shared/protocol/PlayerName";
 import { nationCss } from "../Palette";
 import { t } from "./strings";
 
@@ -43,7 +47,14 @@ export interface WorldOffer {
 }
 
 /** What the player decided: a nation to play, or watching. */
-export type StartChoice = { kind: "play"; nation: number } | { kind: "watch" };
+export type StartChoice =
+  | {
+      kind: "play";
+      nation: number;
+      /** The name to register with; "" to stay anonymous. */
+      name: string;
+    }
+  | { kind: "watch" };
 
 const STYLE = `
 #world-start {
@@ -78,6 +89,17 @@ const STYLE = `
   outline: none; border-color: rgba(110,168,254,.7);
   background: rgba(255,255,255,.09);
 }
+#world-start .name { display: block; margin: 0 0 .9rem; }
+#world-start .name .label { display: block; font-size: 13px; font-weight: 600; color: #dbe2ec; }
+#world-start .name .hint { display: block; margin: .15rem 0 .35rem; font-size: 12px; line-height: 1.4; color: #8d97a8; }
+#world-start .name input {
+  width: 100%; padding: .55rem .7rem;
+  background: rgba(255,255,255,.06); color: inherit; font: inherit;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 8px;
+}
+#world-start .name input:focus { outline: none; border-color: rgba(110,168,254,.7); }
+#world-start .name input[aria-invalid="true"] { border-color: #e4b660; }
+#world-start .name .bad { display: block; margin: .3rem 0 0; font-size: 12px; color: #e4b660; }
 #world-start .grid {
   display: grid; gap: .4rem; max-height: 46vh; overflow-y: auto;
   grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
@@ -175,9 +197,11 @@ export async function fetchOffer(
  */
 export function showStartScreen(
   offer: WorldOffer,
-  options: { problem?: string; locked?: boolean } = {},
+  options: { problem?: string; locked?: boolean; named?: boolean } = {},
 ): Promise<StartChoice> {
-  const { problem, locked = false } = options;
+  // `named`: whether to ask for a name at all. A browser that already holds
+  // an account has one and is not asked again.
+  const { problem, locked = false, named = true } = options;
   ensureStyle();
   document.getElementById("world-start")?.remove();
 
@@ -204,6 +228,31 @@ export function showStartScreen(
     box.textContent = problem;
     card.append(box);
   }
+
+  // The player's own name, asked before the nation and kept off the wire
+  // until registration (decision 0024). Optional — an empty field is a
+  // deliberate choice to stay anonymous, and the regent's persona stands in.
+  const nameField = document.createElement("label");
+  nameField.className = "name";
+  const nameLabel = document.createElement("span");
+  nameLabel.className = "label";
+  nameLabel.textContent = t("start.name");
+  const nameHint = document.createElement("span");
+  nameHint.className = "hint";
+  nameHint.textContent = t("start.nameHint");
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.maxLength = MAX_PLAYER_NAME + 8; // room to see the mistake
+  nameInput.setAttribute("autocomplete", "nickname");
+  const nameBad = document.createElement("span");
+  nameBad.className = "bad";
+  nameBad.hidden = true;
+  nameBad.textContent = t("start.nameBad");
+  nameField.append(nameLabel, nameHint, nameInput, nameBad);
+  if (named) card.append(nameField);
+  /** The name as it would be stored, or null while the field is refused. */
+  const chosenName = (): string | null =>
+    named ? normalisePlayerName(nameInput.value) : "";
 
   const filter = document.createElement("input");
   filter.className = "filter";
@@ -238,7 +287,8 @@ export function showStartScreen(
           // `locked` is for a browser that cannot keep the credential. Taking
           // a nation there would claim it for an account the next reload can
           // never sign in as — one nation of the season destroyed per visit.
-          button.disabled = locked || (nation.claimed && !mine);
+          const badName = chosenName() === null;
+          button.disabled = locked || badName || (nation.claimed && !mine);
           button.title = locked
             ? t("start.lockedTitle")
             : mine
@@ -263,7 +313,11 @@ export function showStartScreen(
             button.append(tag);
           }
           button.addEventListener("click", () =>
-            finish({ kind: "play", nation: nation.id }),
+            finish({
+              kind: "play",
+              nation: nation.id,
+              name: chosenName() ?? "",
+            }),
           );
           return button;
         }),
@@ -281,6 +335,12 @@ export function showStartScreen(
     };
 
     filter.addEventListener("input", draw);
+    nameInput.addEventListener("input", () => {
+      const bad = chosenName() === null;
+      nameBad.hidden = !bad;
+      nameInput.setAttribute("aria-invalid", String(bad));
+      draw();
+    });
     draw();
 
     const foot = document.createElement("div");

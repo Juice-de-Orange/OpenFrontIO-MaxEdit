@@ -115,5 +115,12 @@ export interface WorldStore {
    */
   nationOfAccount(worldId: string, accountId: string): Promise<number | null>;
 
+  /**
+   * Who holds each claimed nation of this world, by the name they gave —
+   * nation id to account name. For the wire's `ruler` (decision 0024):
+   * a played nation shows its player, a regent-run one its persona.
+   */
+  holderNames(worldId: string): Promise<Map<number, string>>;
+
   close(): Promise<void>;
 }

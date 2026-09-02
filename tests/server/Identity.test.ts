@@ -21,6 +21,19 @@ function service(): { identity: IdentityService; store: MemoryStore } {
 }
 
 describe("identity", () => {
+  test("who plays which nation is known by name, for the wire's ruler (decision 0024)", async () => {
+    const { identity } = service();
+    const max = (await identity.register("Max")).account;
+    const nobody = (await identity.register("Anonymous")).account;
+    expect(await identity.claim(4, max.id)).toBe("ok");
+    expect(await identity.claim(9, nobody.id)).toBe("ok");
+    const holders = await identity.holderNames();
+    expect(holders.get(4)).toBe("Max");
+    // The placeholder is stored like any name; the wire decides it is nobody.
+    expect(holders.get(9)).toBe("Anonymous");
+    expect(holders.has(1)).toBe(false);
+  });
+
   test("a token authenticates its own account, and only a hash is stored", async () => {
     const { identity, store } = service();
     const { account, token } = await identity.register("Max");

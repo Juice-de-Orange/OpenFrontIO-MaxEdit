@@ -27,6 +27,11 @@ import {
 import { PRESENCE_REFRESH_TICKS } from "src/shared/config/diplomacy";
 import { SNAPSHOT_INTERVAL_TICKS, TICK_MS } from "src/shared/config/time";
 import {
+  hasPlayerName,
+  NO_PLAYER_NAME,
+  normalisePlayerName,
+} from "src/shared/protocol/PlayerName";
+import {
   CloseCode,
   decodeClientMessage,
   encodeServer,
@@ -34,6 +39,7 @@ import {
   type ClientCommand,
   type CommandBody,
   type NationEconomyView,
+  type NationStatic,
   type ServerMessage,
 } from "src/shared/protocol/Wire";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -310,7 +316,7 @@ export class WorldSocketServer {
       }
       chunks.push(chunk as Buffer);
     }
-    let name = "Anonymous";
+    let name = NO_PLAYER_NAME;
     try {
       const body: unknown = JSON.parse(
         Buffer.concat(chunks).toString("utf-8") || "{}",
@@ -319,10 +325,22 @@ export class WorldSocketServer {
         typeof body === "object" &&
         body !== null &&
         "name" in body &&
-        typeof (body as { name: unknown }).name === "string" &&
-        (body as { name: string }).name.length > 0
+        typeof (body as { name: unknown }).name === "string"
       ) {
-        name = (body as { name: string }).name.slice(0, 64);
+        // The one rule about names (decision 0024), applied where the name
+        // is stored. A refused name is a 400 with the rule in it, not a
+        // silent trim: the player typed it and should learn why it went.
+        const wanted = normalisePlayerName(
+          (body as { name: string }).name.slice(0, 256),
+        );
+        if (wanted === null) {
+          response.writeHead(400, { "content-type": "text/plain" });
+          response.end(
+            "that name is not allowed: 2 to 24 letters, digits, spaces, dots, apostrophes or hyphens\n",
+          );
+          return;
+        }
+        if (wanted !== "") name = wanted;
       }
     } catch {
       response.writeHead(400, { "content-type": "text/plain" });
@@ -477,7 +495,7 @@ export class WorldSocketServer {
             protocolVersion: PROTOCOL_VERSION,
             worldId: this.worldId,
           });
-          this.sendFullState(session);
+          await this.sendFullState(session);
         })();
         return;
       }
@@ -538,12 +556,12 @@ export class WorldSocketServer {
     });
   }
 
-  private sendFullState(session: Session): void {
+  private async sendFullState(session: Session): Promise<void> {
     this.send(session.socket, {
       t: "full",
       tick: this.world.currentTick(),
       map: this.world.descriptor,
-      nations: this.world.nations,
+      nations: await this.nationsView(),
       nation: session.nation,
       owners: this.world.ownerSnapshot(),
       controllers: this.world.controllerSnapshot(),
@@ -652,6 +670,27 @@ export class WorldSocketServer {
         }),
       );
     }
+  }
+
+  /**
+   * The nation list as this world shows it: a played nation's `ruler` is
+   * its player's name, a regent-run one's is the persona the world derived
+   * (decision 0024). Read from the store on every full state rather than
+   * kept, because a claim can arrive at any moment and this is the only
+   * message that carries the list. A workbench world has no accounts and
+   * shows the personas.
+   */
+  private async nationsView(): Promise<NationStatic[]> {
+    if (this.identity === null || !this.identity.season) {
+      return this.world.nations;
+    }
+    const holders = await this.identity.service.holderNames();
+    return this.world.nations.map((nation) => {
+      const holder = holders.get(nation.smallID);
+      return holder !== undefined && hasPlayerName(holder)
+        ? { ...nation, ruler: holder }
+        : nation;
+    });
   }
 
   /**

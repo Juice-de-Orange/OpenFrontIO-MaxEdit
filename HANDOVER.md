@@ -428,8 +428,10 @@ their labels), eighteen more explanations — twenty-eight in all — and, in th
 morning, **the nations' names on the map** through the inherited `NamePass`
 (`FrameAdapter.applyLabels`: over the largest province held, sized by land,
 the troop line switched off in the render settings, the flag handed to the
-renderer's header). Still open: the player's own name and purpose-drawn
-icons.
+renderer's header), and **the player's own name** (decision 0024: asked once
+in the chooser, optional, validated by one shared rule on both sides, stored
+on the account and shown as the `ruler` of a claimed nation — no wire change,
+no state). Still open: purpose-drawn icons.
 
 The remaining ~85 explanations, panel by panel. The player's own name (an input
 field, validation, a store join, and a decision record — decision 0019 draws
@@ -1926,6 +1928,10 @@ own badge carries the flag; the economy says "from N civilian factories".
 larger for larger nations, gone when a nation holds nothing. Say whether the
 size reads right at the zoom you play at — `LABEL_SCALE` in `FrameAdapter`
 is the knob.
+0n. **Your name**: the chooser has a name field above the search box; a bad
+name greys the nations and says why; the diplomacy list of another player
+shows your name where a regent's persona would be. Accounts from before
+(yours included) stay anonymous.
 
 The four before them:
 

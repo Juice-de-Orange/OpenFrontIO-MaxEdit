@@ -278,13 +278,17 @@ function takeProblem(): string | undefined {
  * world, and persisting it would make a debugging URL into a commitment. Then
  * what this browser chose last time. Only then does anybody get asked.
  */
-async function chooseNation(): Promise<number | null> {
+/** The nation to play and, when the browser has no account yet, the name to register with. */
+async function chooseNation(): Promise<{
+  nation: number | null;
+  name: string;
+}> {
   const fromUrl = nationFromUrl();
-  if (fromUrl !== null) return fromUrl;
+  if (fromUrl !== null) return { nation: fromUrl, name: "" };
 
   const remembered = rememberedNation();
-  if (remembered === WATCHING) return null;
-  if (remembered !== null) return remembered;
+  if (remembered === WATCHING) return { nation: null, name: "" };
+  if (remembered !== null) return { nation: remembered, name: "" };
 
   // The token before the question: an account that already holds a nation is
   // not being asked to choose one, it is being let back in.
@@ -293,11 +297,11 @@ async function chooseNation(): Promise<number | null> {
     // No list means no chooser. Watching still works, and saying so beats a
     // blank screen while the world is plainly drawing itself behind it.
     showNotice(t("start.offline"));
-    return null;
+    return { nation: null, name: "" };
   }
   if (offer.yours !== null) {
     rememberNation(offer.yours);
-    return offer.yours;
+    return { nation: offer.yours, name: "" };
   }
 
   // A season world asks for a commitment the browser has to be able to keep.
@@ -305,15 +309,17 @@ async function chooseNation(): Promise<number | null> {
   const choice = await showStartScreen(offer, {
     problem: keeps ? takeProblem() : t("start.noStorage"),
     locked: offer.season && !keeps,
+    // A browser that already holds an account has a name; only a new one is asked.
+    named: heldToken() === null,
   });
   if (choice.kind === "watch") {
     // Remembered too, or the modal blocks the door on every reload with no
     // way to say "stop asking". The bar's own button is the way back in.
     rememberWatching();
-    return null;
+    return { nation: null, name: "" };
   }
   rememberNation(choice.nation);
-  return choice.nation;
+  return { nation: choice.nation, name: choice.name };
 }
 
 export async function startWorldClient(
@@ -336,12 +342,12 @@ export async function startWorldClient(
   // The nation, from the URL, from what this browser chose last time, or by
   // asking. Before this the URL was the only way and a visitor without one
   // landed in a spectator seat with nothing on screen to say why.
-  const nation = await chooseNation();
+  const { nation, name } = await chooseNation();
   // Phase 11: the account token, if this browser has one. A season world
   // requires it to play; a workbench world carries it and ignores it. No
   // token yet and a nation wanted: register once and keep the credential —
   // losing it means a new account, which is the whole account system.
-  const token = await ensureToken(nation);
+  const token = await ensureToken(nation, name);
 
   /**
    * Everything the HUD draws from.
@@ -598,7 +604,10 @@ export async function startWorldClient(
  * account — which on a season world means a new nation, because the old
  * one stays claimed. Watching needs no token at all.
  */
-async function ensureToken(nation: number | null): Promise<string | null> {
+async function ensureToken(
+  nation: number | null,
+  name: string,
+): Promise<string | null> {
   if (nation === null) return null;
   const held = heldToken();
   if (held !== null) return held;
@@ -606,7 +615,8 @@ async function ensureToken(nation: number | null): Promise<string | null> {
     const response = await fetch("/register", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "Anonymous" }),
+      // An empty name registers anonymously; the server stores its placeholder.
+      body: JSON.stringify({ name }),
     });
     if (!response.ok) return null;
     const made = (await response.json()) as { token?: string };

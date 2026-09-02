@@ -76,4 +76,13 @@ export class IdentityService {
   async nationOf(accountId: string): Promise<number | null> {
     return this.store.nationOfAccount(this.worldId, accountId);
   }
+
+  /**
+   * Who plays which nation, by the name they registered with. The one
+   * thing about an account that is anybody else's business (decision
+   * 0024) — and only because the player chose it to be shown.
+   */
+  async holderNames(): Promise<Map<number, string>> {
+    return this.store.holderNames(this.worldId);
+  }
 }

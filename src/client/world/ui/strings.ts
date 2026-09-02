@@ -342,6 +342,11 @@ const en = {
   "start.playTitle": "Play {name}",
   "start.noMatch": "No nation by that name.",
   "start.watch": "Just watch",
+  "start.name": "Your name",
+  "start.nameHint":
+    "Shown to every other player in place of your regent's. Leave it empty to stay anonymous. 2 to 24 letters, digits, spaces, dots, apostrophes or hyphens.",
+  "start.nameBad":
+    "That name will be refused: 2 to 24 letters, digits, spaces, dots, apostrophes or hyphens.",
   "start.regentNote":
     "Watching needs no account, and you can choose a nation later.",
   "start.refused": "That nation could not be claimed: {reason}",
@@ -678,6 +683,11 @@ const de: Record<StringKey, string> = {
   "start.playTitle": "{name} spielen",
   "start.noMatch": "Keine Nation dieses Namens.",
   "start.watch": "Nur zuschauen",
+  "start.name": "Dein Name",
+  "start.nameHint":
+    "Wird jedem anderen Spieler anstelle deines Regenten gezeigt. Leer lassen, um anonym zu bleiben. 2 bis 24 Buchstaben, Ziffern, Leerzeichen, Punkte, Apostrophe oder Bindestriche.",
+  "start.nameBad":
+    "Dieser Name wird abgelehnt: 2 bis 24 Buchstaben, Ziffern, Leerzeichen, Punkte, Apostrophe oder Bindestriche.",
   "start.regentNote":
     "Zuschauen braucht kein Konto, und du kannst später eine Nation wählen.",
   "start.refused": "Diese Nation war nicht zu bekommen: {reason}",

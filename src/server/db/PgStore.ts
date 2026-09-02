@@ -289,6 +289,15 @@ export class PgStore implements WorldStore {
     return rows.map((row) => row.nationId);
   }
 
+  async holderNames(worldId: string): Promise<Map<number, string>> {
+    const rows = await this.db
+      .select({ nationId: nationClaims.nationId, name: accounts.name })
+      .from(nationClaims)
+      .innerJoin(accounts, eq(nationClaims.accountId, accounts.id))
+      .where(eq(nationClaims.worldId, worldId));
+    return new Map(rows.map((row) => [row.nationId, row.name]));
+  }
+
   async close(): Promise<void> {
     const client = this.lockClient;
     this.lockClient = undefined;

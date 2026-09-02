@@ -160,6 +160,17 @@ export class MemoryStore implements WorldStore {
     return nations.sort((a, b) => a - b);
   }
 
+  async holderNames(worldId: string): Promise<Map<number, string>> {
+    const names = new Map<number, string>();
+    for (const [key, accountId] of this.claims) {
+      const [world, nation] = key.split(":");
+      if (world !== worldId) continue;
+      const account = this.accounts.get(accountId);
+      if (account !== undefined) names.set(Number(nation), account.name);
+    }
+    return names;
+  }
+
   async close(): Promise<void> {
     this.locks.clear();
   }
