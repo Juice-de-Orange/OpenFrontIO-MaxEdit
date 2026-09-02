@@ -259,8 +259,8 @@ describe("the regent", () => {
     }
   });
 
-  test("a shortage buys the scarcest resource at the market, inside the budget", () => {
-    // A line that drinks oil the nation neither has nor pumps.
+  test("a shortage buys material at the market, inside the budget", () => {
+    // A line that drinks more than the nation digs, and an empty vault.
     applyEvent(state, {
       kind: "production_line_created",
       nation: 1,
@@ -274,30 +274,24 @@ describe("the regent", () => {
       lineId: line.id,
       factories: 1,
     });
-    state.nations[1].resources.oil = 0;
-    state.nations[1].resources.rubber = 0;
+    state.nations[1].resources.material = 0;
+    for (const province of state.map.provinces) {
+      if (state.provinceController[province.id] !== 1) continue;
+      province.resourceDeposits.material = 0;
+    }
 
     visit(state);
     const orders = state.nations[1].market;
-    const placed = (["steel", "oil", "aluminium", "rubber"] as const).filter(
-      (resource) => orders[resource] > 0,
-    );
-    expect(placed.length).toBe(1);
-    expect(orders[placed[0]]).toBeLessThanOrEqual(
+    expect(orders.material).toBeGreaterThan(0);
+    expect(orders.material).toBeLessThanOrEqual(
       state.nations[1].regent.marketBudget,
     );
 
     // Plenty again: the standing order is cleared rather than paying the
     // market's rates for ever.
-    state.nations[1].resources.oil = 1000;
-    state.nations[1].resources.rubber = 1000;
-    state.nations[1].resources.steel = 1000;
+    state.nations[1].resources.material = 1000;
     visit(state);
-    expect(
-      (["steel", "oil", "aluminium", "rubber"] as const).every(
-        (resource) => state.nations[1].market[resource] === 0,
-      ),
-    ).toBe(true);
+    expect(state.nations[1].market.material).toBe(0);
   });
 
   test("a starving division gets a hub before the focus gets its factory", () => {

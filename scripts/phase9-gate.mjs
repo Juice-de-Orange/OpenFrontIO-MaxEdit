@@ -41,7 +41,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 18;
+const PROTOCOL_VERSION = 19;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -548,7 +548,7 @@ async function main() {
   // with a full steel store. The world market is §6.5's answer for exactly
   // this nation, so the gate uses it the way a player would.
   await victim.require(
-    { kind: "set_market_order", resource: "oil", perTick: 0.5 },
+    { kind: "set_market_order", resource: "material", perTick: 0.5 },
     "subs-oil",
   );
 
@@ -570,7 +570,7 @@ async function main() {
   // on trading construction points for oil nobody needs — which is exactly
   // the budget the raiders' harbour is about to be built from.
   await victim.require(
-    { kind: "set_market_order", resource: "oil", perTick: 0 },
+    { kind: "set_market_order", resource: "material", perTick: 0 },
     "subs-oil-stop",
   );
   ok(
@@ -605,7 +605,7 @@ async function main() {
   // share the beach's zone by construction, so the raiders and the route
   // cannot miss each other.
   // -------------------------------------------------------------------------
-  const resource = ["steel", "oil", "aluminium", "rubber"].find(
+  const resource = ["material"].find(
     (kind) =>
       victim.economy.resources[kind] > 200 &&
       attacker.economy.resources[kind] < RESOURCE_CAP - 500,

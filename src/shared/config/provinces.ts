@@ -94,8 +94,21 @@ export const BUILDING_SLOTS_CAPITAL_BONUS = 2;
 // Resource deposits
 // ---------------------------------------------------------------------------
 
-/** The four resources, in the order everything iterates them. */
-export const RESOURCES = ["steel", "oil", "aluminium", "rubber"] as const;
+/**
+ * The one resource.
+ *
+ * It was four — steel, oil, aluminium, rubber — with a lopsided deposit
+ * table so that every nation was short of something and had a reason to
+ * trade. That reason survives: deposits are still lopsided *by amount*, so a
+ * poor nation still buys from a rich one. What did not survive is the
+ * bookkeeping: four stockpiles, four extraction rates, four demand rates and
+ * four market prices, four rows in every panel, to make one decision that
+ * was never about which of them you were short of.
+ *
+ * One number a player can hold in their head beats four they cannot
+ * (decision 0029).
+ */
+export const RESOURCES = ["material"] as const;
 export type Resource = (typeof RESOURCES)[number];
 
 export interface DepositRule {
@@ -109,34 +122,19 @@ export interface DepositRule {
 /**
  * What each terrain yields.
  *
- * Deliberately lopsided: mountains carry the metals, plains carry the oil and
- * rubber. A nation therefore has a shape — it is short of something — and
- * §6.5's trade and §6.1's synthetic refineries have a reason to exist. A flat
- * table would make every nation self-sufficient and delete two systems.
+ * Still deliberately lopsided, and still for §6.5's sake: mountains are rich,
+ * plains are thin, and a nation therefore has a shape it can trade its way
+ * out of. The four tables this replaced differed in *which* resource a
+ * terrain carried; this one differs in how much.
  */
 export const DEPOSIT_RULES: Record<
   Resource,
   Record<number, DepositRule | undefined>
 > = {
-  steel: {
-    [TerrainType.Mountain]: { chance: 0.45, min: 2, max: 8 },
-    [TerrainType.Highland]: { chance: 0.3, min: 2, max: 6 },
-    [TerrainType.Plains]: { chance: 0.12, min: 1, max: 4 },
-  },
-  oil: {
-    [TerrainType.Mountain]: { chance: 0.02, min: 1, max: 3 },
-    [TerrainType.Highland]: { chance: 0.06, min: 1, max: 4 },
-    [TerrainType.Plains]: { chance: 0.14, min: 2, max: 8 },
-  },
-  aluminium: {
-    [TerrainType.Mountain]: { chance: 0.25, min: 2, max: 6 },
-    [TerrainType.Highland]: { chance: 0.2, min: 1, max: 5 },
-    [TerrainType.Plains]: { chance: 0.05, min: 1, max: 3 },
-  },
-  rubber: {
-    [TerrainType.Mountain]: { chance: 0.01, min: 1, max: 2 },
-    [TerrainType.Highland]: { chance: 0.03, min: 1, max: 3 },
-    [TerrainType.Plains]: { chance: 0.08, min: 1, max: 5 },
+  material: {
+    [TerrainType.Mountain]: { chance: 0.6, min: 3, max: 10 },
+    [TerrainType.Highland]: { chance: 0.45, min: 2, max: 7 },
+    [TerrainType.Plains]: { chance: 0.3, min: 1, max: 5 },
   },
 };
 

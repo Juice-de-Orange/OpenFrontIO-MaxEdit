@@ -29,18 +29,17 @@ describe("the regent's construction", () => {
     steward(state, 1);
   });
 
-  test("an oil shortage the budget cannot cover gets a refinery", () => {
-    // A line that drinks oil the nation neither has nor pumps, and no
-    // budget at the market to buy it with.
+  test("a shortage it cannot dig its way out of goes to the market", () => {
+    // The refineries went with the fourth resource (decision 0029): there is
+    // nothing left to convert into anything. What is left is §6.10's one
+    // economic reaction, and it is the whole of it.
     applyEvent(state, {
       kind: "production_line_created",
       nation: 1,
       equipment: "armour",
     });
-    const line =
-      state.nations[1].productionLines[
-        state.nations[1].productionLines.length - 1
-      ];
+    const lines = state.nations[1].productionLines;
+    const line = lines[lines.length - 1];
     if (line === undefined) throw new Error("no line");
     applyEvent(state, {
       kind: "production_factories_assigned",
@@ -48,24 +47,20 @@ describe("the regent's construction", () => {
       lineId: line.id,
       factories: 1,
     });
-    state.nations[1].resources.oil = 0;
-    state.nations[1].regent.marketBudget = 0;
-    const s = situation(state, 1);
-    expect(s.scarcest).toBe("oil");
-    expect(s.shortfall).toBeGreaterThan(0);
-
-    const built: string[] = [];
-    for (let i = 0; i < 5 && !built.includes("synthetic_oil"); i++) {
-      built.push(...queued(visit(state)).map((o) => o.building));
-      finishQueue(state, 1);
+    state.nations[1].resources.material = 0;
+    for (const province of state.map.provinces) {
+      if (state.provinceController[province.id] !== 1) continue;
+      province.resourceDeposits.material = 0;
     }
-    expect(built).toContain("synthetic_oil");
-    // A refinery is the answer to a shortage, never a habit.
-    state.nations[1].resources.oil = 10_000;
+    expect(situation(state, 1).scarcest).toBe("material");
+
+    visit(state);
+    expect(state.nations[1].market.material).toBeGreaterThan(0);
+    // And it never queues a building that no longer exists.
     for (let i = 0; i < 5; i++) {
-      expect(queued(visit(state)).map((o) => o.building)).not.toContain(
-        "synthetic_oil",
-      );
+      for (const order of queued(visit(state))) {
+        expect(order.building).not.toMatch(/synthetic/);
+      }
       finishQueue(state, 1);
     }
   });

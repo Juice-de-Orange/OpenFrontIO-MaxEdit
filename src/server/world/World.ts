@@ -54,6 +54,7 @@ import type { Resource } from "src/shared/config/provinces";
 import { OCCUPATION_TICKS, RESOURCES } from "src/shared/config/provinces";
 import {
   DIVISION_MANPOWER,
+  RESOURCE_CAP,
   STARTING_CAPITAL_BUILDINGS,
   STARTING_RESOURCES,
 } from "src/shared/config/rates";
@@ -74,6 +75,7 @@ import {
 import { nationIsCoastal, temperamentOf } from "src/shared/config/temperament";
 import { TICKS_PER_DAY } from "src/shared/config/time";
 import {
+  BUILDING_TYPES,
   buildingIndex,
   BUILDINGS,
   type BuildingType,
@@ -212,7 +214,59 @@ export interface WorldChanges {
  * a changed function cannot tell corruption from its own history. That is
  * what lets a season survive a deploy (docs/decisions/0016).
  */
-export const STATE_HASH_VERSION = 6;
+/**
+ * A snapshot written before the simplification, read as one this build knows
+ * (decision 0029, hash version 7).
+ *
+ * Two things moved. The four resources became one, so a nation's four
+ * stockpiles are added up — a nation that had steel and no oil now has the
+ * sum, which is the same wealth counted once. And the two synthetic
+ * refineries left the building list, so every province's building row has to
+ * be re-indexed around the two holes; leaving that to a straight copy would
+ * silently turn every air base into a supply hub.
+ *
+ * Whatever stood in a refinery slot is discarded: there is nothing for it to
+ * become in a world with one resource.
+ */
+function migrateToOneResource(
+  snapshot: WorldSnapshot,
+  slots: number,
+): WorldSnapshot {
+  /** Old BUILDING_TYPES index → new, with -1 for the two that went. */
+  const REMAP = [0, 1, 2, -1, -1, 3, 4, 5, 6, 7];
+  const oldStride = REMAP.length;
+  const newStride = BUILDING_TYPES.length;
+  const provinces = Math.floor(snapshot.buildings.length / oldStride);
+  const buildings = new Array<number>(slots).fill(0);
+  if (snapshot.buildings.length % oldStride === 0) {
+    for (let province = 0; province < provinces; province++) {
+      for (let old = 0; old < oldStride; old++) {
+        const now = REMAP[old];
+        if (now < 0) continue;
+        const at = province * newStride + now;
+        if (at < buildings.length) {
+          buildings[at] = snapshot.buildings[province * oldStride + old];
+        }
+      }
+    }
+  }
+
+  const nations = snapshot.nations.map((nation) => {
+    let material = 0;
+    for (const amount of Object.values(nation.resources)) material += amount;
+    let order = 0;
+    for (const amount of Object.values(nation.market ?? {})) order += amount;
+    return {
+      ...nation,
+      resources: { material: Math.min(RESOURCE_CAP, material) },
+      market: { material: order },
+    };
+  });
+
+  return { ...snapshot, buildings, nations };
+}
+
+export const STATE_HASH_VERSION = 7;
 
 /**
  * Everything needed to put the world back, and nothing that can be derived.
@@ -849,9 +903,19 @@ export class World {
         );
       }
     }
-    if (snapshot.buildings.length !== this.state.buildings.length) {
+    // **A snapshot older than the simplification is translated, not
+    // refused** (decision 0029). Four resources became one and the two
+    // synthetic refineries went; a world in flight when that landed would
+    // otherwise have to be thrown away, and decision 0016 exists so that it
+    // does not. Older still than the versioning, and there is nothing to
+    // translate from.
+    const migrated =
+      (snapshot.hashVersion ?? 1) < 7
+        ? migrateToOneResource(snapshot, this.state.buildings.length)
+        : snapshot;
+    if (migrated.buildings.length !== this.state.buildings.length) {
       throw new Error(
-        `snapshot has ${snapshot.buildings.length} building slots, this world ` +
+        `snapshot has ${migrated.buildings.length} building slots, this world ` +
           `has ${this.state.buildings.length}; the building type list changed ` +
           `underneath a running world`,
       );
@@ -868,9 +932,9 @@ export class World {
       this.state.provinceController[i] = snapshot.controllers[i];
       this.state.provinceHeldSince[i] = snapshot.heldSince[i];
     }
-    this.state.buildings.set(snapshot.buildings);
-    for (let nation = 0; nation < snapshot.nations.length; nation++) {
-      const stored = snapshot.nations[nation];
+    this.state.buildings.set(migrated.buildings);
+    for (let nation = 0; nation < migrated.nations.length; nation++) {
+      const stored = migrated.nations[nation];
       const live = this.state.nations[nation];
       for (const resource of RESOURCES) {
         live.resources[resource] = stored.resources[resource] ?? 0;

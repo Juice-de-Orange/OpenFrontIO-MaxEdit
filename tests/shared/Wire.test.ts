@@ -72,7 +72,7 @@ describe("the wire protocol", () => {
             type: "trade",
             parties: [1, 2],
             terms: {
-              resource: "steel",
+              resource: "material",
               resourcePerTick: 0.5,
               pointsPerTick: 0.25,
             },
@@ -99,20 +99,23 @@ describe("the wire protocol", () => {
         },
         economy: {
           nation: 1,
-          resources: { steel: 200, oil: 100, aluminium: 100, rubber: 50 },
+          resources: {
+            material: 450,
+          },
           civilianFactories: 3,
-          extractionPerTick: { steel: 0.25, oil: 0, aluminium: 0, rubber: 0 },
-          demandPerTick: { steel: 0.2, oil: 0, aluminium: 0.04, rubber: 0 },
+          extractionPerTick: {
+            material: 0.25,
+          },
+          demandPerTick: {
+            material: 0.24,
+          },
           sufficiency: 1,
           constructionPerTick: 1.5,
           industryPerTick: 0.4,
           tradePointsIn: 0.5,
           tradePointsOut: 0.25,
           tradeResourcePerTick: {
-            steel: 0.1,
-            oil: 0,
-            aluminium: -0.05,
-            rubber: 0,
+            material: 0.05,
           },
           queue: [
             {
@@ -301,11 +304,18 @@ describe("the wire protocol", () => {
     // 18 is the temperament and the equipment trade: every nation carries its
     // ruler's archetype, and a trade's terms may name equipment beside the
     // resource. A v17 client would refuse every full state as malformed.
-    expect(PROTOCOL_VERSION).toBe(18);
+    // 19 is the simplification (decision 0029): one resource where there
+    // were four, so `ResourceAmounts` is a different shape and a v18 client
+    // would read every economy wrong rather than not at all.
+    expect(PROTOCOL_VERSION).toBe(19);
   });
 
   test("a trade's terms may name equipment, and need not (decision 0027)", () => {
-    const plain = { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 1 };
+    const plain = {
+      resource: "material",
+      resourcePerTick: 0.5,
+      pointsPerTick: 1,
+    };
     expect(TradeTermsSchema.safeParse(plain).success).toBe(true);
     const armed = { ...plain, equipment: { type: "fighter", perTick: 1 } };
     expect(TradeTermsSchema.safeParse(armed).success).toBe(true);

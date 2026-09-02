@@ -23,7 +23,7 @@ import {
  * under a player who is typing into it.
  */
 function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
-  const zero = { steel: 0, oil: 0, aluminium: 0, rubber: 0 };
+  const zero = { material: 0 };
   return {
     nation: 1,
     resources: { ...zero },
@@ -68,7 +68,7 @@ function agreement(over: Partial<AgreementView> = {}): AgreementView {
     type: "trade",
     parties: [1, 2],
     terms: {
-      resource: "steel",
+      resource: "material",
       resourcePerTick: 0.5,
       pointsPerTick: 0.25,
     },

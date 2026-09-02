@@ -14,7 +14,7 @@ import type { NationEconomyView } from "../../../src/shared/protocol/Wire";
  * the construction comes from.
  */
 function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
-  const zero = { steel: 0, oil: 0, aluminium: 0, rubber: 0 };
+  const zero = { material: 0 };
   return {
     nation: 1,
     resources: { ...zero },

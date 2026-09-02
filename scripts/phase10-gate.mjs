@@ -45,7 +45,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 18;
+const PROTOCOL_VERSION = 19;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -838,7 +838,7 @@ async function land(spectator, provinces) {
   // for a hundred thousand ticks has an empty vault. The world market is
   // always open and needs no diplomacy (§6.5) — it costs the invader
   // construction points, which is exactly the price the design intends.
-  for (const resource of ["steel", "oil"]) {
+  for (const resource of ["material"]) {
     await invader.command(
       { kind: "set_market_order", resource, perTick: 1 },
       `inv-buy-${resource}`,
@@ -1232,7 +1232,11 @@ async function sea(spectator, provinces) {
         kind: "propose_agreement",
         to: island,
         type: "trade",
-        terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
+        terms: {
+          resource: "material",
+          resourcePerTick: 0.5,
+          pointsPerTick: 0.25,
+        },
       },
       `offer-${candidate}`,
     );

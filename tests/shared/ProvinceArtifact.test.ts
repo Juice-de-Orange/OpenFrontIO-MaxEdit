@@ -256,21 +256,30 @@ describe("derived province attributes", () => {
     expect([...found].sort()).toEqual([...RESOURCES].sort());
   });
 
-  test("no nation is self-sufficient in everything", () => {
-    const byNation = new Map<number, Set<string>>();
+  test("the ground is lopsided, so trade has something to be about", () => {
+    // The four resources were lopsided in *which* one a terrain carried; the
+    // one is lopsided in how much (decision 0029). Either way a nation has a
+    // shape, and §6.5's trade is what a poor nation does about it.
+    const byNation = new Map<number, number>();
     for (const province of loaded.provinces) {
-      const have = byNation.get(province.nation) ?? new Set<string>();
-      for (const resource of Object.keys(province.resourceDeposits)) {
-        have.add(resource);
+      if (province.nation <= 0) continue;
+      let total = 0;
+      for (const amount of Object.values(province.resourceDeposits)) {
+        total += amount;
       }
-      byNation.set(province.nation, have);
+      byNation.set(
+        province.nation,
+        (byNation.get(province.nation) ?? 0) + total,
+      );
     }
-    const complete = [...byNation.values()].filter(
-      (have) => have.size === RESOURCES.length,
-    );
-    // Some large nations will have all four; most must not, or the economy
-    // has no shape and trade is decoration.
-    expect(complete.length).toBeLessThan(byNation.size / 2);
+    const holdings = [...byNation.values()].sort((a, b) => a - b);
+    expect(holdings.length).toBeGreaterThan(20);
+    const poorest = holdings[Math.floor(holdings.length * 0.25)];
+    const richest = holdings[Math.floor(holdings.length * 0.75)];
+    // The upper quartile holds at least twice what the lower one does.
+    expect(richest).toBeGreaterThan(poorest * 2);
+    // And somebody has nothing to dig at all: the market exists for them.
+    expect(holdings[0]).toBeLessThan(richest / 4);
   });
 });
 

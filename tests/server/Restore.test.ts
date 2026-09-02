@@ -184,7 +184,11 @@ describe("restore", () => {
       kind: "propose_agreement",
       to: 2,
       type: "trade",
-      terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
+      terms: {
+        resource: "material",
+        resourcePerTick: 0.5,
+        pointsPerTick: 0.25,
+      },
     });
     expect(offered.accepted).toBe(true);
     await runner.tickOnce();

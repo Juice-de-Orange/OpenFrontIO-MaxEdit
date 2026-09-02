@@ -261,7 +261,7 @@ describe("the sea half of phase 9", () => {
           to: 2,
           type: "trade",
           terms: {
-            resource: "steel",
+            resource: "material",
             resourcePerTick: 0.5,
             pointsPerTick: 0.25,
           },
@@ -288,7 +288,7 @@ describe("the sea half of phase 9", () => {
         nation: 2,
         other: 1,
         type: "trade",
-        terms: { resource: "steel", pointsPerTick: 0.25, ...terms } as never,
+        terms: { resource: "material", pointsPerTick: 0.25, ...terms } as never,
       });
       const id = state.agreements[before].id;
       applyEvent(state, { kind: "agreement_accepted", agreementId: id });
@@ -446,12 +446,16 @@ describe("the sea half of phase 9", () => {
       id: 1,
       type: "trade",
       parties: [2, 1],
-      terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
+      terms: {
+        resource: "material",
+        resourcePerTick: 0.5,
+        pointsPerTick: 0.25,
+      },
       accepted: true,
       noticeAt: null,
       noticeBy: null,
     });
-    state.nations[2].resources.steel = 100;
+    state.nations[2].resources.material = 100;
     const capital = state.map.provinces.find(
       (p) => p.capital && state.provinceController[p.id] === 1,
     ) as { id: number };
@@ -488,12 +492,16 @@ describe("the sea half of phase 9", () => {
       id: 1,
       type: "trade",
       parties: [2, 1],
-      terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
+      terms: {
+        resource: "material",
+        resourcePerTick: 0.5,
+        pointsPerTick: 0.25,
+      },
       accepted: true,
       noticeAt: null,
       noticeBy: null,
     });
-    state.nations[2].resources.steel = 100;
+    state.nations[2].resources.material = 100;
     // The buyer needs points to pay with: civilian factories at its capital.
     const capital = state.map.provinces.find(
       (p) => p.capital && state.provinceController[p.id] === 1,
@@ -502,10 +510,10 @@ describe("the sea half of phase 9", () => {
     setBuilding(state, (capital as { id: number }).id, "civilian_factory", 4);
 
     const carried = nationTrade(state, 1);
-    expect(carried.resourceIn.steel).toBeGreaterThan(0);
+    expect(carried.resourceIn.material).toBeGreaterThan(0);
 
     state.nations[1].stockpile[equipmentIndex("convoy")] = 0;
     const stranded = nationTrade(state, 1);
-    expect(stranded.resourceIn.steel).toBe(0);
+    expect(stranded.resourceIn.material).toBe(0);
   });
 });

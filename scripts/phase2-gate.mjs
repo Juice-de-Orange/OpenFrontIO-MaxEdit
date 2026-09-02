@@ -56,7 +56,7 @@ const MAP_ID = process.env.MAP_ID ?? "europe";
  * reads this line and compares it, because a gate that stops at "the world
  * refused the connection" is the gate failing rather than the world.
  */
-const PROTOCOL_VERSION = 18;
+const PROTOCOL_VERSION = 19;
 
 /** How long to wait for a message that should arrive within a tick or two. */
 const MESSAGE_TIMEOUT_MS = 30_000;

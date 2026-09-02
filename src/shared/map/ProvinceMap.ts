@@ -139,6 +139,34 @@ export function encodeProvinceMap(input: EncodeInput): Uint8Array {
 }
 
 /**
+ * One resource where the artefact has four (decision 0029).
+ *
+ * The map artefacts on disk were generated when there were steel, oil,
+ * aluminium and rubber, and regenerating them would move every province id
+ * and end the running season for a change that is about arithmetic. So the
+ * four deposits are added up here, on the way in: a province that was rich
+ * in three things is rich in the one thing, and the lopsidedness §6.5's
+ * trade needs survives as *how much* rather than *which*.
+ *
+ * A province whose deposits are already collapsed passes through unchanged,
+ * so a regenerated artefact costs nothing.
+ */
+function collapseDeposits(province: Province): Province {
+  const deposits = province.resourceDeposits as Record<string, number>;
+  let total = 0;
+  let already = true;
+  for (const [key, amount] of Object.entries(deposits)) {
+    if (key !== "material") already = false;
+    total += amount;
+  }
+  if (already) return province;
+  return {
+    ...province,
+    resourceDeposits: total > 0 ? { material: total } : {},
+  };
+}
+
+/**
  * FNV-1a over the artefact.
  *
  * The same function `terrainHashFnv1a` uses, over different bytes. It goes in
@@ -256,7 +284,7 @@ export function decodeProvinceMap(
     terrainHash,
     airZoneCount,
     seaZoneCount,
-    provinces: meta.provinces,
+    provinces: meta.provinces.map(collapseDeposits),
     provinceOfTile,
     seaZoneOfTile,
     borderTiles: computeBorderTiles(provinceOfTile, width, height),

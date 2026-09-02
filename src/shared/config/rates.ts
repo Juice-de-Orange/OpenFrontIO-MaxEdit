@@ -76,13 +76,11 @@ export const DOCKYARD_OUTPUT = 0.4;
  * costs — see docs/decisions/0009 for why, and for what it protects.
  */
 export const MILITARY_FACTORY_DEMAND: Partial<Record<Resource, number>> = {
-  steel: 0.2,
-  aluminium: 0.04,
+  material: 0.24,
 };
 
 export const DOCKYARD_DEMAND: Partial<Record<Resource, number>> = {
-  steel: 0.25,
-  rubber: 0.03,
+  material: 0.28,
 };
 
 /**
@@ -110,16 +108,16 @@ export const EQUIPMENT_MATERIALS: Record<
   EquipmentType,
   Partial<Record<Resource, number>>
 > = {
-  infantry_equipment: { steel: 0.2, aluminium: 0.02 },
-  artillery: { steel: 0.3, aluminium: 0.04 },
-  armour: { steel: 0.55, rubber: 0.06, oil: 0.05 },
-  fighter: { steel: 0.15, aluminium: 0.3 },
-  bomber: { steel: 0.2, aluminium: 0.4 },
-  transport: { steel: 0.25, rubber: 0.07 },
-  convoy: { steel: 0.25 },
-  submarine: { steel: 0.4, oil: 0.06 },
-  escort: { steel: 0.35, aluminium: 0.05 },
-  capital_ship: { steel: 0.65, aluminium: 0.08, oil: 0.05 },
+  infantry_equipment: { material: 0.22 },
+  artillery: { material: 0.34 },
+  armour: { material: 0.66 },
+  fighter: { material: 0.45 },
+  bomber: { material: 0.6 },
+  transport: { material: 0.32 },
+  convoy: { material: 0.25 },
+  submarine: { material: 0.46 },
+  escort: { material: 0.4 },
+  capital_ship: { material: 0.78 },
 };
 
 // ---------------------------------------------------------------------------
@@ -235,10 +233,7 @@ export const STARTING_CAPITAL_BUILDINGS = {
  * than in week three.
  */
 export const STARTING_RESOURCES: Record<Resource, number> = {
-  steel: 200,
-  oil: 100,
-  aluminium: 100,
-  rubber: 50,
+  material: 450,
 };
 
 /**

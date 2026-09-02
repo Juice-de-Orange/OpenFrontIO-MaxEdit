@@ -172,9 +172,9 @@ describe("a finished tech changes a number", () => {
     const before = measureNation(world.view(), nation).extraction;
     research("excavation");
     const after = measureNation(world.view(), nation).extraction;
-    const moved = (["steel", "oil", "aluminium", "rubber"] as const).some(
-      (r) => after[r] > before[r],
-    );
+    const moved = (
+      ["material", "material", "material", "material"] as const
+    ).some((r) => after[r] > before[r]);
     expect(moved, "no resource yields more than it did").toBe(true);
   });
 

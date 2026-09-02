@@ -109,15 +109,15 @@ describe("the economy system", () => {
     const full = world.economyOf(nation);
     expect(full.sufficiency).toBe(1);
     expect(full.industry).toBeGreaterThan(0);
-    expect(full.demand.steel).toBeGreaterThan(0);
+    expect(full.demand.material).toBeGreaterThan(0);
 
     // Half of one tick's steel demand, and no mine to top it up.
     const state = world.view();
     for (const province of map.provinces) {
       if (state.provinceController[province.id] !== nation) continue;
-      province.resourceDeposits.steel = undefined;
+      province.resourceDeposits.material = undefined;
     }
-    state.nations[nation].resources.steel = full.demand.steel / 2;
+    state.nations[nation].resources.material = full.demand.material / 2;
 
     const short = world.economyOf(nation);
     expect(short.sufficiency).toBeCloseTo(0.5, 6);
@@ -144,7 +144,7 @@ describe("the economy system", () => {
     expect(economy.sufficiency).toBe(0);
     expect(economy.industry).toBe(0);
     // The factories are still there and still counted; they are simply idle.
-    expect(economy.demand.steel).toBeGreaterThan(0);
+    expect(economy.demand.material).toBeGreaterThan(0);
     expect(economy.construction).toBeGreaterThan(0);
 
     // And a tick over an empty stockpile does not go negative.
@@ -158,8 +158,8 @@ describe("the economy system", () => {
 
   test("a military factory draws exactly what the config says", () => {
     const economy = measureNation(world.view(), nation);
-    expect(economy.demand.steel).toBeCloseTo(
-      (MILITARY_FACTORY_DEMAND.steel ?? 0) *
+    expect(economy.demand.material).toBeCloseTo(
+      (MILITARY_FACTORY_DEMAND.material ?? 0) *
         STARTING_CAPITAL_BUILDINGS.military_factory,
       9,
     );
@@ -324,9 +324,9 @@ describe("five hundred ticks of invariants", () => {
     // guard at the bottom is what caught it.
     for (const province of map.provinces) {
       if (province.nation !== nation) continue;
-      province.resourceDeposits.steel = undefined;
+      province.resourceDeposits.material = undefined;
     }
-    state.nations[nation].resources.steel = 1;
+    state.nations[nation].resources.material = 1;
 
     let slotOverruns = 0;
     let negative = 0;
@@ -427,8 +427,8 @@ describe("what a factory draws depends on what it makes", () => {
 
   test("a factory on no line draws the flat rate", () => {
     const held = STARTING_CAPITAL_BUILDINGS.military_factory;
-    expect(demand().steel).toBeCloseTo(
-      (MILITARY_FACTORY_DEMAND.steel ?? 0) * held,
+    expect(demand().material).toBeCloseTo(
+      (MILITARY_FACTORY_DEMAND.material ?? 0) * held,
       9,
     );
   });
@@ -442,8 +442,8 @@ describe("what a factory draws depends on what it makes", () => {
     command({ kind: "assign_factories", lineId: line, factories: 1 });
 
     const rifles = { ...demand() };
-    expect(rifles.steel).toBeCloseTo(
-      EQUIPMENT_MATERIALS.infantry_equipment.steel ?? 0,
+    expect(rifles.material).toBeCloseTo(
+      EQUIPMENT_MATERIALS.infantry_equipment.material ?? 0,
       9,
     );
 
@@ -454,26 +454,28 @@ describe("what a factory draws depends on what it makes", () => {
     });
     const tanks = { ...demand() };
 
-    expect(tanks.steel).toBeCloseTo(EQUIPMENT_MATERIALS.armour.steel ?? 0, 9);
-    expect(tanks.steel).toBeGreaterThan(rifles.steel);
-    // And it asks for things a rifle line never needed at all.
-    expect(rifles.rubber).toBe(0);
-    expect(tanks.rubber).toBeGreaterThan(0);
-    expect(tanks.oil).toBeGreaterThan(0);
+    expect(tanks.material).toBeCloseTo(
+      EQUIPMENT_MATERIALS.armour.material ?? 0,
+      9,
+    );
+    // Three times the drain of a rifle line, from the same factory count:
+    // choosing what to build is still an economic decision and not only an
+    // industrial one (decision 0009), with one number instead of four.
+    expect(tanks.material).toBeGreaterThan(rifles.material * 2);
   });
 
   test("taking the factories off a line puts it back on the flat rate", () => {
     command({ kind: "create_production_line", equipment: "armour" });
     const line = world.view().nations[nation].productionLines[0].id;
     command({ kind: "assign_factories", lineId: line, factories: 1 });
-    expect(demand().steel).toBeCloseTo(
-      EQUIPMENT_MATERIALS.armour.steel ?? 0,
+    expect(demand().material).toBeCloseTo(
+      EQUIPMENT_MATERIALS.armour.material ?? 0,
       9,
     );
 
     command({ kind: "assign_factories", lineId: line, factories: 0 });
-    expect(demand().steel).toBeCloseTo(
-      (MILITARY_FACTORY_DEMAND.steel ?? 0) *
+    expect(demand().material).toBeCloseTo(
+      (MILITARY_FACTORY_DEMAND.material ?? 0) *
         STARTING_CAPITAL_BUILDINGS.military_factory,
       9,
     );

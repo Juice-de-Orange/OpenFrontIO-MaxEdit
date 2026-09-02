@@ -45,7 +45,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 18;
+const PROTOCOL_VERSION = 19;
 
 /** Above this the notice period alone would take four minutes. */
 const MAX_TICK_MS = 200;
@@ -61,7 +61,7 @@ const TRUST_COST_TRADE = 5;
 const RESOURCE_CAP = 5000;
 
 /** The terms this gate offers. Small enough for a nation on its first day. */
-const RESOURCE = "steel";
+const RESOURCE = "material";
 const RESOURCE_PER_TICK = 0.5;
 const POINTS_PER_TICK = 0.25;
 

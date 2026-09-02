@@ -13,14 +13,10 @@
  * has been misled by the UI rather than by the game.
  */
 
-import type { Resource } from "../config/provinces";
-
 export const BUILDING_TYPES = [
   "civilian_factory",
   "military_factory",
   "dockyard",
-  "synthetic_oil",
-  "synthetic_rubber",
   "air_base",
   "naval_base",
   "supply_hub",
@@ -68,8 +64,6 @@ export const BUILDINGS: Record<BuildingType, BuildingSpec> = {
   civilian_factory: { cost: 360, takesSlot: true, coastalOnly: false },
   military_factory: { cost: 300, takesSlot: true, coastalOnly: false },
   dockyard: { cost: 300, takesSlot: true, coastalOnly: true },
-  synthetic_oil: { cost: 400, takesSlot: true, coastalOnly: false },
-  synthetic_rubber: { cost: 400, takesSlot: true, coastalOnly: false },
   air_base: { cost: 250, takesSlot: true, coastalOnly: false },
   naval_base: { cost: 250, takesSlot: true, coastalOnly: true },
   supply_hub: { cost: 150, takesSlot: true, coastalOnly: false },
@@ -86,26 +80,5 @@ export const BUILDINGS: Record<BuildingType, BuildingSpec> = {
     takesSlot: false,
     coastalOnly: false,
     maxPerProvince: 5,
-  },
-};
-
-/**
- * A synthetic refinery's conversion, per building per tick.
- *
- * Deliberately unfavourable (§6.1): this is the answer to being resource
- * starved with nobody to trade with, and it has to be worse than trading or
- * §6.5 has no reason to exist. It is also the only path that does not depend
- * on diplomacy, which is what makes a landlocked nation playable.
- */
-export const SYNTHETIC: Record<
-  "synthetic_oil" | "synthetic_rubber",
-  { from: Resource; fromRate: number; to: Resource; toRate: number }
-> = {
-  synthetic_oil: { from: "steel", fromRate: 0.5, to: "oil", toRate: 0.2 },
-  synthetic_rubber: {
-    from: "steel",
-    fromRate: 0.5,
-    to: "rubber",
-    toRate: 0.15,
   },
 };

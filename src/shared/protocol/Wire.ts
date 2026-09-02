@@ -36,7 +36,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 18;
+export const PROTOCOL_VERSION = 19;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -506,10 +506,12 @@ export const ServerRejectSchema = z.object({
  * place it can be got wrong.
  */
 export const ResourceAmountsSchema = z.object({
-  steel: z.number(),
-  oil: z.number(),
-  aluminium: z.number(),
-  rubber: z.number(),
+  /**
+   * The one resource (decision 0029). A named field rather than a bare
+   * number, so a second one ever being added back is an added key and not a
+   * changed shape.
+   */
+  material: z.number(),
 });
 export type ResourceAmounts = z.infer<typeof ResourceAmountsSchema>;
 

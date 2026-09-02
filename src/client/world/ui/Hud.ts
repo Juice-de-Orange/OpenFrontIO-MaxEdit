@@ -180,10 +180,20 @@ const STYLE = `
   background: rgba(110,168,254,.26); color: #fff;
   border-color: rgba(110,168,254,.65);
 }
-/* The clock, then who you are. The clock takes the auto margin so both sit
-   on the right; the badge is separated from it by a hairline. */
+/* The three numbers that decide everything, then the clock, then who you
+   are. The purse takes the auto margin so all of it sits on the right. */
+#world-menu .purse {
+  margin-left: auto; display: flex; gap: .9rem; align-items: baseline;
+  font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+#world-menu .purse .coin { display: flex; gap: .3rem; align-items: baseline; }
+#world-menu .purse .coin .what { color: #8d97a8; font-size: 12px; }
+#world-menu .purse .coin .much { color: #e7edf6; font-weight: 600; }
+#world-menu .purse .coin .move { font-size: 12px; }
+#world-menu .purse .coin .move.up { color: #7fce8f; }
+#world-menu .purse .coin .move.down { color: #e4808a; }
 #world-menu .clock {
-  margin-left: auto; font-size: 13px; color: #aab4c4; white-space: nowrap;
+  margin-left: .9rem; font-size: 13px; color: #aab4c4; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 #world-menu select.lang {
@@ -204,12 +214,19 @@ const STYLE = `
   width: .8rem; height: .8rem; border-radius: 3px;
   border: 1px solid rgba(0,0,0,.5);
 }
-/* Narrow windows drop the labels rather than the buttons. 78rem, not 60:
-   with all six labels the bar needs about 1140px, so a 1024px window was
-   overflowing while still being told it was wide enough. */
-@media (max-width: 78rem) {
-  #world-menu button .label { display: none; }
+/* Narrow windows drop the labels rather than the buttons. The purse is
+   three numbers wide and never folds: it is the one thing that has to be
+   readable without opening anything, so what gives way around it is the
+   tagline first, then the button labels, then the rates beside the
+   totals. 96rem, not 78: the purse costs about 330px. */
+@media (max-width: 96rem) {
   #world-menu .brand span { display: none; }
+}
+@media (max-width: 84rem) {
+  #world-menu button .label { display: none; }
+}
+@media (max-width: 62rem) {
+  #world-menu .purse .coin .move { display: none; }
 }
 #world-hud .spectator { color: #aab4c4; margin: 0 0 .6rem; }
 #world-hud input[type=number] {
@@ -441,6 +458,7 @@ export class Hud {
   private identity: HTMLElement | null = null;
   /** The in-game day and hour, beside the identity. */
   private clock: HTMLElement | null = null;
+  private purse: HTMLElement | null = null;
   /** The spectator's answer, built once and moved between panels. */
   private spectatorNote: HTMLElement | null = null;
 
@@ -515,6 +533,15 @@ export class Hud {
       bar.appendChild(button);
     }
 
+    // **The three numbers everything else is spent out of**, on screen at
+    // all times. They used to live inside the economy panel, one of six, so
+    // a player who had not opened that panel did not know what they had —
+    // and the first thing anyone asked was which resources they even owned.
+    // A number you have to go and look for is a number you do not have.
+    this.purse = document.createElement("div");
+    this.purse.className = "purse";
+    bar.append(this.purse);
+
     // What time it is. Every rate on screen is per day and every estimate
     // is in days; until the bar said which day it was, none of them had a
     // scale a player could feel.
@@ -580,6 +607,60 @@ export class Hud {
     help.className = "help";
     help.textContent = t(key);
     return [element, help];
+  }
+
+  /**
+   * Material, construction and men, with the direction each is moving.
+   *
+   * Three, and no more: these are what every other decision is paid out of,
+   * and a bar that carried six numbers would be the panel it replaced. The
+   * arrow matters more than the total — a stock of 900 says nothing, 900
+   * falling by 30 a day says you have a month.
+   */
+  private renderPurse(model: HudModel): void {
+    const box = this.purse;
+    if (box === null) return;
+    box.replaceChildren();
+    const economy = model.economy;
+    if (economy === null) return;
+
+    const coin = (what: string, much: string, move: number | null): void => {
+      const holder = document.createElement("span");
+      holder.className = "coin";
+      const label = document.createElement("span");
+      label.className = "what";
+      label.textContent = what;
+      const value = document.createElement("span");
+      value.className = "much";
+      value.textContent = much;
+      holder.append(label, value);
+      if (move !== null && Math.abs(move) > 1e-9) {
+        const arrow = document.createElement("span");
+        arrow.className = `move ${move > 0 ? "up" : "down"}`;
+        arrow.textContent = perDay(move);
+        holder.append(arrow);
+      }
+      box.append(holder);
+    };
+
+    const resource = RESOURCES[0];
+    coin(
+      t(`economy.${resource}` as StringKey),
+      amount(economy.resources[resource]),
+      economy.extractionPerTick[resource] -
+        economy.demandPerTick[resource] * economy.sufficiency +
+        economy.tradeResourcePerTick[resource],
+    );
+    coin(
+      t("bar.construction"),
+      perDay(
+        economy.constructionPerTick -
+          economy.tradePointsOut +
+          economy.tradePointsIn,
+      ),
+      null,
+    );
+    coin(t("bar.manpower"), amount(economy.manpower), null);
   }
 
   /** Day and hour, from the tick alone (§4: one tick is one in-game hour). */
@@ -676,6 +757,7 @@ export class Hud {
     this.renderResearch(model);
     this.renderDiplomacy(model);
     this.renderAir(model);
+    this.renderPurse(model);
     this.renderClock(model);
     this.renderIdentity(model);
     // Last, because it overrides a panel the renderers above just hid.
@@ -741,7 +823,7 @@ export class Hud {
         "help.economy.resources",
         heading(t("economy.resources")),
       ),
-      ...(["steel", "oil", "aluminium", "rubber"] as const).map((resource) =>
+      ...RESOURCES.map((resource) =>
         row(
           t(`economy.${resource}` as StringKey),
           // The stock, and what it is moving by. Invariant 1 again: a player

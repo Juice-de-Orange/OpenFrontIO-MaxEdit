@@ -156,17 +156,11 @@ export const MAX_TRADE_EQUIPMENT_PER_TICK = 2;
  * makes the market a decision rather than a button.
  */
 export const MARKET_BUY_POINTS: Readonly<Record<Resource, number>> = {
-  steel: 4,
-  oil: 6,
-  aluminium: 5,
-  rubber: 6,
+  material: 5,
 };
 
 export const MARKET_SELL_POINTS: Readonly<Record<Resource, number>> = {
-  steel: 1,
-  oil: 1.5,
-  aluminium: 1.25,
-  rubber: 1.5,
+  material: 1.25,
 };
 
 /** The most a nation may ask the market for per tick, in either direction. */

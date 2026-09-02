@@ -25,7 +25,6 @@ import {
   UT_DOCKYARD,
   UT_MILITARY_FACTORY,
   UT_NAVAL_BASE,
-  UT_REFINERY,
   UT_SUPPLY_HUB,
 } from "src/client/render/types/UnitType";
 import {
@@ -48,8 +47,6 @@ import type { ProvinceTileIndex } from "./ProvinceTileIndex";
 export const STRUCTURE_ICON: Partial<Record<BuildingType, string>> = {
   civilian_factory: UT_CIVILIAN_FACTORY,
   military_factory: UT_MILITARY_FACTORY,
-  synthetic_oil: UT_REFINERY,
-  synthetic_rubber: UT_REFINERY,
   dockyard: UT_DOCKYARD,
   naval_base: UT_NAVAL_BASE,
   air_base: UT_AIR_BASE,

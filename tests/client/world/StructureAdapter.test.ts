@@ -78,7 +78,6 @@ describe("structuresOf", () => {
       .filter(([type]) => !type.startsWith("synthetic_"))
       .map(([, icon]) => icon);
     expect(new Set(icons).size).toBe(icons.length);
-    expect(STRUCTURE_ICON.synthetic_oil).toBe(STRUCTURE_ICON.synthetic_rubber);
   });
 
   test("a built factory becomes one structure on one of its province's tiles", () => {

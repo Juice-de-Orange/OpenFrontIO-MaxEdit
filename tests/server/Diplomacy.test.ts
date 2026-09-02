@@ -261,7 +261,7 @@ describe("agreements", () => {
           to: 2,
           type: "alliance",
           terms: {
-            resource: "steel",
+            resource: "material",
             resourcePerTick: 1,
             pointsPerTick: 1,
           },
@@ -277,7 +277,11 @@ describe("agreements", () => {
         kind: "propose_agreement",
         to: 2,
         type: "trade",
-        terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
+        terms: {
+          resource: "material",
+          resourcePerTick: 0.5,
+          pointsPerTick: 0.25,
+        },
       },
     });
     const id = agreementId(world);
@@ -316,7 +320,7 @@ describe("agreements", () => {
 
   test("a trade in the other direction is a different agreement", () => {
     const terms = {
-      resource: "steel" as const,
+      resource: "material" as const,
       resourcePerTick: 0.5,
       pointsPerTick: 0.25,
     };
@@ -349,7 +353,7 @@ describe("agreements", () => {
           kind: "propose_agreement",
           to: 1,
           type: "trade",
-          terms: { ...terms, resource: "oil" },
+          terms: { ...terms, resource: "material" },
         },
       }),
     ).toBeNull();
@@ -388,10 +392,10 @@ describe("agreements", () => {
     // with CloseCode.Malformed — which the client treats as terminal. A number
     // the world dislikes is a game rule, and game rules are answered (§7).
     for (const terms of [
-      { resource: "steel" as const, resourcePerTick: 0, pointsPerTick: 1 },
-      { resource: "steel" as const, resourcePerTick: 1, pointsPerTick: 0 },
-      { resource: "steel" as const, resourcePerTick: 999, pointsPerTick: 1 },
-      { resource: "steel" as const, resourcePerTick: 1, pointsPerTick: -3 },
+      { resource: "material" as const, resourcePerTick: 0, pointsPerTick: 1 },
+      { resource: "material" as const, resourcePerTick: 1, pointsPerTick: 0 },
+      { resource: "material" as const, resourcePerTick: 999, pointsPerTick: 1 },
+      { resource: "material" as const, resourcePerTick: 1, pointsPerTick: -3 },
     ]) {
       const body = {
         kind: "propose_agreement" as const,
@@ -404,7 +408,7 @@ describe("agreements", () => {
     }
     const market = {
       kind: "set_market_order" as const,
-      resource: "steel" as const,
+      resource: "material" as const,
       perTick: 500,
     };
     expect(CommandBodySchema.safeParse(market).success).toBe(true);
@@ -423,7 +427,7 @@ describe("agreements", () => {
         },
       });
     const rifles = (perTick: number, resourcePerTick = 0) => ({
-      resource: "steel" as const,
+      resource: "material" as const,
       resourcePerTick,
       pointsPerTick: 1,
       equipment: { type: "infantry_equipment" as const, perTick },
@@ -435,7 +439,7 @@ describe("agreements", () => {
     // A resource rate of zero is fine when equipment rides, and refused alone.
     expect(offer(rifles(1))).toBeNull();
     expect(
-      offer({ resource: "steel", resourcePerTick: 0, pointsPerTick: 1 }),
+      offer({ resource: "material", resourcePerTick: 0, pointsPerTick: 1 }),
     ).toMatch(/a day/);
     // The shape passes the wire either way: limits are the world's (§7).
     expect(
@@ -460,7 +464,7 @@ describe("agreements", () => {
     });
     expect(offer(rifles(1))).toMatch(/already/);
     expect(
-      offer({ resource: "steel", resourcePerTick: 1, pointsPerTick: 1 }),
+      offer({ resource: "material", resourcePerTick: 1, pointsPerTick: 1 }),
     ).toBeNull();
   });
 
@@ -472,7 +476,7 @@ describe("agreements", () => {
         to: 2,
         type: "trade",
         terms: {
-          resource: "oil",
+          resource: "material",
           resourcePerTick: 0.5,
           pointsPerTick: 1,
           equipment: { type: "fighter", perTick: 0.5 },
@@ -486,7 +490,7 @@ describe("agreements", () => {
     });
     send(world, {
       nation: 1,
-      body: { kind: "set_market_order", resource: "rubber", perTick: -0.25 },
+      body: { kind: "set_market_order", resource: "material", perTick: -0.25 },
     });
     send(world, {
       nation: 2,
@@ -511,7 +515,7 @@ describe("agreements", () => {
     // so a world that came back having forgotten a promise cannot match.
     expect(restored.stateHash()).toBe(before);
     const agreement = restored.view().agreements.find((a) => a.id === id);
-    expect(agreement?.terms?.resource).toBe("oil");
+    expect(agreement?.terms?.resource).toBe("material");
     expect(agreement?.terms?.equipment).toEqual({
       type: "fighter",
       perTick: 0.5,
@@ -529,7 +533,7 @@ describe("agreements", () => {
     expect(restored.view().nations[2].trust).toBe(
       TRUST_START - TRUST_COST.alliance,
     );
-    expect(restored.view().nations[1].market.rubber).toBe(-0.25);
+    expect(restored.view().nations[1].market.material).toBe(-0.25);
     // And the next agreement gets a fresh id rather than reusing one.
     expect(restored.view().nextAgreementId).toBe(world.view().nextAgreementId);
   });

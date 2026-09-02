@@ -31,7 +31,6 @@ import {
   MILITARY_FACTORY_DEMAND,
   OCCUPIED_OUTPUT_FACTOR,
 } from "src/shared/config/rates";
-import { SYNTHETIC } from "src/shared/economy/Buildings";
 import type { System } from ".";
 import {
   assignedFactories,
@@ -61,7 +60,7 @@ export interface NationEconomy {
 }
 
 function zeroed(): Record<Resource, number> {
-  return { steel: 0, oil: 0, aluminium: 0, rubber: 0 };
+  return { material: 0 };
 }
 
 /**
@@ -168,13 +167,6 @@ export function measureNation(
       (military * militaryOutput + dockyards * dockyardOutput) * industryFactor;
     militaryHeld += military;
     dockyardsHeld += dockyards;
-
-    for (const kind of ["synthetic_oil", "synthetic_rubber"] as const) {
-      const count = countBuilding(state, province, kind);
-      if (count === 0) continue;
-      const recipe = SYNTHETIC[kind];
-      demand[recipe.from] += recipe.fromRate * count;
-    }
   }
 
   // What a factory draws depends on what it is making (§6.2 and decision
@@ -234,30 +226,6 @@ function addDemand(
   }
 }
 
-/** What the synthetic refineries turn steel into, at this sufficiency. */
-function syntheticOutput(
-  state: WorldState,
-  nation: number,
-  sufficiency: number,
-): Partial<Record<Resource, number>> {
-  const produced: Partial<Record<Resource, number>> = {};
-  for (
-    let province = 0;
-    province < state.provinceController.length;
-    province++
-  ) {
-    if (state.provinceController[province] !== nation) continue;
-    for (const kind of ["synthetic_oil", "synthetic_rubber"] as const) {
-      const count = countBuilding(state, province, kind);
-      if (count === 0) continue;
-      const recipe = SYNTHETIC[kind];
-      produced[recipe.to] =
-        (produced[recipe.to] ?? 0) + recipe.toRate * count * sufficiency;
-    }
-  }
-  return produced;
-}
-
 export const economySystem: System = {
   name: "economy",
 
@@ -276,14 +244,6 @@ export const economySystem: System = {
         delta[resource] = change;
         moved = true;
       }
-      for (const [resource, amount] of Object.entries(
-        syntheticOutput(state, nation, economy.sufficiency),
-      )) {
-        delta[resource as Resource] =
-          (delta[resource as Resource] ?? 0) + amount;
-        moved = true;
-      }
-
       if (moved) events.push({ kind: "resources_changed", nation, delta });
 
       // Manpower regrows toward what the nation's land can support, at a

@@ -15,7 +15,6 @@ import { MAX_QUEUE_LENGTH } from "src/shared/config/limits";
 import {
   REGENT_HUB_BELOW,
   REGENT_QUEUE_DEPTH,
-  REGENT_REFINERY_BELOW,
   type RegentFocus,
 } from "src/shared/config/regent";
 import type { Archetype } from "src/shared/config/temperament";
@@ -197,20 +196,7 @@ export function build(s: Situation): WorldEvent[] {
       if (province !== null) return order(s, province, "naval_base");
     }
   }
-  // 5. A refinery when the market cannot cover the shortfall.
-  if (
-    s.economy.sufficiency < REGENT_REFINERY_BELOW &&
-    (s.scarcest === "oil" || s.scarcest === "rubber") &&
-    s.me.regent.marketBudget < s.shortfall
-  ) {
-    const plant: BuildingType =
-      s.scarcest === "oil" ? "synthetic_oil" : "synthetic_rubber";
-    if (!queued(s, plant)) {
-      const province = firstFit(s, plant);
-      if (province !== null) return order(s, province, plant);
-    }
-  }
-  // 6. The builder's mines: the richest deposit first — but a mine per
+  // 5. The builder's mines: the richest deposit first — but a mine per
   // factory, not mines until the ground is empty, or nothing else is built.
   if (
     t.industry >= 0.5 &&
@@ -229,7 +215,7 @@ export function build(s: Situation): WorldEvent[] {
       .sort((a, b) => b.deposits - a.deposits || a.p - b.p);
     if (rich[0] !== undefined) return order(s, rich[0].p, "extraction_upgrade");
   }
-  // 7. What the temperament and the focus would build for its own sake.
+  // 6. What the temperament and the focus would build for its own sake.
   for (const building of [
     ...ARCHETYPE_BUILDINGS[t.archetype],
     ...FOCUS_BUILDINGS[s.focus],

@@ -60,7 +60,7 @@ function agree(
     nation: seller,
     other: buyer,
     type: "trade",
-    terms: { resource: "steel", resourcePerTick, pointsPerTick },
+    terms: { resource: "material", resourcePerTick, pointsPerTick },
   });
   const id = state.agreements[state.agreements.length - 1].id;
   applyEvent(state, { kind: "agreement_accepted", agreementId: id });
@@ -86,9 +86,9 @@ describe("standing trade agreements", () => {
 
     const seller = nationTrade(state, a);
     const buyer = nationTrade(state, b);
-    expect(seller.resourceOut.steel).toBeCloseTo(0.5);
+    expect(seller.resourceOut.material).toBeCloseTo(0.5);
     expect(seller.pointsIn).toBeCloseTo(0.25);
-    expect(buyer.resourceIn.steel).toBeCloseTo(0.5);
+    expect(buyer.resourceIn.material).toBeCloseTo(0.5);
     expect(buyer.pointsOut).toBeCloseTo(0.25);
 
     // The price, where §6.5 puts it: the buyer builds more slowly, and by
@@ -108,7 +108,7 @@ describe("standing trade agreements", () => {
       other: b,
       type: "trade",
       terms: {
-        resource: "steel",
+        resource: "material",
         resourcePerTick: 0.5,
         pointsPerTick: 0.25,
         equipment: { type: "fighter", perTick: 1 },
@@ -123,7 +123,7 @@ describe("standing trade agreements", () => {
 
     const seller = nationTrade(state, a);
     const buyer = nationTrade(state, b);
-    expect(seller.resourceOut.steel).toBeCloseTo(0.5);
+    expect(seller.resourceOut.material).toBeCloseTo(0.5);
     expect(seller.equipmentOut[fighter]).toBeCloseTo(1);
     expect(buyer.equipmentIn[fighter]).toBeCloseTo(1);
     expect(buyer.pointsOut).toBeCloseTo(0.25);
@@ -148,7 +148,7 @@ describe("standing trade agreements", () => {
     state.nations[a].stockpile[fighter] = 0.5;
     const short = nationTrade(state, a);
     expect(short.equipmentOut[fighter]).toBeCloseTo(0.5);
-    expect(short.resourceOut.steel).toBeCloseTo(0.25);
+    expect(short.resourceOut.material).toBeCloseTo(0.25);
     expect(short.pointsIn).toBeCloseTo(0.125);
   });
 
@@ -160,7 +160,7 @@ describe("standing trade agreements", () => {
       other: b,
       type: "trade",
       terms: {
-        resource: "steel",
+        resource: "material",
         resourcePerTick: 0,
         pointsPerTick: 0.25,
         equipment: { type: "infantry_equipment", perTick: 2 },
@@ -173,7 +173,7 @@ describe("standing trade agreements", () => {
     const rifles = equipmentIndex("infantry_equipment");
     state.nations[a].stockpile[rifles] = 50;
     const seller = nationTrade(state, a);
-    expect(seller.resourceOut.steel).toBe(0);
+    expect(seller.resourceOut.material).toBe(0);
     expect(seller.equipmentOut[rifles]).toBeCloseTo(2);
     expect(seller.pointsIn).toBeCloseTo(0.25);
     expect(constructionAvailable(state, b)).toBeCloseTo(
@@ -185,14 +185,14 @@ describe("standing trade agreements", () => {
     const state = world.view() as WorldState;
     const id = agree(state, a, b, 2, 0.25);
     // Half of one tick's rate in the vault, and nothing coming in.
-    state.nations[a].resources.steel = 1;
+    state.nations[a].resources.material = 1;
     for (const province of state.map.provinces) {
       if (state.provinceController[province.id] !== a) continue;
-      province.resourceDeposits.steel = 0;
+      province.resourceDeposits.material = 0;
     }
 
     const flow = nationTrade(state, a);
-    expect(flow.resourceOut.steel).toBeCloseTo(1);
+    expect(flow.resourceOut.material).toBeCloseTo(1);
     // Scaled together: the buyer pays half because it received half.
     expect(flow.pointsIn).toBeCloseTo(0.125);
     expect(nationTrade(state, b).pointsOut).toBeCloseTo(0.125);
@@ -211,10 +211,10 @@ describe("standing trade agreements", () => {
     const given = state.tick;
 
     state.tick = given + AGREEMENT_NOTICE_TICKS - 1;
-    expect(nationTrade(state, a).resourceOut.steel).toBeCloseTo(0.5);
+    expect(nationTrade(state, a).resourceOut.material).toBeCloseTo(0.5);
 
     state.tick = given + AGREEMENT_NOTICE_TICKS;
-    expect(nationTrade(state, a).resourceOut.steel).toBe(0);
+    expect(nationTrade(state, a).resourceOut.material).toBe(0);
     // And the record goes when the system next runs, not before: the flow
     // stopping and the record vanishing are the same moment.
     const events = tradeSystem.run(state, state.tick);
@@ -243,7 +243,7 @@ describe("standing trade agreements", () => {
       trustBefore,
     );
     // And it stops moving anything the same tick it is written off.
-    expect(nationTrade(state, a).resourceOut.steel).toBe(0);
+    expect(nationTrade(state, a).resourceOut.material).toBe(0);
   });
 
   test("a capital that changes hands keeps its nation's agreements until the occupation settles (decision 0025)", () => {
@@ -324,26 +324,28 @@ describe("standing trade agreements", () => {
     applyEvent(state, {
       kind: "market_order_set",
       nation: a,
-      resource: "steel",
+      resource: "material",
       perTick: 0.1,
     });
-    expect(nationTrade(state, a).resourceIn.steel).toBeCloseTo(0.1);
+    expect(nationTrade(state, a).resourceIn.material).toBeCloseTo(0.1);
     expect(nationTrade(state, a).pointsOut).toBeCloseTo(
-      0.1 * MARKET_BUY_POINTS.steel,
+      0.1 * MARKET_BUY_POINTS.material,
     );
 
     applyEvent(state, {
       kind: "market_order_set",
       nation: a,
-      resource: "steel",
+      resource: "material",
       perTick: -0.1,
     });
-    expect(nationTrade(state, a).resourceOut.steel).toBeCloseTo(0.1);
+    expect(nationTrade(state, a).resourceOut.material).toBeCloseTo(0.1);
     expect(nationTrade(state, a).pointsIn).toBeCloseTo(
-      0.1 * MARKET_SELL_POINTS.steel,
+      0.1 * MARKET_SELL_POINTS.material,
     );
     // The spread is the whole mechanism: selling back what you bought loses.
-    expect(MARKET_SELL_POINTS.steel).toBeLessThan(MARKET_BUY_POINTS.steel);
+    expect(MARKET_SELL_POINTS.material).toBeLessThan(
+      MARKET_BUY_POINTS.material,
+    );
   });
 
   test("a market order nobody can afford is filled in part, never refused", () => {
@@ -351,7 +353,7 @@ describe("standing trade agreements", () => {
     applyEvent(state, {
       kind: "market_order_set",
       nation: a,
-      resource: "steel",
+      resource: "material",
       perTick: 1,
     });
     const made = measureNation(state, a).construction;
@@ -360,8 +362,10 @@ describe("standing trade agreements", () => {
     // steel arriving. Invariant 2: an order too large is not rejected, it is
     // filled as far as the money goes.
     expect(flow.pointsOut).toBeCloseTo(made);
-    expect(flow.resourceIn.steel).toBeCloseTo(made / MARKET_BUY_POINTS.steel);
-    expect(flow.resourceIn.steel).toBeLessThan(1);
+    expect(flow.resourceIn.material).toBeCloseTo(
+      made / MARKET_BUY_POINTS.material,
+    );
+    expect(flow.resourceIn.material).toBeLessThan(1);
     expect(constructionAvailable(state, a)).toBeCloseTo(0);
   });
 
@@ -380,15 +384,15 @@ describe("standing trade agreements", () => {
     const state = world.view() as WorldState;
     agree(state, a, b, 2, 1);
     // A has nothing to send and nothing coming: the agreement delivers zero.
-    state.nations[a].resources.steel = 0;
+    state.nations[a].resources.material = 0;
     for (const province of state.map.provinces) {
       if (state.provinceController[province.id] !== a) continue;
-      province.resourceDeposits.steel = 0;
+      province.resourceDeposits.material = 0;
     }
     applyEvent(state, {
       kind: "market_order_set",
       nation: b,
-      resource: "oil",
+      resource: "material",
       perTick: 0.1,
     });
 
@@ -396,50 +400,47 @@ describe("standing trade agreements", () => {
     // Nothing arrives from A, so nothing is paid to A — and the market order
     // is filled out of the points that were never spent. Rationing B against
     // a bill it will not be sent is what §6.5's fallback is there to avoid.
-    expect(flow.resourceIn.steel).toBe(0);
-    expect(flow.pointsOut).toBeCloseTo(0.1 * MARKET_BUY_POINTS.oil);
-    expect(flow.resourceIn.oil).toBeCloseTo(0.1);
+    expect(flow.pointsOut).toBeCloseTo(0.1 * MARKET_BUY_POINTS.material);
+    expect(flow.resourceIn.material).toBeCloseTo(0.1);
   });
 
-  test("a nation with no factories can still buy, out of what it sells", () => {
+  test("a nation with no factories can still pay a partner, out of what it sells", () => {
     const state = world.view() as WorldState;
     // No civilian factories anywhere: construction output is zero.
     state.buildings.fill(0);
+    // B buys material from A and owes points for it; B makes none.
+    agree(state, a, b, 0.5, 0.25);
+    // B sells material of its own to the market, which is where the points
+    // come from. With one resource this is the whole shape of §6.5's
+    // fallback: you cannot swap one resource for another any more, but you
+    // can still turn goods into the currency and the currency into goods.
     applyEvent(state, {
       kind: "market_order_set",
-      nation: a,
-      resource: "steel",
+      nation: b,
+      resource: "material",
       perTick: -1,
     });
-    applyEvent(state, {
-      kind: "market_order_set",
-      nation: a,
-      resource: "oil",
-      perTick: 0.1,
-    });
 
-    expect(measureNation(state, a).construction).toBe(0);
-    const flow = nationTrade(state, a);
-    // It sells a unit of steel for MARKET_SELL_POINTS and spends part of that
-    // on oil. Zero civilian factories is not a wall (invariant 2).
-    expect(flow.resourceOut.steel).toBeCloseTo(1);
-    expect(flow.pointsIn).toBeCloseTo(MARKET_SELL_POINTS.steel);
-    expect(flow.resourceIn.oil).toBeGreaterThan(0);
+    expect(measureNation(state, b).construction).toBe(0);
+    const flow = nationTrade(state, b);
+    expect(flow.pointsIn).toBeCloseTo(MARKET_SELL_POINTS.material);
+    // And it pays the partner out of that, rather than being cut off:
+    // zero civilian factories is not a wall (invariant 2).
     expect(flow.pointsOut).toBeGreaterThan(0);
-    expect(flow.pointsOut).toBeLessThanOrEqual(flow.pointsIn + 1e-9);
+    expect(flow.resourceIn.material).toBeGreaterThan(0);
   });
 
   test("a buyer with a full warehouse is not billed for what is discarded", () => {
     const state = world.view() as WorldState;
     agree(state, a, b, 0.5, 0.25);
     // B's steel is at the ceiling; the reducer would clamp anything arriving.
-    state.nations[b].resources.steel = RESOURCE_CAP;
+    state.nations[b].resources.material = RESOURCE_CAP;
 
     const flow = nationTrade(state, b);
-    expect(flow.resourceIn.steel).toBe(0);
+    expect(flow.resourceIn.material).toBe(0);
     expect(flow.pointsOut).toBe(0);
     // And the seller keeps what it did not send.
-    expect(nationTrade(state, a).resourceOut.steel).toBe(0);
+    expect(nationTrade(state, a).resourceOut.material).toBe(0);
   });
 
   test("a world full of agreements still costs a fraction of a tick", () => {
@@ -477,7 +478,7 @@ describe("standing trade agreements", () => {
     applyEvent(state, {
       kind: "market_order_set",
       nation: a,
-      resource: "oil",
+      resource: "material",
       perTick: -0.5,
     });
 

@@ -63,7 +63,9 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 773,
       "centre": {
         "x": 321,
@@ -105,7 +107,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 34,
       "centre": {
@@ -126,7 +128,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 192,
       "centre": {
         "x": 338,
@@ -147,7 +151,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "oil": 8
+        "material": 2
       },
       "tileCount": 1,
       "centre": {
@@ -170,9 +174,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 7
-      },
+      "resourceDeposits": {},
       "tileCount": 585,
       "centre": {
         "x": 445,
@@ -196,7 +198,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "rubber": 2
+        "material": 3
       },
       "tileCount": 696,
       "centre": {
@@ -218,7 +220,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 643,
       "centre": {
         "x": 482,
@@ -283,7 +287,9 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 9,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 1862,
       "centre": {
         "x": 502,
@@ -303,7 +309,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 727,
       "centre": {
         "x": 426,
@@ -324,7 +332,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 1117,
       "centre": {
         "x": 484,
@@ -387,8 +397,7 @@
       "infrastructure": 4,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 2,
-        "aluminium": 4
+        "material": 2
       },
       "tileCount": 1150,
       "centre": {
@@ -459,7 +468,7 @@
       "infrastructure": 4,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 856,
       "centre": {
@@ -483,7 +492,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 518,
       "centre": {
         "x": 550,
@@ -505,9 +516,7 @@
       "terrain": 2,
       "infrastructure": 3,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "rubber": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 651,
       "centre": {
         "x": 355,
@@ -528,7 +537,9 @@
       "terrain": 2,
       "infrastructure": 3,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 10
+      },
       "tileCount": 1316,
       "centre": {
         "x": 384,
@@ -551,7 +562,7 @@
       "infrastructure": 3,
       "buildingSlots": 6,
       "resourceDeposits": {
-        "steel": 5
+        "material": 7
       },
       "tileCount": 1473,
       "centre": {
@@ -578,8 +589,7 @@
       "infrastructure": 5,
       "buildingSlots": 7,
       "resourceDeposits": {
-        "steel": 6,
-        "aluminium": 2
+        "material": 8
       },
       "tileCount": 1171,
       "centre": {
@@ -602,7 +612,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 1084,
       "centre": {
@@ -646,9 +656,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "oil": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 881,
       "centre": {
         "x": 380,
@@ -715,10 +723,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "oil": 2,
-        "aluminium": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 933,
       "centre": {
         "x": 459,
@@ -801,7 +806,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 807,
       "centre": {
         "x": 392,
@@ -823,7 +830,7 @@
       "infrastructure": 3,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 6
+        "material": 8
       },
       "tileCount": 816,
       "centre": {
@@ -847,9 +854,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "oil": 8
-      },
+      "resourceDeposits": {},
       "tileCount": 874,
       "centre": {
         "x": 452,
@@ -871,9 +876,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 525,
       "centre": {
         "x": 476,
@@ -934,8 +937,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4,
-        "aluminium": 5
+        "material": 5
       },
       "tileCount": 1,
       "centre": {
@@ -956,9 +958,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 1,
       "centre": {
         "x": 326,
@@ -998,7 +998,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 1,
       "centre": {
         "x": 360,
@@ -1059,7 +1061,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 302,
       "centre": {
         "x": 431,
@@ -1081,7 +1085,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "oil": 8
+        "material": 2
       },
       "tileCount": 801,
       "centre": {
@@ -1103,7 +1107,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 1210,
       "centre": {
         "x": 540,
@@ -1153,7 +1159,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 5
+        "material": 6
       },
       "tileCount": 931,
       "centre": {
@@ -1177,7 +1183,9 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 7
+      },
       "tileCount": 458,
       "centre": {
         "x": 641,
@@ -1220,7 +1228,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 878,
       "centre": {
         "x": 485,
@@ -1313,9 +1323,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "aluminium": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 654,
       "centre": {
         "x": 635,
@@ -1338,9 +1346,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 2,
-        "aluminium": 3,
-        "rubber": 2
+        "material": 2
       },
       "tileCount": 659,
       "centre": {
@@ -1362,7 +1368,7 @@
       "infrastructure": 5,
       "buildingSlots": 8,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 2121,
       "centre": {
@@ -1407,7 +1413,7 @@
       "infrastructure": 4,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 5
+        "material": 6
       },
       "tileCount": 1219,
       "centre": {
@@ -1428,9 +1434,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "aluminium": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 644,
       "centre": {
         "x": 616,
@@ -1454,7 +1458,7 @@
       "infrastructure": 3,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 5
+        "material": 6
       },
       "tileCount": 827,
       "centre": {
@@ -1519,9 +1523,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "aluminium": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 1000,
       "centre": {
         "x": 534,
@@ -1591,7 +1593,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 8
+        "material": 10
       },
       "tileCount": 388,
       "centre": {
@@ -1641,8 +1643,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2,
-        "aluminium": 3
+        "material": 3
       },
       "tileCount": 433,
       "centre": {
@@ -1665,9 +1666,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "rubber": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 791,
       "centre": {
         "x": 553,
@@ -1708,7 +1707,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 13,
       "centre": {
         "x": 629,
@@ -1726,7 +1727,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 372,
       "centre": {
         "x": 687,
@@ -1776,9 +1779,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 7,
-      "resourceDeposits": {
-        "rubber": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 1870,
       "centre": {
         "x": 713,
@@ -1847,7 +1848,7 @@
       "infrastructure": 5,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 1118,
       "centre": {
@@ -1869,9 +1870,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 9,
-      "resourceDeposits": {
-        "rubber": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 2153,
       "centre": {
         "x": 736,
@@ -1956,7 +1955,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 373,
       "centre": {
@@ -1979,7 +1978,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "rubber": 3
+        "material": 5
       },
       "tileCount": 773,
       "centre": {
@@ -2041,7 +2040,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 357,
       "centre": {
         "x": 771,
@@ -2112,7 +2113,7 @@
       "infrastructure": 5,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 7
+        "material": 9
       },
       "tileCount": 794,
       "centre": {
@@ -2154,7 +2155,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 6
+        "material": 7
       },
       "tileCount": 1,
       "centre": {
@@ -2218,7 +2219,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 269,
       "centre": {
         "x": 717,
@@ -2285,7 +2288,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 355,
       "centre": {
@@ -2350,7 +2353,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 478,
       "centre": {
         "x": 745,
@@ -2419,7 +2424,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 807,
       "centre": {
@@ -2443,7 +2448,9 @@
       "terrain": 2,
       "infrastructure": 5,
       "buildingSlots": 8,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 1591,
       "centre": {
         "x": 682,
@@ -2468,7 +2475,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 3
+        "material": 5
       },
       "tileCount": 923,
       "centre": {
@@ -2493,7 +2500,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 566,
       "centre": {
@@ -2516,8 +2523,7 @@
       "infrastructure": 3,
       "buildingSlots": 10,
       "resourceDeposits": {
-        "steel": 4,
-        "aluminium": 5
+        "material": 6
       },
       "tileCount": 2455,
       "centre": {
@@ -2561,7 +2567,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 23,
       "centre": {
@@ -2601,7 +2607,7 @@
       "infrastructure": 2,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 8,
       "centre": {
@@ -2622,7 +2628,9 @@
       "terrain": 2,
       "infrastructure": 3,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 1,
       "centre": {
         "x": 748,
@@ -2667,7 +2675,7 @@
       "infrastructure": 2,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 5
+        "material": 7
       },
       "tileCount": 324,
       "centre": {
@@ -2712,7 +2720,9 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 568,
       "centre": {
         "x": 862,
@@ -2734,7 +2744,7 @@
       "infrastructure": 4,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 5
+        "material": 6
       },
       "tileCount": 1160,
       "centre": {
@@ -2758,7 +2768,9 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 1279,
       "centre": {
         "x": 915,
@@ -2802,9 +2814,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "oil": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 1069,
       "centre": {
         "x": 785,
@@ -2828,9 +2838,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "oil": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 796,
       "centre": {
         "x": 814,
@@ -2852,7 +2860,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 5
+        "material": 6
       },
       "tileCount": 1065,
       "centre": {
@@ -2876,7 +2884,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 1120,
       "centre": {
@@ -2988,7 +2996,7 @@
       "infrastructure": 5,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 1095,
       "centre": {
@@ -3076,9 +3084,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 5,
-      "resourceDeposits": {
-        "aluminium": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 1209,
       "centre": {
         "x": 770,
@@ -3101,9 +3107,7 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 8,
-      "resourceDeposits": {
-        "rubber": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 1400,
       "centre": {
         "x": 801,
@@ -3125,7 +3129,7 @@
       "infrastructure": 5,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "rubber": 3
+        "material": 2
       },
       "tileCount": 1097,
       "centre": {
@@ -3169,8 +3173,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3,
-        "rubber": 2
+        "material": 3
       },
       "tileCount": 339,
       "centre": {
@@ -3192,9 +3195,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 295,
       "centre": {
         "x": 918,
@@ -3216,9 +3217,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "oil": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 829,
       "centre": {
         "x": 748,
@@ -3239,7 +3238,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 819,
       "centre": {
         "x": 835,
@@ -3260,7 +3261,7 @@
       "infrastructure": 5,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 1344,
       "centre": {
@@ -3282,7 +3283,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 4
       },
       "tileCount": 124,
       "centre": {
@@ -3303,7 +3304,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 48,
       "centre": {
         "x": 883,
@@ -3366,7 +3369,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 81,
       "centre": {
@@ -3388,8 +3391,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4,
-        "oil": 1
+        "material": 5
       },
       "tileCount": 303,
       "centre": {
@@ -3412,7 +3414,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 186,
       "centre": {
         "x": 987,
@@ -3452,7 +3456,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 6,
       "centre": {
         "x": 732,
@@ -3470,7 +3476,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 57,
       "centre": {
         "x": 839,
@@ -3494,7 +3502,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 1
+        "material": 1
       },
       "tileCount": 267,
       "centre": {
@@ -3520,7 +3528,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 494,
       "centre": {
@@ -3543,9 +3551,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "oil": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 634,
       "centre": {
         "x": 1064,
@@ -3569,7 +3575,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 1
+        "material": 1
       },
       "tileCount": 711,
       "centre": {
@@ -3595,7 +3601,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "oil": 5
+        "material": 4
       },
       "tileCount": 388,
       "centre": {
@@ -3620,7 +3626,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 603,
       "centre": {
@@ -3667,7 +3673,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 324,
       "centre": {
         "x": 998,
@@ -3734,9 +3742,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "aluminium": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 1083,
       "centre": {
         "x": 1083,
@@ -3780,9 +3786,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 7,
-      "resourceDeposits": {
-        "rubber": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 1742,
       "centre": {
         "x": 1027,
@@ -3827,7 +3831,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 7,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 1768,
       "centre": {
         "x": 1093,
@@ -3869,7 +3875,9 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 7,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 1158,
       "centre": {
         "x": 1005,
@@ -3913,7 +3921,7 @@
       "infrastructure": 5,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 1206,
       "centre": {
@@ -3934,7 +3942,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 1006,
       "centre": {
         "x": 962,
@@ -3978,7 +3988,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 810,
       "centre": {
         "x": 1048,
@@ -3998,9 +4010,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 22,
       "centre": {
         "x": 1088,
@@ -4040,7 +4050,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 7,
       "centre": {
         "x": 1068,
@@ -4061,8 +4073,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3,
-        "oil": 2
+        "material": 4
       },
       "tileCount": 1,
       "centre": {
@@ -4145,9 +4156,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 464,
       "centre": {
         "x": 615,
@@ -4167,9 +4176,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 1,
       "centre": {
         "x": 590,
@@ -4234,9 +4241,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "rubber": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 460,
       "centre": {
         "x": 603,
@@ -4258,7 +4263,7 @@
       "infrastructure": 7,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 801,
       "centre": {
@@ -4277,9 +4282,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 34,
       "centre": {
         "x": 615,
@@ -4344,7 +4347,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "aluminium": 2
+        "material": 4
       },
       "tileCount": 2,
       "centre": {
@@ -4365,9 +4368,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 2,
       "centre": {
         "x": 575,
@@ -4387,9 +4388,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 8
-      },
+      "resourceDeposits": {},
       "tileCount": 5,
       "centre": {
         "x": 584,
@@ -4410,7 +4409,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 1,
       "centre": {
@@ -4455,7 +4454,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "rubber": 1
+        "material": 5
       },
       "tileCount": 25,
       "centre": {
@@ -4500,7 +4499,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 762,
       "centre": {
@@ -4522,9 +4521,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "oil": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 839,
       "centre": {
         "x": 703,
@@ -4546,9 +4543,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "aluminium": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 854,
       "centre": {
         "x": 744,
@@ -4597,7 +4592,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 4
+        "material": 4
       },
       "tileCount": 837,
       "centre": {
@@ -4697,9 +4692,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "oil": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 865,
       "centre": {
         "x": 786,
@@ -4725,9 +4718,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 6,
-      "resourceDeposits": {
-        "oil": 8
-      },
+      "resourceDeposits": {},
       "tileCount": 1611,
       "centre": {
         "x": 645,
@@ -4749,9 +4740,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "rubber": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 910,
       "centre": {
         "x": 675,
@@ -4775,7 +4764,9 @@
       "terrain": 1,
       "infrastructure": 6,
       "buildingSlots": 7,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 7
+      },
       "tileCount": 1172,
       "centre": {
         "x": 711,
@@ -4867,9 +4858,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 7,
-      "resourceDeposits": {
-        "aluminium": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 1857,
       "centre": {
         "x": 686,
@@ -4893,8 +4882,7 @@
       "infrastructure": 4,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 5,
-        "oil": 4
+        "material": 5
       },
       "tileCount": 706,
       "centre": {
@@ -4942,7 +4930,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 4
       },
       "tileCount": 360,
       "centre": {
@@ -4961,9 +4949,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 43,
       "centre": {
         "x": 774,
@@ -5023,9 +5009,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 4,
       "centre": {
         "x": 626,
@@ -5072,7 +5056,7 @@
       "infrastructure": 4,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 7
+        "material": 9
       },
       "tileCount": 741,
       "centre": {
@@ -5121,7 +5105,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 467,
       "centre": {
@@ -5146,7 +5130,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 447,
       "centre": {
         "x": 832,
@@ -5212,7 +5198,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 53,
       "centre": {
@@ -5254,7 +5240,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 1176,
       "centre": {
         "x": 844,
@@ -5296,7 +5284,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 6,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 1499,
       "centre": {
         "x": 904,
@@ -5319,10 +5309,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {
-        "oil": 5,
-        "aluminium": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 1238,
       "centre": {
         "x": 940,
@@ -5346,9 +5333,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "oil": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 929,
       "centre": {
         "x": 970,
@@ -5371,7 +5356,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 825,
       "centre": {
         "x": 811,
@@ -5415,7 +5402,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 635,
       "centre": {
         "x": 867,
@@ -5480,7 +5469,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 531,
       "centre": {
         "x": 970,
@@ -5551,7 +5542,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 6
+        "material": 7
       },
       "tileCount": 580,
       "centre": {
@@ -5576,9 +5567,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "oil": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 996,
       "centre": {
         "x": 911,
@@ -5650,7 +5639,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "aluminium": 1
+        "material": 2
       },
       "tileCount": 58,
       "centre": {
@@ -5691,9 +5680,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 8
-      },
+      "resourceDeposits": {},
       "tileCount": 1,
       "centre": {
         "x": 789,
@@ -5795,7 +5782,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 2,
       "centre": {
@@ -5818,9 +5805,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "rubber": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 140,
       "centre": {
         "x": 989,
@@ -5869,7 +5854,7 @@
       "infrastructure": 4,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 629,
       "centre": {
@@ -5897,7 +5882,7 @@
       "infrastructure": 4,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 1369,
       "centre": {
@@ -5947,9 +5932,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "aluminium": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 705,
       "centre": {
         "x": 998,
@@ -5974,9 +5957,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {
-        "oil": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 1194,
       "centre": {
         "x": 1016,
@@ -6118,9 +6099,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2,
-        "oil": 2,
-        "rubber": 5
+        "material": 2
       },
       "tileCount": 425,
       "centre": {
@@ -6143,7 +6122,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 453,
       "centre": {
         "x": 1319,
@@ -6190,7 +6171,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 6
+        "material": 7
       },
       "tileCount": 1122,
       "centre": {
@@ -6215,8 +6196,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 3,
-        "aluminium": 2
+        "material": 3
       },
       "tileCount": 902,
       "centre": {
@@ -6264,7 +6244,7 @@
       "infrastructure": 5,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 1107,
       "centre": {
@@ -6288,9 +6268,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "oil": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 963,
       "centre": {
         "x": 1185,
@@ -6313,9 +6291,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 6,
-      "resourceDeposits": {
-        "oil": 7
-      },
+      "resourceDeposits": {},
       "tileCount": 1463,
       "centre": {
         "x": 1229,
@@ -6553,9 +6529,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "oil": 7
-      },
+      "resourceDeposits": {},
       "tileCount": 721,
       "centre": {
         "x": 1296,
@@ -6602,9 +6576,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 387,
       "centre": {
         "x": 996,
@@ -6649,9 +6621,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 600,
       "centre": {
         "x": 1100,
@@ -6733,9 +6703,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 6
-      },
+      "resourceDeposits": {},
       "tileCount": 1,
       "centre": {
         "x": 1124,
@@ -6755,7 +6723,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 33,
       "centre": {
         "x": 1120,
@@ -6776,7 +6746,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 5
+        "material": 6
       },
       "tileCount": 1,
       "centre": {
@@ -6798,7 +6768,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "oil": 7
+        "material": 3
       },
       "tileCount": 1,
       "centre": {
@@ -6862,9 +6832,7 @@
       "terrain": 0,
       "infrastructure": 4,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 313,
       "centre": {
         "x": 992,
@@ -6886,9 +6854,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 587,
       "centre": {
         "x": 1055,
@@ -6912,7 +6878,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 1136,
       "centre": {
         "x": 1078,
@@ -6958,9 +6926,7 @@
       "terrain": 0,
       "infrastructure": 4,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "oil": 8
-      },
+      "resourceDeposits": {},
       "tileCount": 636,
       "centre": {
         "x": 1017,
@@ -6985,7 +6951,7 @@
       "infrastructure": 5,
       "buildingSlots": 7,
       "resourceDeposits": {
-        "oil": 5
+        "material": 4
       },
       "tileCount": 1749,
       "centre": {
@@ -7010,7 +6976,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 6,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 1508,
       "centre": {
         "x": 1095,
@@ -7058,8 +7026,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 1,
-        "aluminium": 1
+        "material": 1
       },
       "tileCount": 627,
       "centre": {
@@ -7083,8 +7050,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 1,
-        "rubber": 3
+        "material": 2
       },
       "tileCount": 593,
       "centre": {
@@ -7125,9 +7091,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "rubber": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 46,
       "centre": {
         "x": 1101,
@@ -7147,7 +7111,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 1,
       "centre": {
         "x": 1118,
@@ -7221,9 +7187,7 @@
       "terrain": 2,
       "infrastructure": 5,
       "buildingSlots": 6,
-      "resourceDeposits": {
-        "aluminium": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 1096,
       "centre": {
         "x": 1006,
@@ -7382,7 +7346,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 98,
       "centre": {
@@ -7405,7 +7369,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 962,
       "centre": {
         "x": 945,
@@ -7478,7 +7444,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "aluminium": 1
+        "material": 4
       },
       "tileCount": 355,
       "centre": {
@@ -7500,9 +7466,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 8,
       "centre": {
         "x": 1036,
@@ -7523,7 +7487,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 3,
       "centre": {
         "x": 912,
@@ -7544,7 +7510,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "oil": 1
+        "material": 7
       },
       "tileCount": 1,
       "centre": {
@@ -7641,7 +7607,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 2,
       "centre": {
         "x": 940,
@@ -7661,7 +7629,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 2,
       "centre": {
         "x": 959,
@@ -7681,7 +7651,9 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 4,
       "centre": {
         "x": 947,
@@ -7702,7 +7674,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 4,
       "centre": {
@@ -7723,9 +7695,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 17,
       "centre": {
         "x": 957,
@@ -7746,7 +7716,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 5,
       "centre": {
         "x": 961,
@@ -7766,9 +7738,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 8
-      },
+      "resourceDeposits": {},
       "tileCount": 1,
       "centre": {
         "x": 963,
@@ -7788,7 +7758,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 4,
       "centre": {
         "x": 968,
@@ -7809,7 +7781,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "rubber": 2
+        "material": 3
       },
       "tileCount": 1,
       "centre": {
@@ -7831,7 +7803,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 2,
       "centre": {
         "x": 965,
@@ -7961,7 +7935,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 987,
       "centre": {
@@ -7983,8 +7957,7 @@
       "infrastructure": 3,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 3,
-        "aluminium": 6
+        "material": 4
       },
       "tileCount": 844,
       "centre": {
@@ -8006,7 +7979,9 @@
       "terrain": 2,
       "infrastructure": 3,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 693,
       "centre": {
         "x": 1226,
@@ -8051,7 +8026,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 5
+        "material": 6
       },
       "tileCount": 911,
       "centre": {
@@ -8075,9 +8050,7 @@
       "terrain": 2,
       "infrastructure": 3,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "aluminium": 6
-      },
+      "resourceDeposits": {},
       "tileCount": 680,
       "centre": {
         "x": 1352,
@@ -8103,7 +8076,7 @@
       "infrastructure": 2,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "oil": 3
+        "material": 8
       },
       "tileCount": 536,
       "centre": {
@@ -8126,9 +8099,7 @@
       "terrain": 2,
       "infrastructure": 2,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 463,
       "centre": {
         "x": 1404,
@@ -8149,9 +8120,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "aluminium": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 888,
       "centre": {
         "x": 1056,
@@ -8174,7 +8143,7 @@
       "infrastructure": 3,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 1229,
       "centre": {
@@ -8201,7 +8170,7 @@
       "infrastructure": 2,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 934,
       "centre": {
@@ -8226,7 +8195,9 @@
       "terrain": 2,
       "infrastructure": 5,
       "buildingSlots": 6,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 7
+      },
       "tileCount": 1024,
       "centre": {
         "x": 1166,
@@ -8247,7 +8218,9 @@
       "terrain": 2,
       "infrastructure": 3,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 10
+      },
       "tileCount": 1167,
       "centre": {
         "x": 1204,
@@ -8270,7 +8243,7 @@
       "infrastructure": 3,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 795,
       "centre": {
@@ -8345,7 +8318,7 @@
       "infrastructure": 2,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "aluminium": 2
+        "material": 7
       },
       "tileCount": 830,
       "centre": {
@@ -8369,7 +8342,9 @@
       "terrain": 2,
       "infrastructure": 2,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 595,
       "centre": {
         "x": 1383,
@@ -8394,7 +8369,7 @@
       "infrastructure": 2,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 6
       },
       "tileCount": 478,
       "centre": {
@@ -8417,8 +8392,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 4,
-        "aluminium": 1
+        "material": 5
       },
       "tileCount": 690,
       "centre": {
@@ -8444,7 +8418,7 @@
       "infrastructure": 3,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 5
+        "material": 7
       },
       "tileCount": 776,
       "centre": {
@@ -8470,7 +8444,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 908,
       "centre": {
@@ -8497,7 +8471,7 @@
       "infrastructure": 2,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 6
+        "material": 7
       },
       "tileCount": 1143,
       "centre": {
@@ -8522,8 +8496,7 @@
       "infrastructure": 3,
       "buildingSlots": 6,
       "resourceDeposits": {
-        "steel": 4,
-        "aluminium": 4
+        "material": 6
       },
       "tileCount": 1481,
       "centre": {
@@ -8569,8 +8542,7 @@
       "infrastructure": 5,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 2,
-        "oil": 4
+        "material": 3
       },
       "tileCount": 1362,
       "centre": {
@@ -8618,7 +8590,7 @@
       "infrastructure": 2,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 6
+        "material": 7
       },
       "tileCount": 1102,
       "centre": {
@@ -8645,7 +8617,7 @@
       "infrastructure": 2,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 7
+        "material": 8
       },
       "tileCount": 998,
       "centre": {
@@ -8668,7 +8640,7 @@
       "infrastructure": 2,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 7
+        "material": 9
       },
       "tileCount": 470,
       "centre": {
@@ -8712,7 +8684,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 8
+        "material": 10
       },
       "tileCount": 879,
       "centre": {
@@ -8737,7 +8709,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 781,
       "centre": {
@@ -8800,7 +8772,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 1,
       "centre": {
         "x": 1037,
@@ -8821,7 +8795,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "rubber": 5
+        "material": 2
       },
       "tileCount": 14,
       "centre": {
@@ -8843,7 +8817,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 423,
       "centre": {
@@ -8865,7 +8839,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 1
+        "material": 1
       },
       "tileCount": 419,
       "centre": {
@@ -8934,7 +8908,9 @@
       "terrain": 2,
       "infrastructure": 3,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 887,
       "centre": {
         "x": 454,
@@ -8956,7 +8932,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 952,
       "centre": {
@@ -8978,7 +8954,9 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 859,
       "centre": {
         "x": 370,
@@ -9075,7 +9053,9 @@
       "terrain": 2,
       "infrastructure": 3,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 9
+      },
       "tileCount": 1181,
       "centre": {
         "x": 322,
@@ -9099,7 +9079,7 @@
       "infrastructure": 3,
       "buildingSlots": 6,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 1475,
       "centre": {
@@ -9124,7 +9104,7 @@
       "infrastructure": 3,
       "buildingSlots": 6,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 1419,
       "centre": {
@@ -9199,7 +9179,7 @@
       "infrastructure": 5,
       "buildingSlots": 7,
       "resourceDeposits": {
-        "aluminium": 1
+        "material": 5
       },
       "tileCount": 1829,
       "centre": {
@@ -9221,7 +9201,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 1239,
       "centre": {
         "x": 1138,
@@ -9320,10 +9302,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 3,
-        "rubber": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 350,
       "centre": {
         "x": 1090,
@@ -9408,7 +9387,7 @@
       "infrastructure": 5,
       "buildingSlots": 10,
       "resourceDeposits": {
-        "steel": 1
+        "material": 1
       },
       "tileCount": 3827,
       "centre": {
@@ -9428,7 +9407,7 @@
       "infrastructure": 5,
       "buildingSlots": 10,
       "resourceDeposits": {
-        "steel": 1
+        "material": 1
       },
       "tileCount": 7899,
       "centre": {
@@ -9452,7 +9431,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 585,
       "centre": {
@@ -9497,7 +9476,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "aluminium": 1
+        "material": 1
       },
       "tileCount": 330,
       "centre": {
@@ -9516,9 +9495,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 10,
-      "resourceDeposits": {
-        "oil": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 7623,
       "centre": {
         "x": 1222,
@@ -9540,7 +9517,7 @@
       "infrastructure": 5,
       "buildingSlots": 10,
       "resourceDeposits": {
-        "rubber": 4
+        "material": 4
       },
       "tileCount": 6703,
       "centre": {
@@ -9559,9 +9536,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 10,
-      "resourceDeposits": {
-        "rubber": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 9567,
       "centre": {
         "x": 1387,
@@ -9581,9 +9556,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 3,
       "centre": {
         "x": 951,
@@ -9632,9 +9605,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 10,
-      "resourceDeposits": {
-        "rubber": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 5617,
       "centre": {
         "x": 1163,
@@ -9677,8 +9648,7 @@
       "infrastructure": 7,
       "buildingSlots": 10,
       "resourceDeposits": {
-        "steel": 1,
-        "rubber": 4
+        "material": 1
       },
       "tileCount": 5552,
       "centre": {
@@ -9700,9 +9670,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 10,
-      "resourceDeposits": {
-        "oil": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 6273,
       "centre": {
         "x": 1397,
@@ -9791,7 +9759,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 1
+        "material": 2
       },
       "tileCount": 715,
       "centre": {
@@ -9839,9 +9807,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 10,
-      "resourceDeposits": {
-        "aluminium": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 5697,
       "centre": {
         "x": 1401,
@@ -9886,7 +9852,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 308,
       "centre": {
         "x": 1199,
@@ -9928,9 +9896,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 10,
-      "resourceDeposits": {
-        "oil": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 8688,
       "centre": {
         "x": 1365,
@@ -9951,7 +9917,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 255,
       "centre": {
         "x": 1190,
@@ -9991,7 +9959,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 326,
       "centre": {
         "x": 1220,
@@ -10058,7 +10028,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 235,
       "centre": {
@@ -10077,7 +10047,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 58,
       "centre": {
         "x": 1163,
@@ -10158,7 +10130,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 5,
       "centre": {
@@ -10200,7 +10172,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "oil": 8
+        "material": 3
       },
       "tileCount": 1,
       "centre": {
@@ -10260,8 +10232,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 5,
-        "aluminium": 2
+        "material": 5
       },
       "tileCount": 1,
       "centre": {
@@ -10303,7 +10274,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "aluminium": 5
+        "material": 5
       },
       "tileCount": 1,
       "centre": {
@@ -10324,10 +10295,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 6,
-        "rubber": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 1,
       "centre": {
         "x": 1248,
@@ -10347,9 +10315,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {
-        "oil": 6
-      },
+      "resourceDeposits": {},
       "tileCount": 1214,
       "centre": {
         "x": 1434,
@@ -10414,7 +10380,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 6
+        "material": 7
       },
       "tileCount": 617,
       "centre": {
@@ -10465,8 +10431,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 6,
-        "aluminium": 5
+        "material": 7
       },
       "tileCount": 1096,
       "centre": {
@@ -10515,7 +10480,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 525,
       "centre": {
@@ -10542,7 +10507,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 5
+        "material": 5
       },
       "tileCount": 958,
       "centre": {
@@ -10589,8 +10554,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 5,
-        "aluminium": 5
+        "material": 6
       },
       "tileCount": 1,
       "centre": {
@@ -10611,9 +10575,7 @@
       "terrain": 2,
       "infrastructure": 2,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 1,
       "centre": {
         "x": 1241,
@@ -10636,7 +10598,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 226,
       "centre": {
@@ -10732,7 +10694,7 @@
       "infrastructure": 2,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 8
+        "material": 10
       },
       "tileCount": 826,
       "centre": {
@@ -10756,7 +10718,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 428,
       "centre": {
@@ -10783,7 +10745,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 299,
       "centre": {
@@ -10831,7 +10793,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 4
+        "material": 4
       },
       "tileCount": 921,
       "centre": {
@@ -10857,8 +10819,7 @@
       "infrastructure": 2,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 4,
-        "aluminium": 4
+        "material": 5
       },
       "tileCount": 1081,
       "centre": {
@@ -10883,7 +10844,9 @@
       "terrain": 1,
       "infrastructure": 3,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 870,
       "centre": {
         "x": 1323,
@@ -10948,9 +10911,7 @@
       "terrain": 0,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "rubber": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 880,
       "centre": {
         "x": 1413,
@@ -11043,7 +11004,7 @@
       "infrastructure": 4,
       "buildingSlots": 10,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 2740,
       "centre": {
@@ -11124,7 +11085,7 @@
       "infrastructure": 2,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 1,
       "centre": {
@@ -11173,7 +11134,7 @@
       "infrastructure": 6,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "rubber": 1
+        "material": 2
       },
       "tileCount": 862,
       "centre": {
@@ -11241,7 +11202,7 @@
       "infrastructure": 2,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 8
+        "material": 10
       },
       "tileCount": 1217,
       "centre": {
@@ -11263,8 +11224,7 @@
       "infrastructure": 2,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 2,
-        "aluminium": 6
+        "material": 3
       },
       "tileCount": 1346,
       "centre": {
@@ -11286,7 +11246,7 @@
       "infrastructure": 2,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 6
+        "material": 8
       },
       "tileCount": 16,
       "centre": {
@@ -11381,7 +11341,7 @@
       "infrastructure": 5,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "rubber": 3
+        "material": 2
       },
       "tileCount": 918,
       "centre": {
@@ -11408,7 +11368,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "oil": 2
+        "material": 5
       },
       "tileCount": 963,
       "centre": {
@@ -11456,8 +11416,7 @@
       "infrastructure": 3,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 6,
-        "oil": 3
+        "material": 7
       },
       "tileCount": 760,
       "centre": {
@@ -11483,7 +11442,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 8
+        "material": 10
       },
       "tileCount": 266,
       "centre": {
@@ -11525,9 +11484,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "rubber": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 266,
       "centre": {
         "x": 529,
@@ -11597,7 +11554,7 @@
       "infrastructure": 3,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 6
+        "material": 8
       },
       "tileCount": 766,
       "centre": {
@@ -11620,9 +11577,7 @@
       "terrain": 2,
       "infrastructure": 3,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 601,
       "centre": {
         "x": 659,
@@ -11644,7 +11599,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "aluminium": 4
+        "material": 8
       },
       "tileCount": 83,
       "centre": {
@@ -11669,8 +11624,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 8,
-        "rubber": 1
+        "material": 10
       },
       "tileCount": 283,
       "centre": {
@@ -11692,7 +11646,9 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 1331,
       "centre": {
         "x": 529,
@@ -11717,8 +11673,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 8,
-        "aluminium": 5
+        "material": 9
       },
       "tileCount": 1007,
       "centre": {
@@ -11744,7 +11699,9 @@
       "terrain": 1,
       "infrastructure": 3,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 7
+      },
       "tileCount": 964,
       "centre": {
         "x": 603,
@@ -11768,9 +11725,7 @@
       "terrain": 0,
       "infrastructure": 4,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "rubber": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 797,
       "centre": {
         "x": 634,
@@ -11797,7 +11752,7 @@
       "infrastructure": 2,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 2
+        "material": 3
       },
       "tileCount": 662,
       "centre": {
@@ -11824,8 +11779,7 @@
       "infrastructure": 2,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 7,
-        "aluminium": 3
+        "material": 9
       },
       "tileCount": 490,
       "centre": {
@@ -11851,7 +11805,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 956,
       "centre": {
@@ -11902,7 +11856,7 @@
       "infrastructure": 3,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 6
+        "material": 7
       },
       "tileCount": 1298,
       "centre": {
@@ -11953,7 +11907,9 @@
       "terrain": 0,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 1057,
       "centre": {
         "x": 634,
@@ -11979,7 +11935,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 885,
       "centre": {
@@ -12054,7 +12010,9 @@
       "terrain": 1,
       "infrastructure": 3,
       "buildingSlots": 6,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 6
+      },
       "tileCount": 1448,
       "centre": {
         "x": 535,
@@ -12168,9 +12126,7 @@
       "terrain": 1,
       "infrastructure": 3,
       "buildingSlots": 3,
-      "resourceDeposits": {
-        "aluminium": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 785,
       "centre": {
         "x": 459,
@@ -12194,9 +12150,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 5,
-        "oil": 1,
-        "aluminium": 5
+        "material": 6
       },
       "tileCount": 1017,
       "centre": {
@@ -12240,7 +12194,7 @@
       "infrastructure": 6,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 6
+        "material": 7
       },
       "tileCount": 708,
       "centre": {
@@ -12285,7 +12239,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 4
       },
       "tileCount": 100,
       "centre": {
@@ -12332,7 +12286,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 2,
       "centre": {
         "x": 350,
@@ -12352,7 +12308,9 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 10,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 1991,
       "centre": {
         "x": 948,
@@ -12447,8 +12405,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 1,
-        "rubber": 4
+        "material": 1
       },
       "tileCount": 54,
       "centre": {
@@ -12493,8 +12450,7 @@
       "infrastructure": 3,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4,
-        "aluminium": 3
+        "material": 5
       },
       "tileCount": 3,
       "centre": {
@@ -12533,7 +12489,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 139,
       "centre": {
         "x": 986,
@@ -12557,9 +12515,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "rubber": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 493,
       "centre": {
         "x": 900,
@@ -12579,7 +12535,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 392,
       "centre": {
         "x": 921,
@@ -12632,9 +12590,7 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 6,
-      "resourceDeposits": {
-        "oil": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 918,
       "centre": {
         "x": 949,
@@ -12658,7 +12614,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 1217,
       "centre": {
         "x": 933,
@@ -12718,7 +12676,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 7,
       "centre": {
         "x": 952,
@@ -12788,7 +12748,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 707,
       "centre": {
         "x": 931,
@@ -12810,9 +12772,7 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 7,
-      "resourceDeposits": {
-        "oil": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 1330,
       "centre": {
         "x": 863,
@@ -12833,7 +12793,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 5
+      },
       "tileCount": 30,
       "centre": {
         "x": 960,
@@ -12854,7 +12816,7 @@
       "infrastructure": 4,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 1,
       "centre": {
@@ -12881,9 +12843,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "rubber": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 1078,
       "centre": {
         "x": 878,
@@ -12929,10 +12889,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 8,
-        "rubber": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 28,
       "centre": {
         "x": 853,
@@ -12952,9 +12909,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "rubber": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 1,
       "centre": {
         "x": 848,
@@ -12980,8 +12935,7 @@
       "infrastructure": 7,
       "buildingSlots": 8,
       "resourceDeposits": {
-        "steel": 3,
-        "oil": 3
+        "material": 3
       },
       "tileCount": 1458,
       "centre": {
@@ -13093,7 +13047,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 58,
       "centre": {
         "x": 889,
@@ -13114,7 +13070,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 3,
       "centre": {
@@ -13226,7 +13182,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 1
+        "material": 1
       },
       "tileCount": 199,
       "centre": {
@@ -13299,9 +13255,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "rubber": 4
-      },
+      "resourceDeposits": {},
       "tileCount": 920,
       "centre": {
         "x": 1005,
@@ -13346,7 +13300,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 935,
       "centre": {
         "x": 1060,
@@ -13371,7 +13327,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 379,
       "centre": {
@@ -13458,9 +13414,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "oil": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 15,
       "centre": {
         "x": 1041,
@@ -13500,9 +13454,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 2,
       "centre": {
         "x": 1032,
@@ -13583,7 +13535,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 2,
       "centre": {
         "x": 1020,
@@ -13651,7 +13605,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 708,
       "centre": {
@@ -13699,9 +13653,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {
-        "rubber": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 1142,
       "centre": {
         "x": 956,
@@ -13724,8 +13676,7 @@
       "infrastructure": 5,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 4,
-        "rubber": 5
+        "material": 5
       },
       "tileCount": 946,
       "centre": {
@@ -13772,7 +13723,7 @@
       "infrastructure": 7,
       "buildingSlots": 6,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 907,
       "centre": {
@@ -13838,7 +13789,9 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 7,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 1336,
       "centre": {
         "x": 1042,
@@ -13858,9 +13811,7 @@
       "terrain": 0,
       "infrastructure": 4,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "rubber": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 2,
       "centre": {
         "x": 1071,
@@ -13878,7 +13829,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 63,
       "centre": {
         "x": 962,
@@ -13921,7 +13874,7 @@
       "infrastructure": 5,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 4
+        "material": 4
       },
       "tileCount": 750,
       "centre": {
@@ -13965,9 +13918,7 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 5,
-      "resourceDeposits": {
-        "oil": 6
-      },
+      "resourceDeposits": {},
       "tileCount": 798,
       "centre": {
         "x": 406,
@@ -14008,10 +13959,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 3,
-        "rubber": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 70,
       "centre": {
         "x": 368,
@@ -14099,7 +14047,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 5
       },
       "tileCount": 380,
       "centre": {
@@ -14144,7 +14092,9 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 6
+      },
       "tileCount": 1085,
       "centre": {
         "x": 1000,
@@ -14171,7 +14121,7 @@
       "infrastructure": 4,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 1088,
       "centre": {
@@ -14219,7 +14169,7 @@
       "infrastructure": 4,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 4
+        "material": 4
       },
       "tileCount": 747,
       "centre": {
@@ -14243,8 +14193,7 @@
       "infrastructure": 6,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 2,
-        "aluminium": 2
+        "material": 2
       },
       "tileCount": 556,
       "centre": {
@@ -14272,7 +14221,7 @@
       "infrastructure": 4,
       "buildingSlots": 5,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 1343,
       "centre": {
@@ -14311,7 +14260,9 @@
       "terrain": 0,
       "infrastructure": 7,
       "buildingSlots": 7,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 3
+      },
       "tileCount": 1257,
       "centre": {
         "x": 692,
@@ -14330,8 +14281,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2,
-        "oil": 6
+        "material": 3
       },
       "tileCount": 375,
       "centre": {
@@ -14368,7 +14318,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 1
+      },
       "tileCount": 160,
       "centre": {
         "x": 712,
@@ -14530,10 +14482,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "aluminium": 2,
-        "rubber": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 107,
       "centre": {
         "x": 1138,
@@ -14552,8 +14501,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 3,
-        "rubber": 2
+        "material": 3
       },
       "tileCount": 60,
       "centre": {
@@ -14573,7 +14521,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 4
+        "material": 4
       },
       "tileCount": 35,
       "centre": {
@@ -14631,7 +14579,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 1
+        "material": 2
       },
       "tileCount": 88,
       "centre": {
@@ -14668,9 +14616,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 2,
-      "resourceDeposits": {
-        "rubber": 1
-      },
+      "resourceDeposits": {},
       "tileCount": 134,
       "centre": {
         "x": 1151,
@@ -14694,7 +14640,7 @@
       "infrastructure": 4,
       "buildingSlots": 3,
       "resourceDeposits": {
-        "steel": 4
+        "material": 4
       },
       "tileCount": 808,
       "centre": {
@@ -14740,7 +14686,9 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 753,
       "centre": {
         "x": 786,
@@ -14784,7 +14732,7 @@
       "infrastructure": 5,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "steel": 2
+        "material": 2
       },
       "tileCount": 507,
       "centre": {
@@ -14848,9 +14796,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 6,
-      "resourceDeposits": {
-        "rubber": 5
-      },
+      "resourceDeposits": {},
       "tileCount": 1397,
       "centre": {
         "x": 986,
@@ -14873,8 +14819,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 4,
-        "aluminium": 1
+        "material": 4
       },
       "tileCount": 949,
       "centre": {
@@ -14899,7 +14844,9 @@
       "terrain": 1,
       "infrastructure": 3,
       "buildingSlots": 4,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 965,
       "centre": {
         "x": 759,
@@ -14922,7 +14869,9 @@
       "terrain": 1,
       "infrastructure": 3,
       "buildingSlots": 3,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 2
+      },
       "tileCount": 773,
       "centre": {
         "x": 793,
@@ -15037,8 +14986,7 @@
       "infrastructure": 3,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 6,
-        "oil": 3
+        "material": 7
       },
       "tileCount": 940,
       "centre": {
@@ -15105,7 +15053,7 @@
       "infrastructure": 2,
       "buildingSlots": 2,
       "resourceDeposits": {
-        "aluminium": 3
+        "material": 8
       },
       "tileCount": 1,
       "centre": {
@@ -15130,7 +15078,7 @@
       "infrastructure": 5,
       "buildingSlots": 4,
       "resourceDeposits": {
-        "steel": 3
+        "material": 4
       },
       "tileCount": 583,
       "centre": {
@@ -15172,7 +15120,9 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 2,
-      "resourceDeposits": {},
+      "resourceDeposits": {
+        "material": 4
+      },
       "tileCount": 504,
       "centre": {
         "x": 56,
@@ -15217,9 +15167,7 @@
       "terrain": 1,
       "infrastructure": 4,
       "buildingSlots": 4,
-      "resourceDeposits": {
-        "aluminium": 2
-      },
+      "resourceDeposits": {},
       "tileCount": 1115,
       "centre": {
         "x": 161,
@@ -15240,9 +15188,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {
-        "oil": 7
-      },
+      "resourceDeposits": {},
       "tileCount": 1196,
       "centre": {
         "x": 198,
@@ -15285,9 +15231,7 @@
       "terrain": 0,
       "infrastructure": 5,
       "buildingSlots": 5,
-      "resourceDeposits": {
-        "oil": 3
-      },
+      "resourceDeposits": {},
       "tileCount": 1160,
       "centre": {
         "x": 75,
@@ -15310,7 +15254,7 @@
       "infrastructure": 6,
       "buildingSlots": 7,
       "resourceDeposits": {
-        "steel": 3
+        "material": 3
       },
       "tileCount": 1210,
       "centre": {
