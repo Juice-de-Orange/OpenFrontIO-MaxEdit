@@ -2249,14 +2249,20 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
    set a value — 1 is the number to try, and the help text changes with it.
 3. `REGENT_FOCUS_RESEED=1` once on the host, so the running season's fifty
    regents stop all playing "economy". A restart, five minutes of snapshot.
-4. **Redeploy with the day's work.** Mechanically the morning's sequence,
-   with one line more in the log: protocol 18 **and hash version 6**, so on
-   the first load `WorldRunner` skips the snapshot's hash check and says so
-   (decision 0016 — across a version the function itself changed, and a
-   mismatch is history rather than damage; the next snapshot re-arms it).
-   The season, the claims and every agreement survive. Everything since the
-   morning rides on it: the regent's second pass, equipment trade, the zone
-   overlay's key, the icons, the labels, the hints.
+4. ~~**Redeploy with the day's work.**~~ **Done, 2026-09-02 19:25.**
+   Protocol 18 and hash version 6 went to the host with Max's go-ahead: dump
+   `world-20260902-172432.dump` first, then the morning's sequence. The world
+   resumed at tick 16980 against 16988 when it was killed, and the one new
+   line in the log is the one decision 0016 promised — _state-hash check
+   skipped for this load, written by hash version 5, this build computes 6,
+   the next snapshot re-arms the check_. Public surface checked from
+   outside, live browser smoke green on the watching path.
+
+   **The reseed did not come with it.** The log's "0 unclaimed nation(s)
+   handed to their regents" is the season already being open; the fifty
+   regents still carry the focus they were opened with, and only
+   `REGENT_FOCUS_RESEED=1` on one start changes that. It is still question 3.
+
 5. The review page, 0e–0s: which icons and colours read, which do not;
    0q to 0s are the afternoon's (archetype, equipment trade, map names).
 6. Off-host backup target and the internal ntfy URL (see "Deployed").
