@@ -1,7 +1,7 @@
 # Handover — state of the work
 
-**Written 2026-08-31, last updated 2026-09-01 (real borders, and the move
-to another machine).** Read this first if you are picking the project up
+**Written 2026-08-31, last updated 2026-09-02 (the night that worked through
+"The next plan", steps 0 to 5, and gave the project a browser leg).** Read this first if you are picking the project up
 without context. It says where the work stands, what to do next, and which
 traps have already been paid for.
 
@@ -16,10 +16,32 @@ traps have already been paid for.
 ## Where we are
 
 **Twelve of thirteen gates passed, the world is deployed and playable over
-TLS, and the thirteenth gate is waiting on a clock (2026-09-01).** What it is
-_not_ is understandable: the player could not work out how to build anything.
-**Read _The next plan: from a spreadsheet to a game_ below before writing
-code.**
+TLS, the thirteenth gate is waiting on a clock — and as of the night of
+2026-09-01/02 the game says how to play it.** _The next plan_ below was
+worked through in its own order, steps 0 to 5, seven commits
+(`c2fecc64..14a7626a`), each pushed after the full checklist: the interface
+says where to build and why a button is disabled; a clock; every number
+explained inline behind a circled i (nineteen so far, both languages);
+buildings standing on the map; the war visible to the defender, with the
+battle's numbers per day for both parties; a ruler and a flag on every
+nation; regents with a focus of their own; supply drawn in proportion to
+equipment (§6.6 at last); a language picker. Protocol 17, hash version
+still 5 — the deployed season survives the redeploy, and the local world
+resumed from its snapshot through it.
+
+**And a browser leg exists.** `npm run test:e2e` opens the real client in
+headless Chromium against the running world and checks what a person would
+see; every step this night was seen through it, screenshot included. The
+old note that automated Chrome cannot reach `/ws` was about a browser
+extension, not headless browsers. What it cannot judge is _taste_ — how the
+icons look, whether the ⓘ reads as help — and that is the morning's
+checklist, items 0g onward.
+
+**Not done, deliberately** (decisions that are Max's): trust regrowth, the
+dead-partner rule's "lost its capital for one tick", the player's own name,
+an icon atlas of our own, the host improvements. The phase-12 gate's
+seven-day clock runs until 2026-09-08. Gates 4, 6 and 7 were re-run on
+protocol 17 and the new supply rule and pass (transcripts below).
 
 **Phase 11 of 13 gated, the victory system built, and the map wears its
 real borders (2026-09-01).** Natural Earth outlines replaced the
@@ -197,10 +219,11 @@ repository — with three exceptions, named below rather than discovered.
 git clone https://github.com/Juice-de-Orange/OpenFrontIO-MaxEdit
 cd OpenFrontIO-MaxEdit && npm ci
 git config user.email 200407033+Juice-de-Orange@users.noreply.github.com
-docker compose up -d          # Postgres + world + backup sidecar
-curl -s localhost:3000/health # healthy, ticking, 677 provinces
-npm run start:client          # http://localhost:9000
-npm run test                  # 645 passed, 9 skipped
+docker compose up -d            # Postgres + world + backup sidecar
+curl -s localhost:3000/health   # healthy, ticking, 677 provinces
+npm run start:client            # http://localhost:9000
+npm run test                    # 707 passed, 9 skipped
+npx playwright install chromium # once, for npm run test:e2e
 ```
 
 The `user.email` line is not optional: GitHub's email privacy rejects a push
@@ -256,6 +279,13 @@ as long as the tile is projection and never a target.
 
 ### Step 0 · The missing entrance
 
+**Done 2026-09-01 (commit `c2fecc64`)**, with one deviation: the build menu
+on a province the nation holds but does not own does not simply appear —
+the server refuses building _and_ recruiting there — it appears closed,
+every button disabled with "occupied territory" as the reason. Two more
+refusals the client never checked are on the buttons too: a queued order
+holds its slot, and infrastructure and extraction upgrades have a cap.
+
 An hour, no bump, and the highest value in the plan.
 
 - Empty construction queue and the economy panel say **"click a province on the
@@ -276,6 +306,15 @@ An hour, no bump, and the highest value in the plan.
 without being told how.
 
 ### Step 1 · The info affordance, and the two panels that need it most
+
+**Done 2026-09-02 (commit `8ed0e42b`)**. The open state is an instance
+field on `Hud` rather than a module-level `let` — that is the precedent the
+built-once forms already set. The airfield rule is visible two ways: a
+help text, and the zone dropdown greys out-of-reach zones with the same
+`zoneInReach` the server refuses with, which moved the three zone-geometry
+functions to `shared/map/Zones.ts` (re-exported from the zone machine).
+Also: `t()` did not "render the key" on a typo as this plan claimed — it
+threw, and took every panel down. It renders the key now, and warns once.
 
 An afternoon, no bump.
 
@@ -298,6 +337,11 @@ cheap; the prose is the cost, and it is doubled by `de: Record<StringKey,
 string>` — which is the point of that type.
 
 ### Step 2 · Buildings on the map
+
+**Done 2026-09-02 (commit `9980b1b7`)**, exactly as below. Seen in the
+browser leg: factory icons with their count over Belarus. "Defense Post" is
+the column avoided, not "SAM Launcher": the SAM radius rings are hidden
+outside build mode, the defence coverage darkening is not.
 
 An afternoon, no bump. **The machinery is complete and drawing zero
 instances.**
@@ -327,6 +371,10 @@ again.
 
 ### Step 3 · The war becomes visible
 
+**Done 2026-09-02 (commit `64f7246b`)**, plus the invasions the client had
+been dropping: a pulsing circle over the beach (`NukeTelegraphPass`, self or
+enemy colour) and a line in the target's panel, in days.
+
 Half a day, no bump.
 
 `delta.fronts` already arrives every tick and goes only into the frame adapter;
@@ -343,6 +391,11 @@ Half a day, no bump.
 After this the map says where the war is without being asked.
 
 ### Step 4 · One protocol bump, everything that touches the wire
+
+**Done 2026-09-02 (commit `d19b689a`)**, decision 0023. The report is a
+`battle_resolved` event whose reducer case is a no-op, filtered per session
+in `broadcastDelta`; both parties see both strengths. `civilianFactories`
+is on the economy. Gates 7 and 4 re-run on the new protocol and pass.
 
 One to two days, **protocol 16 → 17**, twelve gate scripts to follow. Bundled
 on purpose: a bump disconnects every live client, so it happens once.
@@ -366,6 +419,14 @@ that, and an undocumented departure gets reverted in three months by someone
 reading the old comment.
 
 ### Step 5 · Afterwards, if it carries
+
+**Partly done 2026-09-02 (commit `14a7626a`)**: the seed-drawn regent focus
+(`Season.ts`, as a real command), supply by equipment (§6.6; the phase-6
+gate re-run and passing), `STARTING_DIVISIONS` deleted at Max's call, a
+language picker in the bar (reloads, because the built-once forms keep
+their labels), and nine more explanations — nineteen in all. Still open:
+the player's own name, names and flags on the map through `NamePass`,
+purpose-drawn icons, and the rest of the prose.
 
 The remaining ~85 explanations, panel by panel. The player's own name (an input
 field, validation, a store join, and a decision record — decision 0019 draws
@@ -430,8 +491,20 @@ of props.
   explanations stay inline in `.panel`.
 - `t()` has no guard, so with ~105 keys cast through `as StringKey` a typo
   renders as the key. Prefer literal keys.
-- Two invariant-9 violations to fix in passing: `production.atSea` shows ticks,
-  and `hud.orderAccepted` names a tick number.
+- ~~Two invariant-9 violations to fix in passing: `production.atSea` shows ticks,
+  and `hud.orderAccepted` names a tick number.~~ Fixed in step 1.
+
+And four the night added, each paid for once:
+
+- A renderer string spoofed for headless WebGL must not contain "software":
+  `initGL.ts` matches `/swiftshader|llvmpipe|software/i`, and the first
+  spoof said "software" and gated itself. Three runs.
+- `FrameData.units` is a `ReadonlyMap`; a cast to `{ units: Map }` passes
+  the strict typecheck and fails `build-prod`'s. Cast to the readonly shape.
+- Prettier rewrites `\u00fc` escapes in `strings.ts` to the characters. A
+  patch anchored on the escaped form matches once and never again.
+- The circled i is a real "i" in `textContent`: a browser check matching
+  `Construction 36.0/day` finds `Constructioni36.0/day` after step 1.
 
 ---
 
@@ -874,6 +947,45 @@ a timeout.
 **A fresh world starts with zero manpower**, which regrows at 0.02% of the cap
 a tick, so nothing can raise a division for the first couple of thousand ticks.
 Give a new world two minutes at 50 ms before running phase 4 or 6.
+
+### Re-run on protocol 17 and the equipment-proportional supply (2026-09-02)
+
+The night's changes touched the wire (protocol 17), the combat system (a
+report event) and supply (§6.6's per-equipment draw), so the gates that
+measure those were run again, each on a fresh 50 ms world. All three pass;
+the phase-7 run includes a real kill and restore across the bump.
+
+```
+phase-7 gate
+  world world-0 at tick 153, 50 ms a tick
+  ok    the offer was accepted (accepted)
+  killing the world...
+  the world came back at tick 159, 50 ms a tick
+  ok    the agreement is still standing after the restart, with nobody having renewed anything (id 1)
+  ok    breaking it cost exactly 5 trust (100 to 95)
+  ok    a day later the flow has stopped and the agreement is gone
+PASS
+
+phase-4 gate
+  ok    switching the line threw the ramp away: 71.7% -> 10.1% on tick 4560
+  ok    the front moved gradually: progress was seen strictly between 0 and 1 on 33 reading(s), and the largest one-tick step was 0.125 against a march rate of 0.125
+  ok    division strength fell while it ground on: 2.544 -> 0.000 across 5 divisions
+  ok    getting back to 71.7% took 616 ticks — 25.7 in-game days of lost output
+PASS
+
+phase-6 gate
+  division 1 in province 362, 0 hops out, supply 100%
+  division 2 in province 354, 5 hops out, supply 32%
+  ok    the division at the end of the line is worse supplied than the one at home: 32% against 100%
+  ok    the division at the end of the line came apart on its own: 20.1% at its best, 0.0% now
+  ok    with no enemy action at either division for the whole window (0 disturbed ticks)
+PASS
+```
+
+The counter-proofs were not re-run that night; the mechanics they disable
+did not change. Gates 8 and 9 read supply through `supplyOf` too and were
+not re-run — the divisions they raise are at full template strength, where
+the new rule and the old agree exactly.
 
 ### Phase 11 — accounts and identity
 
@@ -1763,8 +1875,10 @@ file, and it carries its own counter-proof.
 
 ## What you have to look at yourself
 
-Everything above is proven by a script. This is the part that is not, because
-this project has no automated browser leg. Ten minutes:
+Everything above is proven by a script, and since 2026-09-02 so is the shape
+of the client: `npm run test:e2e` opens the real page in headless Chromium
+against the running world (see "How to verify anything"). What no script
+judges is whether it _reads_ — and that is this list. Ten minutes:
 
 ```bash
 docker compose up -d
@@ -1772,7 +1886,28 @@ npm run start:client
 ```
 
 Then open `http://localhost:9000/?nation=17` (or any nation number) and check
-— **the first four are this night's work and nobody has ever seen them**:
+— **0g to 0l are the night of 2026-09-01/02 and only a headless browser has
+seen them**:
+
+0g. **The entrance**: the economy panel and the empty queue say to click a
+province; every greyed button in the province panel carries its reason
+under its label; the bar shows "Day N · HH:00" on the right.
+0h. **The circled i**: beside Construction, Industry, Resources covered and
+the headings of research, air, production, queue and diplomacy. It should
+open inline, stay open across ticks, and read as help rather than clutter.
+0i. **Buildings on the map**: icons with a count digit over the provinces
+that have factories, in the nation's colour. Dockyard and naval base look
+like a port, refineries like factories, the air base like a launcher — say
+whether the display carries before anyone draws an atlas.
+0j. **The war**: click a province under attack (start one with two
+browsers): "Under attack by X", a bar in the attacker's colour, and under
+it "The battle" with strengths, terrain · air, the line's movement and the
+losses, all per day. The map shows a ring over the province.
+0k. **Personality**: the diplomacy list reads "Otherland · Alma Falk"; your
+own badge carries the flag; the economy says "from N civilian factories".
+0l. **The language picker** at the right of the bar switches and reloads.
+
+The four before them:
 
 0a. **The menu bar**: six glyph buttons top-left, one panel at a time, the
 map visible behind. Panel switches keep a half-typed trade rate alive.
@@ -1852,16 +1987,18 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**Work through _The next plan_, at the top of this file, in its own order.**
-The player opened the deployed world on 2026-09-01 and could not play it: he
-could not find how to build anything, because nothing says provinces are
-clickable and the build menu lives only in the province panel. Step 0 of that
-plan is an hour's work and is worth more than everything after it.
+**Look at it** (the checklist above, 0g–0l) and say what reads and what does
+not. Then, in this order: redeploy the host — protocol 17 means the deployed
+client and world must move together, the world restarts once and resumes
+from its snapshot (hash version 5 is unchanged), and `resources/flags`
+needs to be served or the badges show no flag; the rest of step 5 (the
+player's own name, names on the map, icons of our own); and the phase-12
+gate on or after 2026-09-08.
 
-The browser checklist below is still worth ten minutes and is no longer the
-first thing. Items 0a–0d have been seen now — the chooser, the bar, the
-economy panel filling — but the front filling tile by tile, the fleet side of
-the assignment form and an invasion under way have not.
+Two things the night changed that a reader of the older notes will trip
+on: the browser leg exists (`npm run test:e2e`), and a division's supply
+draw is proportional to its equipment — an empty division draws nothing, so
+a nation of skeleton divisions has full coverage until they fill.
 
 **Phase 12 is down to one thing, and it is not a coding thing.** On
 2026-09-01 the host was redeployed as a season, the watchdog was installed and
@@ -2018,17 +2155,15 @@ while logging loudly that the check was skipped for that load. That keeps the
 guarantee where it is worth something and lets a season survive a deploy.
 Nothing has been implemented; the question is open.
 
-### `STARTING_DIVISIONS` is dead code
+### `STARTING_DIVISIONS` was dead code — deleted 2026-09-02
 
-`shared/config/rates.ts` declares `STARTING_DIVISIONS = 2` with the comment
-"Divisions a nation starts with, in its capital", and **nothing in `src`,
-`tests` or `docs` reads it**. Nations start with no divisions at all.
-
-Either the seeding was never written or the constant should go. Both are small
-changes and both change the game, so neither was made: implementing it means
-every nation begins with two empty divisions draining any stockpile they can
-reach, and deleting it drops a design decision that was written down on
-purpose. Nothing depends on the answer, so it can wait for one.
+`shared/config/rates.ts` declared `STARTING_DIVISIONS = 2`, and nothing in
+`src`, `tests` or `docs` read it: nations start with no divisions at all.
+Max decided on 2026-09-01 to delete it rather than implement it —
+implementing it would have put two empty divisions in every capital to
+drain any stockpile they could reach (the "bottomless pit" below), and the
+regent raises a garrison when one is needed. Kept here so the question is
+not reopened.
 
 **Needs a decision before the world is deployed anywhere real** (phase 12):
 
@@ -2059,6 +2194,28 @@ agreements can carry equipment.
 ---
 
 ## How to verify anything
+
+**The browser leg, since 2026-09-02.** With the compose stack on :3000 and
+`npm run start:client` on :9000:
+
+```bash
+npx playwright install chromium # once per machine
+npm run test:e2e -- --nation=17 --screenshot=/tmp/world.png
+```
+
+`tests/e2e/smoke.mjs` opens the real page in headless Chromium and checks
+the canvas at window size, the six menu buttons, the clock, the economy
+panel, a click opening a province panel with a build menu, a welcomed
+socket with a full state and a delta, and no error or fatal screen; it exits
+2 with instructions when the world or the dev server is missing. Two things
+it had to learn: headless Chromium only has SwiftShader and `initGL.ts`
+rightly refuses it, so the script spoofs the renderer string from the page
+side (and the spoofed string must not contain "software" — the first one
+did and gated itself); and the page's WebSocket connects fine from
+Playwright — the old note about automated Chrome failing at `/ws` was about
+the Claude-in-Chrome extension's sandbox. `--screenshot` is the cheapest
+way to look at a client change without a person; WebGL _output_ (an icon,
+a front's tiles) is only visible there, not in the DOM checks.
 
 ```bash
 npm run inst             # npm ci --ignore-scripts — never `npm install`
@@ -2107,7 +2264,7 @@ halves — that friction is the whole point of decision 0006.
 
 ### Test baseline
 
-**645 passed, 9 skipped, in one run — no tolerated failures.** (The count
+**707 passed, 9 skipped, in one run — no tolerated failures** (2026-09-02). (The count
 moves by one with every gate script: the protocol-version guard counts them by
 glob.)
 

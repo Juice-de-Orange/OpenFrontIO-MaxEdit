@@ -269,6 +269,18 @@ Three things about that contract are easy to get wrong and fail silently:
 See [`src/client/render/CLAUDE.md`](../../src/client/render/CLAUDE.md) for the
 renderer's own documentation, which is good and worth reading before touching it.
 
+The world client has two producers, both in `src/client/world/` and both
+kept out of `render/` by `tests/architecture/RenderBoundary.test.ts`:
+`FrameAdapter` writes the tile buffer (ownership, then a front's partial
+progress as tiles from the attacking border inward) and the war's markers (a
+ring per contested province, a pulsing circle per invasion beach);
+`StructureAdapter` turns the building counts into the `UnitState`s the
+inherited structure passes draw — one icon per (province, type) on a tile
+chosen by hash, the count as the level. `structuresDirty` is an edge the
+adapter sets and `frameData()` consumes: left true it rebuilds every
+instance a tick, left false it draws nothing after the first frame, and
+neither says anything.
+
 ## The import boundary
 
 `src/core` and `src/client` were once a single import cycle:
@@ -452,7 +464,7 @@ and afterwards the log would describe a run neither of them had.
 
 ## The protocol
 
-JSON behind `shared/protocol/Wire.ts`, version 16, with `protocolVersion` in the
+JSON behind `shared/protocol/Wire.ts`, version 17, with `protocolVersion` in the
 handshake. The inherited `zbin` is positional and has no version field; its
 own docs warn that mismatched builds decode each other _silently wrong_, which
 for a world running six weeks while we deploy into it is the most expensive
@@ -528,6 +540,12 @@ stays. §6.5's dead-partner rule needs to know when a nation was last played and
 §4 requires that to be reconstructible from the log alone, so presence is a
 command like any other (decision 0011).
 
+Since protocol 17 a delta also carries `battles`: the report of every fight
+the session's nation was in this tick, both strengths included, filtered per
+session from a `battle_resolved` event whose reducer case is a no-op
+(decision 0023). Each nation on the wire has a `ruler`, derived from the
+world seed and never stored, and the manifest's `flag`.
+
 `/health` shares the socket's port. It reports the tick, the lag, the age of
 the newest snapshot and the state hash, and returns 503 when the world is up
 and stuck — which is the failure a status-code check cannot see.
@@ -556,6 +574,7 @@ randomness derives from a seeded PRNG keyed on `(worldSeed, tick, contextId)`.
 - `config/time.ts` — the tick, the day, the snapshot interval.
 - `config/provinces.ts` — everything the province generator derives.
 - `config/rates.ts` — every per-tick rate in the economy.
+- `config/rulers.ts` — the name lists a nation's ruler is drawn from.
 - `economy/Buildings.ts` — what can be built, and what it costs.
 
 And per invariant 9, no player ever sees a per-tick figure.
