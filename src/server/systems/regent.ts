@@ -62,8 +62,6 @@ const FOCUS_BUILDINGS: Readonly<Record<RegentFocus, readonly BuildingType[]>> =
     expansion: ["military_factory", "infrastructure"],
   };
 
-
-
 /** Whether this building can go in this province right now. */
 function buildable(
   state: WorldState,
@@ -252,7 +250,8 @@ export const regentSystem: System = {
           });
         }
         const riflesWanted =
-          total - gunsWanted -
+          total -
+          gunsWanted -
           military
             .filter((line) => line !== rifles && line !== guns)
             .reduce((sum, line) => sum + line.factories, 0);

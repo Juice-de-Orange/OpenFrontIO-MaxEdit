@@ -30,7 +30,7 @@ Three things follow, and each was the point of a rejected alternative.
 
 ### The recipe hangs off the line, not off the building
 
-Production lines are national: a line is a *number* of factories, not a set of
+Production lines are national: a line is a _number_ of factories, not a set of
 buildings in named provinces. So the split between "assigned" and "idle" is
 computed once per nation, against the totals the province scan already
 counted, rather than per province. A per-province recipe would have needed
@@ -43,7 +43,7 @@ micromanage which building in which province makes what.
 `EQUIPMENT_MATERIALS` is read per factory per tick, exactly like the flat rate
 it replaces. It is tempting to multiply by the equipment's industrial cost as
 well, on the grounds that a tank is a bigger object. That would be counting
-the same fact twice: a heavy type is *already* slow to come off the line,
+the same fact twice: a heavy type is _already_ slow to come off the line,
 because `cost` divides its output. Multiplying as well would make an armour
 line fifty times the drain of a rifle line rather than three times it, and
 nothing but infantry would ever be affordable.

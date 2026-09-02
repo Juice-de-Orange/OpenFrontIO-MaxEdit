@@ -318,9 +318,10 @@ describe.skipIf(URL === undefined || URL === "")("PgStore", () => {
       const suffix = Date.now().toString(36);
       await store.createAccount(`alice-${suffix}`, "Alice", `hash-a-${suffix}`);
       await store.createAccount(`bob-${suffix}`, "Bob", `hash-b-${suffix}`);
-      expect(
-        await store.accountByTokenHash(`hash-a-${suffix}`),
-      ).toEqual({ id: `alice-${suffix}`, name: "Alice" });
+      expect(await store.accountByTokenHash(`hash-a-${suffix}`)).toEqual({
+        id: `alice-${suffix}`,
+        name: "Alice",
+      });
       expect(await store.accountByTokenHash("hash-nobody")).toBeNull();
 
       expect(await store.claimNation(id, 7, `alice-${suffix}`)).toBe("ok");

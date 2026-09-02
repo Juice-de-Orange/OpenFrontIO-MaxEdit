@@ -1,6 +1,7 @@
 import { html, TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import { ClientEnv } from "src/client/ClientEnv";
+import { assetUrl } from "src/client/util/AssetUrl";
 import {
   calculateServerTimeOffset,
   getMapName,
@@ -9,7 +10,6 @@ import {
   renderDuration,
   translateText,
 } from "../client/Utils";
-import { assetUrl } from "src/client/util/AssetUrl";
 import { EventBus } from "../core/EventBus";
 import {
   ClientInfo,

@@ -8,14 +8,14 @@
 
 Nation territory was grown from the capitals: a breadth-first flood over the
 land, every border equidistant between two capitals. That gave every nation
-*a* territory, but the borders were nobody's borders — France ended where
+_a_ territory, but the borders were nobody's borders — France ended where
 Paris stopped being closer than Bern. The map this game plays on is a
 hand-drawn Europe, and the one thing everyone knows about Europe is where
 the countries are.
 
 The hard part is that the drawn map is not a Mercator projection, or any
 projection. It is art, with artistic distortions, so real geometry cannot be
-projected onto it — it has to be *registered* to it, the way a scanned page
+projected onto it — it has to be _registered_ to it, the way a scanned page
 is registered to a template.
 
 ## Decision

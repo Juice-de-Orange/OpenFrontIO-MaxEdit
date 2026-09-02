@@ -1,7 +1,7 @@
 import { html } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
-import { translateText, TUTORIAL_VIDEO_URL } from "../client/Utils";
 import { assetUrl } from "src/client/util/AssetUrl";
+import { translateText, TUTORIAL_VIDEO_URL } from "../client/Utils";
 import { UserSettings } from "../core/game/UserSettings";
 import { BaseModal } from "./components/BaseModal";
 import "./components/Difficulties";

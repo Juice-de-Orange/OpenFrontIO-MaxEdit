@@ -19,11 +19,11 @@
  * geometry is checked in as `ne-borders.geojson`.
  */
 
-import { LAND_BIT } from "src/shared/map/TerrainBits";
 import {
   nearestLandTile,
   type NationSeed,
 } from "src/shared/map/ProvincePartition";
+import { LAND_BIT } from "src/shared/map/TerrainBits";
 
 /** The registration of the map onto the Natural Earth grid. */
 export interface BordersFit {

@@ -22,7 +22,9 @@ import {
 import type { BorderCollection, BordersFit } from "src/build/NationBorders";
 
 /** Map directories to generate, as `<root>:<id>` pairs. */
-const TARGETS: { root: string; id: string }[] = [{ root: "resources/maps", id: "europe" }];
+const TARGETS: { root: string; id: string }[] = [
+  { root: "resources/maps", id: "europe" },
+];
 
 // The test fixtures under tests/testdata/maps are deliberately absent. Their
 // manifests carry no nations, so they partition into zero provinces, and the

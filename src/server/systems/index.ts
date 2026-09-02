@@ -25,16 +25,16 @@
 
 import type { WorldEvent, WorldState } from "../world/WorldState";
 import { airSystem } from "./air";
-import { navalSystem } from "./naval";
-import { regentSystem } from "./regent";
-import { victorySystem } from "./victory";
 import { combatSystem } from "./combat";
 import { constructionSystem } from "./construction";
 import { economySystem } from "./economy";
+import { navalSystem } from "./naval";
 import { productionSystem } from "./production";
+import { regentSystem } from "./regent";
 import { researchSystem } from "./research";
 import { supplySystem } from "./supply";
 import { tradeSystem } from "./trade";
+import { victorySystem } from "./victory";
 
 /**
  * A system: reads the world, returns what should happen to it.

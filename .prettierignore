@@ -1,0 +1,6 @@
+# Generated or imported data, kept byte-for-byte as their tools wrote them.
+# Reformatting a 600 KB GeoJSON or drizzle's own meta snapshots buys nothing and
+# makes the next `drizzle-kit generate` or map rebuild a formatting diff.
+drizzle/meta/
+resources/maps/**/*.json
+resources/maps/**/*.geojson

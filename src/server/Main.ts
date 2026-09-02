@@ -15,10 +15,10 @@ import { fileURLToPath } from "url";
 import { MemoryStore } from "./db/MemoryStore";
 import { PgStore } from "./db/PgStore";
 import type { WorldStore } from "./db/Store";
-import { WorldSocketServer } from "./net/WsServer";
-import { World } from "./world/World";
 import { IdentityService } from "./net/Identity";
+import { WorldSocketServer } from "./net/WsServer";
 import { openSeason } from "./world/Season";
+import { World } from "./world/World";
 import { WorldRunner } from "./world/WorldRunner";
 
 import { TICK_MS } from "src/shared/config/time";

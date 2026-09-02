@@ -40,11 +40,7 @@ import {
 import { equipmentIndex } from "src/shared/economy/Equipment";
 import { FORMATIONS } from "src/shared/economy/Formations";
 import type { System } from ".";
-import {
-  atPeace,
-  type WorldEvent,
-  type WorldState,
-} from "../world/WorldState";
+import { atPeace, type WorldEvent, type WorldState } from "../world/WorldState";
 import { netRaidOver, seaSupplyRoutes } from "./supply";
 import { tradeContext } from "./trade";
 import { contestOf, isContested, superiorityOf } from "./zones";
@@ -164,7 +160,12 @@ export const navalSystem: System = {
             });
           }
         }
-        events.push({ kind: "invasion_landed", nation, id: transit.id, landed });
+        events.push({
+          kind: "invasion_landed",
+          nation,
+          id: transit.id,
+          landed,
+        });
       }
     }
 

@@ -1,7 +1,7 @@
 import { html, TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { translateText } from "../client/Utils";
 import { assetUrl } from "src/client/util/AssetUrl";
+import { translateText } from "../client/Utils";
 import { BaseModal } from "./components/BaseModal";
 import { modalHeader } from "./components/ui/ModalHeader";
 

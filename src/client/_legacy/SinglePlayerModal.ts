@@ -1,8 +1,8 @@
 import { html, TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { assetUrl } from "src/client/util/AssetUrl";
 import { translateText } from "../client/Utils";
 import { UserMeResponse } from "../core/ApiSchemas";
-import { assetUrl } from "src/client/util/AssetUrl";
 import { DoomsdayClockSpeed } from "../core/game/DoomsdayClock";
 import {
   Difficulty,

@@ -5,12 +5,12 @@ import {
   type TemplateResult,
 } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { assetUrl } from "src/client/util/AssetUrl";
 import {
   type PlayerGameModeFilter,
   type PlayerGameTypeFilter,
   type PublicPlayerGame,
 } from "../../../../core/ApiSchemas";
-import { assetUrl } from "src/client/util/AssetUrl";
 import { GameMapType } from "../../../../core/game/Game";
 import { fetchPublicPlayerGames } from "../../../Api";
 import { ClientEnv } from "../../../ClientEnv";

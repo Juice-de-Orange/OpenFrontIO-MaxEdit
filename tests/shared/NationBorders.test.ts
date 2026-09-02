@@ -89,11 +89,17 @@ describe("computeNationOfTile", () => {
     features: [
       {
         properties: { GEOUNIT: "Westland" },
-        geometry: { type: "Polygon", coordinates: [cellRect(fit, 0, 20, 0, 30)] },
+        geometry: {
+          type: "Polygon",
+          coordinates: [cellRect(fit, 0, 20, 0, 30)],
+        },
       },
       {
         properties: { GEOUNIT: "Eastland" },
-        geometry: { type: "Polygon", coordinates: [cellRect(fit, 20, 40, 0, 30)] },
+        geometry: {
+          type: "Polygon",
+          coordinates: [cellRect(fit, 20, 40, 0, 30)],
+        },
       },
     ],
   };
@@ -104,7 +110,15 @@ describe("computeNationOfTile", () => {
   const names = ["Westland", "Eastland"];
 
   test("tiles fall to the nation whose geometry covers them", () => {
-    const owner = computeNationOfTile(allLand(), W, H, seeds, names, fit, borders);
+    const owner = computeNationOfTile(
+      allLand(),
+      W,
+      H,
+      seeds,
+      names,
+      fit,
+      borders,
+    );
     expect(owner[15 * W + 5]).toBe(0);
     expect(owner[15 * W + 35]).toBe(1);
   });
@@ -116,7 +130,15 @@ describe("computeNationOfTile", () => {
     // moving the east border; tiles east of the atlas edge but on the map
     // must flood from Eastland, not stay a hole.
     for (let y = 0; y < H; y++) terrain[y * W + 0] = 0;
-    const owner = computeNationOfTile(terrain, W, H, seeds, names, fit, borders);
+    const owner = computeNationOfTile(
+      terrain,
+      W,
+      H,
+      seeds,
+      names,
+      fit,
+      borders,
+    );
     expect(owner[15 * W + 0]).toBe(-1);
     expect(owner[15 * W + 1]).toBe(0);
   });
@@ -155,7 +177,15 @@ describe("computeNationOfTile", () => {
       { x: 10, y: 15 },
       { x: 34, y: 15 },
     ];
-    const drowned = computeNationOfTile(terrain, W, H, seeds2, names, fit, borders);
+    const drowned = computeNationOfTile(
+      terrain,
+      W,
+      H,
+      seeds2,
+      names,
+      fit,
+      borders,
+    );
     expect(drowned[2 * W + 2]).toBe(-1);
 
     // The same islet as Westland's capital: kept, as a city-state is.
@@ -163,7 +193,15 @@ describe("computeNationOfTile", () => {
       { x: 2, y: 2 },
       { x: 34, y: 15 },
     ];
-    const kept = computeNationOfTile(terrain, W, H, island, names, fit, borders);
+    const kept = computeNationOfTile(
+      terrain,
+      W,
+      H,
+      island,
+      names,
+      fit,
+      borders,
+    );
     expect(kept[2 * W + 2]).toBe(0);
   });
 

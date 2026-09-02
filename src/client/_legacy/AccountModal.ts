@@ -1,8 +1,8 @@
 import { html, nothing, TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { ClientEnv } from "src/client/ClientEnv";
-import { PlayerStatsTree, UserMeResponse } from "../core/ApiSchemas";
 import { assetUrl } from "src/client/util/AssetUrl";
+import { PlayerStatsTree, UserMeResponse } from "../core/ApiSchemas";
 import { hasLinkedIdentity } from "./AccountIdentity";
 import { fetchPlayerById, getUserMe, invalidateUserMe } from "./Api";
 import {

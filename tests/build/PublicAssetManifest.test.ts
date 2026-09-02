@@ -2,7 +2,6 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, test } from "vitest";
-import { normalizeAssetPath } from "../../src/shared/util/AssetPath";
 import {
   buildPublicAssetManifest,
   clearPublicAssetManifestCache,
@@ -11,6 +10,7 @@ import {
   rewriteAssetsForCdn,
   shouldKeepRootPublicFile,
 } from "../../src/build/PublicAssetManifest";
+import { normalizeAssetPath } from "../../src/shared/util/AssetPath";
 
 describe("PublicAssetManifest", () => {
   let tempDir: string | null = null;

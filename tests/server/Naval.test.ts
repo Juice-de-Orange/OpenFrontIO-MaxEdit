@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { navalSystem } from "../../src/server/systems/naval";
-import { applyEvent } from "../../src/server/world/WorldState";
 import { tradeRouteBetween } from "../../src/server/systems/routes";
 import { seaSupplyRoutes, supplyReach } from "../../src/server/systems/supply";
 import { nationTrade } from "../../src/server/systems/trade";
 import { World } from "../../src/server/world/World";
 import {
+  applyEvent,
   AT_SEA,
   type Division,
   type Formation,
@@ -419,7 +419,14 @@ describe("the sea half of phase 9", () => {
     setBuilding(state, capital.id, "civilian_factory", 4);
 
     const zone = state.map.provinces[beachhead].seaZone as number;
-    fleet(state, 2, coastalOf(state, 2), "submarine_flotilla", zone, "convoy_raiding");
+    fleet(
+      state,
+      2,
+      coastalOf(state, 2),
+      "submarine_flotilla",
+      zone,
+      "convoy_raiding",
+    );
 
     const sunk = navalSystem
       .run(state, 1)

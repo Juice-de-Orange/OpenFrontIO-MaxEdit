@@ -40,18 +40,16 @@ import {
   MARKET_BUY_POINTS,
   MARKET_SELL_POINTS,
 } from "src/shared/config/diplomacy";
-import type { Resource } from "src/shared/config/provinces";
-import { RESOURCES } from "src/shared/config/provinces";
-import { RESOURCE_CAP } from "src/shared/config/rates";
 import {
   CONVOY_WEAR,
   CONVOYS_PER_TRADE_FLOW_ZONE,
   SEA_RAID_SUPPLY_MAX,
 } from "src/shared/config/naval";
+import type { Resource } from "src/shared/config/provinces";
+import { RESOURCES } from "src/shared/config/provinces";
+import { RESOURCE_CAP } from "src/shared/config/rates";
 import { equipmentIndex } from "src/shared/economy/Equipment";
 import type { System } from ".";
-import { tradeRouteBetween, type TradeRoute } from "./routes";
-import { netRaidOver, seaSupplyRoutes } from "./supply";
 import {
   agreementIsLive,
   type Agreement,
@@ -59,6 +57,8 @@ import {
   type WorldState,
 } from "../world/WorldState";
 import { measureNation } from "./economy";
+import { tradeRouteBetween, type TradeRoute } from "./routes";
+import { netRaidOver, seaSupplyRoutes } from "./supply";
 
 /** What one nation's standing commitments move this tick, already scaled. */
 export interface NationTrade {
