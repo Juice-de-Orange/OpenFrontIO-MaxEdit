@@ -2060,9 +2060,28 @@ default. Say whether they read at all: the fill sits over them and the first
 colours vanished under it entirely.
 0p. **The icons**: seven of this fork's own — round civilian factory,
 hexagonal military factory, dockyard with a crane, refinery with a flame,
-aeroplane, anchor, crates. The SVGs are in `resources/images/structures/`
-and `npm run gen-structure-atlas` rebuilds the atlas; say which ones do not
-read and they are a path edit away.
+aeroplane, anchor on a battlement, crates. The SVGs are in
+`resources/images/structures/` and `npm run gen-structure-atlas` rebuilds the
+atlas; say which ones do not read and they are a path edit away. The naval
+base was a bare anchor and so is upstream's inherited port, which made two
+of thirteen columns the same picture; it now stands on a fortified wall.
+
+0q. **The archetype on a nation** (decision 0028): the diplomacy list should
+read "Otherland · Alma Falk, the conqueror", and the circled i beside the
+panel heading should explain what the seven kinds do. Two questions: does
+knowing a neighbour is a conqueror change how you deal with them, and does
+the line get too long at fifty-two nations?
+
+0r. **A trade in equipment** (decision 0027): offer an agreement, switch the
+goods select from a resource to equipment, pick fighters, send it. The
+terms line on both sides should read "12 fighters for 6 construction" per
+day, and the stockpile should move when it is accepted. The rate field
+should cap lower for equipment than for a resource — say whether the switch
+between the two reads, or whether it wants two separate forms.
+
+0s. **The names on the map**: they now sit in the largest rectangle that
+fits inside a nation, not on its biggest province. Norway and Italy are the
+shapes to judge it on, and Britain for a nation that is several pieces.
 
 The four before them:
 
@@ -2159,7 +2178,8 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
    agreement survive it; the run is longer. Everything since the morning
    rides on it: the regent's second pass, equipment trade, the zone
    overlay's key, the icons, the labels, the hints.
-5. The review page, 0e–0p: which icons and colours read, which do not.
+5. The review page, 0e–0s: which icons and colours read, which do not;
+   0q to 0s are the afternoon's (archetype, equipment trade, map names).
 6. Off-host backup target and the internal ntfy URL (see "Deployed").
 7. Decision 0027 (a trade may carry equipment) and 0028 (temperament) are
    written as Accepted because they were built to Max's instruction; the
@@ -2200,7 +2220,7 @@ possible: a steward with one arms plant cannot open a fighter line, because
 §6.10 staffs _idle_ factories and never takes one off the rifles, so the
 gate asks for the line only where there was a factory to spare.
 
-**Look at it** (the checklist above, 0g–0p) and say what reads and what does
+**Look at it** (the checklist above, 0g–0s) and say what reads and what does
 not. Then, in this order: redeploy the host — protocol 17 means the deployed
 client and world must move together, the world restarts once and resumes
 from its snapshot (hash version 5 is unchanged), and `resources/flags`
