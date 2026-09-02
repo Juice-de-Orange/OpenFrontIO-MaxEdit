@@ -1830,6 +1830,19 @@ on which port is deliberately not in this repository** — it is in
 public. This paragraph named the host and its address until 2026-09-01, in the
 same breath as saying it would not; see the note at the end of this section.
 
+**Redeployed on 2026-09-02 for protocol 17**, at Max's go, from the old
+machine: a verified dump first, the checkout pulled, the bundle rendered and
+rsynced beside the two previous ones, `resources/flags` shipped for the first
+time, the world image rebuilt and the container recreated. It came back at
+its last durable record about five minutes behind where it was stopped
+(decision 0005 — expected, and the price of a snapshot every 60 ticks), hash
+version unchanged, season still armed. Verified from outside over HTTPS:
+the page, `/health`, the flags, and the browser smoke against the live URL —
+which **claimed a nation with a throwaway account** on its first run,
+because `?nation=` on a season world registers and claims. The claim and its
+account were deleted by hand with Max's approval the same minute, and the
+smoke now watches on a season world unless given `--claim`.
+
 **Redeployed as a season on 2026-09-01**, which is what §8 was waiting for.
 The old world was dumped and verified first; the partition hash and the
 protocol had both moved, so it could be kept but not resumed.

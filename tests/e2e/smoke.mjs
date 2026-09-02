@@ -27,6 +27,16 @@
  * HANDOVER about automated Chrome failing at `/ws` was about a browser
  * extension's sandbox, not about headless browsers — this script is the
  * evidence, on 2026-09-01.
+ *
+ * **On a season world it watches, unless told to claim.** Playing a nation on
+ * a season world registers an account and claims the nation for the whole
+ * season (decision 0019) — and the first run of this script against the
+ * deployed world did exactly that, with a token in a browser profile that was
+ * thrown away seconds later. The claim had to be deleted by hand. So the
+ * script asks `GET /register` first: on a season world it opens the page as a
+ * spectator and marks the nation-only checks as skipped, and only
+ * `--claim` makes it play — which is a thing to do on purpose, never by
+ * default.
  */
 
 import { chromium } from "playwright";
@@ -41,6 +51,8 @@ const nation = Number(args.get("nation") ?? "17");
 const client = args.get("client") ?? "http://localhost:9000";
 const health = args.get("health") ?? "http://localhost:3000/health";
 const screenshot = args.get("screenshot");
+// Play a nation on a season world. Off by default: see the header.
+const claim = args.get("claim") === "true";
 const timeoutMs = Number(args.get("timeout") ?? "60000");
 
 let failed = 0;
@@ -74,6 +86,25 @@ if ((await reachable(client)) === null) {
     `  no client at ${client} — start one:\n    npm run start:client`,
   );
   process.exit(2);
+}
+// The same question the client asks before it plays: is this a season world?
+let season = false;
+try {
+  const offer = await fetch(`${client}/register`, {
+    signal: AbortSignal.timeout(3000),
+  });
+  if (offer.ok) season = (await offer.json()).season === true;
+} catch {
+  // no /register: a workbench world, or an older server
+}
+const playing = !season || claim;
+if (season && !claim) {
+  console.log(
+    "  a season world: watching, not claiming (pass --claim to play a nation, which holds it for the season)",
+  );
+}
+function skipped(text) {
+  console.log(`  skip  ${text} (watching a season world)`);
 }
 
 const browser = await chromium.launch({
@@ -130,7 +161,20 @@ await page.addInitScript(() => {
 });
 
 const started = Date.now();
-await page.goto(`${client}/?nation=${nation}`, { waitUntil: "load" });
+await page.goto(playing ? `${client}/?nation=${nation}` : `${client}/`, {
+  waitUntil: "load",
+});
+if (!playing) {
+  // A season world opens on the nation chooser; watching is a click away and
+  // needs no account (decision 0022).
+  try {
+    await page.click("#world-start .watch", { timeout: timeoutMs });
+  } catch {
+    console.log(
+      "  no chooser appeared to watch from — the checks below will say what did",
+    );
+  }
+}
 
 try {
   await page.waitForSelector("#world-menu", { timeout: timeoutMs });
@@ -181,16 +225,24 @@ ok(
 const economy = await page
   .$eval("#world-economy", (p) => (p.hidden ? null : p.textContent))
   .catch(() => null);
-ok(
-  // The label carries a circled "i" (the info button) between it and the number.
-  economy !== null && /Construction\s*i?\s*[\d.]+\/day/.test(economy),
-  "the economy panel is open and shows construction per day",
-);
-ok(
-  economy !== null &&
-    economy.includes("click one of your provinces on the map"),
-  "and says where to build",
-);
+if (playing) {
+  ok(
+    // The label carries a circled "i" (the info button) between it and the number.
+    economy !== null && /Construction\s*i?\s*[\d.]+\/day/.test(economy),
+    "the economy panel is open and shows construction per day",
+  );
+  ok(
+    economy !== null &&
+      economy.includes("click one of your provinces on the map"),
+    "and says where to build",
+  );
+} else {
+  skipped("the economy panel shows construction per day");
+  ok(
+    economy !== null && /Watching/.test(economy),
+    "the economy panel says the session is watching",
+  );
+}
 
 // The camera frames the nation's own territory, so the centre of the window
 // is very likely one of its provinces — and any province opens the panel.
@@ -207,10 +259,14 @@ ok(
   province !== null && /Held by/.test(province),
   "a click on the map opens the province panel",
 );
-ok(
-  province !== null && /Build|Attack this province/.test(province),
-  "and it offers a build menu or an attack — the door is there",
-);
+if (playing) {
+  ok(
+    province !== null && /Build|Attack this province/.test(province),
+    "and it offers a build menu or an attack — the door is there",
+  );
+} else {
+  skipped("it offers a build menu or an attack");
+}
 
 ok(
   frames.includes("welcome"),

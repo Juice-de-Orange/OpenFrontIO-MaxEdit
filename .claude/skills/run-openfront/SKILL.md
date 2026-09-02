@@ -56,7 +56,10 @@ npm run test:e2e -- --nation=17 --screenshot=/tmp/world.png
 
 `--screenshot` writes a PNG of the whole page, which is the cheapest way to
 _look_ at a client change without a person. `--client`, `--health` and
-`--timeout` override the defaults.
+`--timeout` override the defaults. **On a season world it watches** (clicks
+through the chooser) and skips the nation-only checks; `--claim` makes it play
+a nation, which registers an account and holds that nation for the season —
+never do that against the deployed world by accident.
 
 Two things it had to learn, both written in the script's header:
 
