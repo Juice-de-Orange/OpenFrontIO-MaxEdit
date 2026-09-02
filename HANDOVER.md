@@ -1832,6 +1832,11 @@ on which port is deliberately not in this repository** — it is in
 public. This paragraph named the host and its address until 2026-09-01, in the
 same breath as saying it would not; see the note at the end of this section.
 
+**Redeployed a second time on 2026-09-02, 09:50, for the player's name**
+(decision 0024): the same sequence, a verified dump first, the world back at
+its last durable record, the watching smoke green against the live URL, and
+`POST /register` refusing a malformed name with 400 from outside.
+
 **Redeployed on 2026-09-02 for protocol 17**, at Max's go, from the old
 machine: a verified dump first, the checkout pulled, the bundle rendered and
 rsynced beside the two previous ones, `resources/flags` shipped for the first
