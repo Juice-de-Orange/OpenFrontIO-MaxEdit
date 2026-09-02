@@ -21,7 +21,7 @@ TLS, the thirteenth gate is waiting on a clock — and as of the night of
 worked through in its own order, steps 0 to 5, seven commits
 (`c2fecc64..14a7626a`), each pushed after the full checklist: the interface
 says where to build and why a button is disabled; a clock; every number
-explained inline behind a circled i (twenty-seven so far, both languages);
+explained inline behind a circled i (twenty-eight so far, both languages);
 buildings standing on the map; the war visible to the defender, with the
 battle's numbers per day for both parties; a ruler and a flag on every
 nation; regents with a focus of their own; supply drawn in proportion to
@@ -424,9 +424,12 @@ reading the old comment.
 (`Season.ts`, as a real command), supply by equipment (§6.6; the phase-6
 gate re-run and passing), `STARTING_DIVISIONS` deleted at Max's call, a
 language picker in the bar (reloads, because the built-once forms keep
-their labels), and seventeen more explanations — twenty-seven in all. Still open:
-the player's own name, names and flags on the map through `NamePass`,
-purpose-drawn icons, and the rest of the prose.
+their labels), eighteen more explanations — twenty-eight in all — and, in the
+morning, **the nations' names on the map** through the inherited `NamePass`
+(`FrameAdapter.applyLabels`: over the largest province held, sized by land,
+the troop line switched off in the render settings, the flag handed to the
+renderer's header). Still open: the player's own name and purpose-drawn
+icons.
 
 The remaining ~85 explanations, panel by panel. The player's own name (an input
 field, validation, a store join, and a decision record — decision 0019 draws
@@ -1906,6 +1909,10 @@ losses, all per day. The map shows a ring over the province.
 0k. **Personality**: the diplomacy list reads "Otherland · Alma Falk"; your
 own badge carries the flag; the economy says "from N civilian factories".
 0l. **The language picker** at the right of the bar switches and reloads.
+0m. **Names on the map**: every nation's name over its largest province,
+larger for larger nations, gone when a nation holds nothing. Say whether the
+size reads right at the zoom you play at — `LABEL_SCALE` in `FrameAdapter`
+is the knob.
 
 The four before them:
 

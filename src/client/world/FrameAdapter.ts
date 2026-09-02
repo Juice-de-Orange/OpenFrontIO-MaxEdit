@@ -18,7 +18,12 @@
  * in the same object, which is exactly why the trap is a trap.
  */
 
-import type { FrameData, UnitState } from "src/client/render/types";
+import type {
+  FrameData,
+  NameEntry,
+  PlayerState,
+  UnitState,
+} from "src/client/render/types";
 import type { Province } from "src/shared/map/Province";
 import type { ProvinceTileIndex } from "./ProvinceTileIndex";
 import { structuresOf } from "./StructureAdapter";
@@ -54,6 +59,15 @@ export interface InvasionUpdate {
 const INVASION_MARK_INNER = 3;
 const INVASION_MARK_OUTER = 9;
 
+/**
+ * A nation's label on the map, in tiles: the square root of the land it
+ * holds, scaled down, between a size that is still legible and one that does
+ * not cover half a continent. Rendering constants, not balance.
+ */
+const LABEL_SCALE = 4;
+const LABEL_MIN = 6;
+const LABEL_MAX = 40;
+
 export class FrameAdapter {
   private readonly tileState: Uint16Array;
   private readonly trailState: Uint16Array;
@@ -78,6 +92,10 @@ export class FrameAdapter {
   /** Provinces whose tiles currently carry a partial front's colours. */
   private readonly frontedProvinces = new Set<number>();
 
+  /** The nation labels and the per-nation state `NamePass` reads, mutated in place. */
+  private readonly names = new Map<string, NameEntry>();
+  private readonly players = new Map<number, PlayerState>();
+
   constructor(
     private readonly index: ProvinceTileIndex,
     private readonly grid: FrontGrid,
@@ -100,8 +118,8 @@ export class FrameAdapter {
       trailState: this.trailState,
       railroadState: this.railroadState,
       units: new Map(),
-      players: new Map(),
-      names: new Map(),
+      players: this.players,
+      names: this.names,
       // Three empty arrays, not an empty object: Upload.ts reads `.length`
       // on each of these before checking anything else.
       events: { deadUnits: [], conquestEvents: [], bonusEvents: [] },
@@ -182,6 +200,61 @@ export class FrameAdapter {
         outerRadius: INVASION_MARK_OUTER,
         relation: invasion.attacker === nation ? 0 : 2,
       });
+    }
+  }
+
+  /**
+   * Put every nation's name on the map, over the largest province it holds.
+   *
+   * `NamePass` was inherited whole and drew nothing because `names` and
+   * `players` were empty maps. It wants a label keyed by the header id
+   * (`nation-${smallID}`, as `WorldClient` builds the renderer) with a
+   * position and a size in tiles, and a `PlayerState` per nation of which it
+   * reads two fields: `isAlive` and `troops`. A nation holding no province
+   * is dead and its label goes; the troop line is switched off in the
+   * render settings because this game has no such number to show there.
+   * Both maps are the frame's own and are mutated in place (the header
+   * comment's rule), so the pass's diff-and-lerp sees the same objects.
+   */
+  applyLabels(
+    controllers: readonly number[],
+    provinces: readonly Province[],
+    nations: readonly { smallID: number }[],
+  ): void {
+    const land = new Map<number, number>();
+    const largest = new Map<number, Province>();
+    for (let id = 0; id < controllers.length; id++) {
+      const nation = controllers[id];
+      const province = provinces[id];
+      if (nation <= 0 || province === undefined) continue;
+      land.set(nation, (land.get(nation) ?? 0) + province.tileCount);
+      const best = largest.get(nation);
+      if (best === undefined || province.tileCount > best.tileCount) {
+        largest.set(nation, province);
+      }
+    }
+    for (const { smallID } of nations) {
+      const key = `nation-${smallID}`;
+      const home = largest.get(smallID);
+      if (home === undefined) {
+        this.names.delete(key);
+        this.players.set(smallID, playerState(smallID, false, 0));
+        continue;
+      }
+      const tiles = land.get(smallID) ?? 0;
+      const size = Math.min(
+        LABEL_MAX,
+        Math.max(LABEL_MIN, Math.sqrt(tiles) / LABEL_SCALE),
+      );
+      // A third of the size up, as upstream placed it: the glyphs hang below
+      // the anchor, so the visual centre is lower than the point.
+      this.names.set(key, {
+        playerID: key,
+        x: home.centre.x,
+        y: home.centre.y - size / 3,
+        size,
+      });
+      this.players.set(smallID, playerState(smallID, true, tiles));
     }
   }
 
@@ -409,4 +482,47 @@ export class FrameAdapter {
     this.structuresDirty = false;
     return this.frame;
   }
+}
+
+/**
+ * The `PlayerState` the name pass reads two fields of. Everything else is
+ * upstream's match bookkeeping — gold, betrayals, doomsday clocks — and is
+ * zero here, once, rather than a second copy of a struct this game has no
+ * source for.
+ */
+function playerState(
+  smallID: number,
+  isAlive: boolean,
+  tilesOwned: number,
+): PlayerState {
+  return {
+    smallID,
+    isAlive,
+    isDisconnected: false,
+    killedBy: null,
+    deathPosition: null,
+    tilesOwned,
+    gold: 0,
+    tradeGold: 0,
+    trainGold: 0,
+    piracyGold: 0,
+    goldEarned: 0,
+    troops: 0,
+    isTraitor: false,
+    traitorRemainingTicks: 0,
+    inDoomsdayClock: false,
+    isDecaying: false,
+    markedDoomsdayClockTick: 0,
+    betrayals: 0,
+    hasSpawned: isAlive,
+    lastDeleteUnitTick: 0,
+    allies: [],
+    embargoes: [],
+    targets: [],
+    outgoingAttacks: [],
+    incomingAttacks: [],
+    outgoingAllianceRequests: [],
+    alliances: [],
+    outgoingEmojis: [],
+  };
 }

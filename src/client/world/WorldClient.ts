@@ -481,6 +481,11 @@ export async function startWorldClient(
                 model.nation,
               );
               adapter.applyBuildings(model.buildings, model.controllers);
+              adapter.applyLabels(
+                model.controllers,
+                model.provinces,
+                model.nations,
+              );
               uploadFrameData(view, adapter.frameData());
               hud.update(model);
             })
@@ -504,6 +509,7 @@ export async function startWorldClient(
           model.nation,
         );
         adapter.applyBuildings(model.buildings, model.controllers);
+        adapter.applyLabels(model.controllers, model.provinces, model.nations);
         uploadFrameData(view, adapter.frameData());
         hud.update(model);
       },
@@ -554,6 +560,11 @@ export async function startWorldClient(
         // controller whose colour they wear. Most ticks move neither.
         if (delta.buildings.length > 0 || delta.control.length > 0) {
           adapter.applyBuildings(model.buildings, model.controllers);
+          adapter.applyLabels(
+            model.controllers,
+            model.provinces,
+            model.nations,
+          );
         }
         uploadFrameData(view, adapter.frameData());
         hud.update(model);
@@ -713,6 +724,9 @@ async function buildFrom(
         playerType: PlayerTypeEnum.Nation,
         team: null,
         isLobbyCreator: false,
+        // Resolved once at construction; a deployment that does not serve
+        // `resources/flags` gets no flag and no broken image.
+        flag: n.flag === undefined ? undefined : `/flags/${n.flag}.svg`,
       })),
       maxPlayers: 256,
     },
