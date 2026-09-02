@@ -74,6 +74,14 @@ const en = {
   "economy.resources": "Resources",
   "economy.civilianFactories": "from {count} civilian factories",
   "nation.withRuler": "{name} \u00b7 {ruler}",
+  "nation.withRulerAnd": "{name} \u00b7 {ruler}, the {archetype}",
+  "archetype.builder": "builder",
+  "archetype.warden": "warden",
+  "archetype.marshal": "marshal",
+  "archetype.admiral": "admiral",
+  "archetype.airman": "airman",
+  "archetype.scholar": "scholar",
+  "archetype.conqueror": "conqueror",
   "battle.title": "The battle",
   "battle.strength": "Strength, attacker \u00b7 defender",
   "battle.divisions": "{attacker} \u00b7 {defender} divisions",
@@ -302,6 +310,8 @@ const en = {
     "Public, 0 to 100, and spent by breaking agreements: a little for a trade, a lot for an alliance, almost all of it for attacking a nation you promised not to. It never comes back.",
   "help.diplomacy.agreements":
     "Every agreement stands until one side gives notice — no durations, no renewals. Notice takes one in-game day and costs trust, and the other side is told at once.",
+  "help.diplomacy.archetype":
+    "Every ruler has a temperament, drawn from the world like their name. A builder fills slots with factories, a warden garrisons and digs in, a marshal defends and strikes, an admiral lives by convoys and escorts, an airman puts fighters over the home zone, a scholar researches first, a conqueror opens fronts. A nation a player holds shows the player's name instead.",
   "help.province.slots":
     "Every building but roads and mines takes a slot, and a queued order holds its slot too. When they are full, more land is the only way to more.",
   "help.province.control":
@@ -416,6 +426,14 @@ const de: Record<StringKey, string> = {
   "economy.resources": "Rohstoffe",
   "economy.civilianFactories": "aus {count} Zivilfabriken",
   "nation.withRuler": "{name} \u00b7 {ruler}",
+  "nation.withRulerAnd": "{name} \u00b7 {ruler}, {archetype}",
+  "archetype.builder": "Baumeister",
+  "archetype.warden": "H\u00fcter",
+  "archetype.marshal": "Marschall",
+  "archetype.admiral": "Admiral",
+  "archetype.airman": "Flieger",
+  "archetype.scholar": "Gelehrter",
+  "archetype.conqueror": "Eroberer",
   "battle.title": "Die Schlacht",
   "battle.strength": "St\u00e4rke, Angreifer \u00b7 Verteidiger",
   "battle.divisions": "{attacker} \u00b7 {defender} Divisionen",
@@ -645,6 +663,8 @@ const de: Record<StringKey, string> = {
     "Öffentlich, 0 bis 100, und verbraucht durch gebrochene Abkommen: wenig für einen Handel, viel für ein Bündnis, fast alles für den Angriff auf eine Nation, der du Nichtangriff versprochen hast. Es kommt nie zurück.",
   "help.diplomacy.agreements":
     "Jedes Abkommen gilt, bis eine Seite kündigt — keine Laufzeiten, keine Verlängerungen. Die Kündigung braucht einen Spieltag, kostet Vertrauen, und die andere Seite erfährt es sofort.",
+  "help.diplomacy.archetype":
+    "Jeder Herrscher hat ein Temperament, aus der Welt gezogen wie sein Name. Ein Baumeister füllt Plätze mit Fabriken, ein Hüter garnisoniert und gräbt sich ein, ein Marschall verteidigt und schlägt zu, ein Admiral lebt von Konvois und Eskorten, ein Flieger legt Jäger über die Heimatzone, ein Gelehrter forscht zuerst, ein Eroberer eröffnet Fronten. Eine Nation, die ein Spieler hält, zeigt stattdessen dessen Namen.",
   "help.province.slots":
     "Jedes Gebäude außer Straßen und Minen belegt einen Bauplatz, und ein eingereihter Auftrag hält seinen Platz ebenfalls. Sind sie voll, führt nur mehr Land zu mehr.",
   "help.province.control":

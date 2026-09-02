@@ -4,6 +4,7 @@ import { hashToken, IdentityService } from "../../src/server/net/Identity";
 import { openSeason, regentFocusFor } from "../../src/server/world/Season";
 import { World } from "../../src/server/world/World";
 import { WorldRunner } from "../../src/server/world/WorldRunner";
+import { nationIsCoastal } from "../../src/shared/config/temperament";
 import { mapFixture } from "../util/worldFixture";
 
 /**
@@ -147,7 +148,11 @@ describe("identity", () => {
       // it went through the log as a command, so a replay re-rolls nothing.
       if (nation !== 2) {
         expect(state.nations[nation].regent.focus).toBe(
-          regentFocusFor(state.worldSeed, nation),
+          regentFocusFor(
+            state.worldSeed,
+            nation,
+            nationIsCoastal(state.map, nation),
+          ),
         );
       }
     }
@@ -155,7 +160,7 @@ describe("identity", () => {
     // identical stewards.
     const foci = new Set<string>();
     for (let nation = 1; nation <= 52; nation++) {
-      foci.add(regentFocusFor(state.worldSeed, nation));
+      foci.add(regentFocusFor(state.worldSeed, nation, true));
     }
     expect(foci.size).toBe(4);
 
@@ -195,9 +200,22 @@ describe("identity", () => {
         expect(regent.focus).toBe("economy"); // the player's, untouched
         continue;
       }
-      expect(regent.focus).toBe(regentFocusFor(after.worldSeed, nation));
+      expect(regent.focus).toBe(
+        regentFocusFor(
+          after.worldSeed,
+          nation,
+          nationIsCoastal(after.map, nation),
+        ),
+      );
       expect(regent.marketBudget).toBe(0.25); // the budget is not the flag's business
-      if (regentFocusFor(after.worldSeed, nation) !== "economy") moved++;
+      if (
+        regentFocusFor(
+          after.worldSeed,
+          nation,
+          nationIsCoastal(after.map, nation),
+        ) !== "economy"
+      )
+        moved++;
     }
     expect(reseed).toEqual({ opened: 0, reseeded: moved });
     expect(moved).toBeGreaterThan(0);

@@ -61,7 +61,14 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
 function model(over: Partial<HudModel> = {}): HudModel {
   return {
     nation: 1,
-    nations: [{ smallID: 1, name: "Testland", ruler: "Test Ruler" }],
+    nations: [
+      {
+        smallID: 1,
+        name: "Testland",
+        ruler: "Test Ruler",
+        archetype: "builder",
+      },
+    ],
     provinces: [],
     controllers: [],
     owners: [],

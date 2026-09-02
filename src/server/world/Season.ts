@@ -21,26 +21,26 @@
  * and a replay reaches the same world without re-rolling anything.
  */
 
+import { DEFAULT_REGENT, type RegentFocus } from "src/shared/config/regent";
 import {
-  DEFAULT_REGENT,
-  REGENT_FOCI,
-  type RegentFocus,
-} from "src/shared/config/regent";
-import { PseudoRandom } from "src/shared/util/PseudoRandom";
+  focusForArchetype,
+  nationIsCoastal,
+  temperamentOf,
+} from "src/shared/config/temperament";
 import type { WorldStore } from "../db/Store";
 import type { World } from "./World";
 import type { WorldRunner } from "./WorldRunner";
 
 /**
- * The focus a nation's regent opens the season with. Pure: same seed and
- * nation, same focus. A different salt from `rulerName`, so a ruler's name
- * says nothing about how they play.
+ * The focus a nation's regent opens the season with: the one its temperament
+ * calls for (decision 0028). Pure: same seed and nation, same focus.
  */
-export function regentFocusFor(worldSeed: number, nation: number): RegentFocus {
-  const random = new PseudoRandom(
-    (worldSeed ^ Math.imul(nation, 0x85ebca6b) ^ 0x5eed0) >>> 0,
-  );
-  return REGENT_FOCI[Math.floor(random.next() * REGENT_FOCI.length)];
+export function regentFocusFor(
+  worldSeed: number,
+  nation: number,
+  coastal: boolean,
+): RegentFocus {
+  return focusForArchetype(temperamentOf(worldSeed, nation, coastal).archetype);
 }
 
 /**
@@ -68,7 +68,11 @@ export async function openSeason(
     // the world never touches it, opening or reseeding.
     if (claimed.has(nation)) continue;
     const regent = state.nations[nation].regent;
-    const focus = regentFocusFor(state.worldSeed, nation);
+    const focus = regentFocusFor(
+      state.worldSeed,
+      nation,
+      nationIsCoastal(state.map, nation),
+    );
     if (regent.enabled) {
       // **The operator's one-off** (`REGENT_FOCUS_RESEED=1`): a season opened
       // before regents drew a focus has every steward on the default. Moving

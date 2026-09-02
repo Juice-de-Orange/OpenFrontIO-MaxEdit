@@ -1628,7 +1628,10 @@ export class Hud {
     const standing = mine.filter((a) => a.accepted);
 
     const children: Node[] = [
-      heading(t("diplomacy.title")),
+      ...this.explained(
+        "help.diplomacy.archetype",
+        heading(t("diplomacy.title")),
+      ),
       ...this.explained(
         "help.diplomacy.trust",
         row(t("diplomacy.trust"), amount(model.trust[nation] ?? 0)),
@@ -2361,7 +2364,11 @@ function nationWithRuler(model: HudModel, id: number): string {
   const nation = model.nations.find((n) => n.smallID === id);
   if (nation === undefined) return `#${id}`;
   if (id === model.nation) return nation.name;
-  return t("nation.withRuler", { name: nation.name, ruler: nation.ruler });
+  return t("nation.withRulerAnd", {
+    name: nation.name,
+    ruler: nation.ruler,
+    archetype: t(`archetype.${nation.archetype}` as StringKey),
+  });
 }
 
 /** The nation's flag from the map manifest, or null when the map has none. */

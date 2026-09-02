@@ -51,7 +51,15 @@ describe("the wire protocol", () => {
           terrainHash: 99,
           partitionHash: 1234,
         },
-        nations: [{ smallID: 1, name: "One", ruler: "Alma Falk", flag: "ie" }],
+        nations: [
+          {
+            smallID: 1,
+            name: "One",
+            ruler: "Alma Falk",
+            flag: "ie",
+            archetype: "builder",
+          },
+        ],
         nation: 1,
         owners: [1, 0],
         controllers: [1, 2],
@@ -288,6 +296,10 @@ describe("the wire protocol", () => {
     // `battles` report to both parties on every delta, a derived ruler and
     // the manifest's flag on every nation, and the civilian factory count on
     // the economy. A v16 client would refuse every delta as malformed.
-    expect(PROTOCOL_VERSION).toBe(17);
+    //
+    // 18 is the temperament and the equipment trade: every nation carries its
+    // ruler's archetype, and a trade's terms may name equipment beside the
+    // resource. A v17 client would refuse every full state as malformed.
+    expect(PROTOCOL_VERSION).toBe(18);
   });
 });

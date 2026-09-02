@@ -63,6 +63,7 @@ import {
   TECHS,
   type TechId,
 } from "src/shared/config/techs";
+import { nationIsCoastal, temperamentOf } from "src/shared/config/temperament";
 import { TICKS_PER_DAY } from "src/shared/config/time";
 import {
   buildingIndex,
@@ -159,7 +160,10 @@ interface ManifestNation {
  * A nation as the map hands it over: everything static but the ruler, which
  * the world derives from its own seed unless the caller already has one.
  */
-export type NationSeed = Omit<NationStatic, "ruler"> & { ruler?: string };
+export type NationSeed = Omit<NationStatic, "ruler" | "archetype"> & {
+  ruler?: string;
+  archetype?: NationStatic["archetype"];
+};
 
 interface MapManifest {
   map: { width: number; height: number };
@@ -320,11 +324,19 @@ export class World {
     readonly map: ProvinceMap,
     worldSeed = 0,
   ) {
-    // Rulers are a function of the seed, so every start of this world names
-    // the same people and no snapshot has to carry them (decision 0023).
+    // Rulers and their temperaments are a function of the seed, so every
+    // start of this world names the same people with the same natures and no
+    // snapshot has to carry them (decisions 0023, 0028).
     this.nations = nations.map((nation) => ({
       ...nation,
       ruler: nation.ruler ?? rulerName(worldSeed, nation.smallID),
+      archetype:
+        nation.archetype ??
+        temperamentOf(
+          worldSeed,
+          nation.smallID,
+          nationIsCoastal(map, nation.smallID),
+        ).archetype,
     }));
     // Ownership starts from the partition: a province belongs to the nation
     // whose territory it was cut out of, so no province starts split across a

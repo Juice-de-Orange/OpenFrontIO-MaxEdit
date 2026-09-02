@@ -70,8 +70,20 @@ function model(over: Partial<HudModel> = {}): HudModel {
   return {
     nation: 1,
     nations: [
-      { smallID: 1, name: "Testland", ruler: "Test Ruler", flag: "tl" },
-      { smallID: 2, name: "Otherland", ruler: "Alma Falk", flag: "ol" },
+      {
+        smallID: 1,
+        name: "Testland",
+        ruler: "Test Ruler",
+        flag: "tl",
+        archetype: "builder",
+      },
+      {
+        smallID: 2,
+        name: "Otherland",
+        ruler: "Alma Falk",
+        flag: "ol",
+        archetype: "conqueror",
+      },
     ],
     provinces: [province(0)],
     controllers: [1],
@@ -167,7 +179,9 @@ describe("personality on the wire", () => {
     hud.update(model());
     const options = [...document.querySelectorAll("#world-diplomacy option")];
     const other = options.find((o) => o.textContent?.startsWith("Otherland"));
-    expect(other?.textContent).toContain("Otherland · Alma Falk");
+    expect(other?.textContent).toContain(
+      "Otherland · Alma Falk, the conqueror",
+    );
     expect(options.some((o) => o.textContent?.includes("Test Ruler"))).toBe(
       false,
     );
@@ -183,8 +197,18 @@ describe("personality on the wire", () => {
     hud.update(
       model({
         nations: [
-          { smallID: 1, name: "Testland", ruler: "Test Ruler" },
-          { smallID: 2, name: "Otherland", ruler: "Alma Falk" },
+          {
+            smallID: 1,
+            name: "Testland",
+            ruler: "Test Ruler",
+            archetype: "builder",
+          },
+          {
+            smallID: 2,
+            name: "Otherland",
+            ruler: "Alma Falk",
+            archetype: "conqueror",
+          },
         ],
       }),
     );

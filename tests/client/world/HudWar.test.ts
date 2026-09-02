@@ -75,8 +75,18 @@ function model(over: Partial<HudModel> = {}): HudModel {
   return {
     nation: 1,
     nations: [
-      { smallID: 1, name: "Testland", ruler: "Test Ruler" },
-      { smallID: 2, name: "Otherland", ruler: "Other Ruler" },
+      {
+        smallID: 1,
+        name: "Testland",
+        ruler: "Test Ruler",
+        archetype: "builder",
+      },
+      {
+        smallID: 2,
+        name: "Otherland",
+        ruler: "Other Ruler",
+        archetype: "warden",
+      },
     ],
     provinces: [province(0), province(1)],
     controllers: [1, 2],

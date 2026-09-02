@@ -22,6 +22,7 @@ import { AGREEMENT_TYPES } from "../config/diplomacy";
 import { RESOURCES } from "../config/provinces";
 import { REGENT_FOCI } from "../config/regent";
 import { TECH_IDS } from "../config/techs";
+import { ARCHETYPES } from "../config/temperament";
 import { BUILDING_TYPES } from "../economy/Buildings";
 import { EQUIPMENT_TYPES } from "../economy/Equipment";
 import {
@@ -35,7 +36,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 17;
+export const PROTOCOL_VERSION = 18;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -430,6 +431,12 @@ export const NationStaticSchema = z.object({
    * never stored, so it moves no state hash (docs/decisions/0023).
    */
   ruler: z.string(),
+  /**
+   * What kind of ruler: builder, warden, marshal, admiral, airman, scholar
+   * or conqueror. Derived from the seed like the name (decision 0028), and
+   * public on purpose — a conqueror known as one makes diplomacy a game.
+   */
+  archetype: z.enum(ARCHETYPES),
 });
 export type NationStatic = z.infer<typeof NationStaticSchema>;
 
