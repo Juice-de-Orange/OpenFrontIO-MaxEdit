@@ -2249,12 +2249,13 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
    set a value — 1 is the number to try, and the help text changes with it.
 3. `REGENT_FOCUS_RESEED=1` once on the host, so the running season's fifty
    regents stop all playing "economy". A restart, five minutes of snapshot.
-4. **Redeploy with the day's work.** This one is not the morning's kind:
-   protocol 18 **and hash version 6**, so the world restarts and restores
-   _loudly_ — it reports the version change and rebuilds from the command
-   log rather than the snapshot (decision 0016). The season and every
-   agreement survive it; the run is longer. Everything since the morning
-   rides on it: the regent's second pass, equipment trade, the zone
+4. **Redeploy with the day's work.** Mechanically the morning's sequence,
+   with one line more in the log: protocol 18 **and hash version 6**, so on
+   the first load `WorldRunner` skips the snapshot's hash check and says so
+   (decision 0016 — across a version the function itself changed, and a
+   mismatch is history rather than damage; the next snapshot re-arms it).
+   The season, the claims and every agreement survive. Everything since the
+   morning rides on it: the regent's second pass, equipment trade, the zone
    overlay's key, the icons, the labels, the hints.
 5. The review page, 0e–0s: which icons and colours read, which do not;
    0q to 0s are the afternoon's (archetype, equipment trade, map names).
