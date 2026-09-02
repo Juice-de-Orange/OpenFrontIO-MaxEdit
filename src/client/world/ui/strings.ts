@@ -298,6 +298,22 @@ const en = {
     "Every agreement stands until one side gives notice — no durations, no renewals. Notice takes one in-game day and costs trust, and the other side is told at once.",
   "help.province.slots":
     "Every building but roads and mines takes a slot, and a queued order holds its slot too. When they are full, more land is the only way to more.",
+  "help.province.control":
+    "Held by is who stands on it; Owner is whose it is. A province taken in war is held first and owned later, and an occupied factory produces less for its occupier than it did for its owner.",
+  "help.province.terrain":
+    "Terrain multiplies the defence. Plains are level; highland and mountains favour whoever is already there, so the same army takes longer to grind a mountain province down.",
+  "help.province.infrastructure":
+    "0 to 10. Carries supply further along this province and speeds construction in it. Built as a level rather than in a slot — a road costs no factory its place.",
+  "help.province.deposits":
+    "What the province extracts each day into the national stock. An extraction upgrade raises it; nothing else here does, and a province without deposits extracts nothing however many factories it has.",
+  "help.production.factories":
+    "Military factories and dockyards in the provinces you hold, against those assigned to a production line. An idle factory still consumes resources and makes nothing; the regent puts idle ones to work.",
+  "help.production.manpower":
+    "A population-scaled cap that regrows slowly. Raising a division or a wing spends it and nothing gives it back faster — a fresh world takes a couple of in-game days to have any at all.",
+  "help.diplomacy.offers":
+    "Proposals made to you. Accepting a trade starts the flow on the next tick; the terms are seen only by the two of you, and everyone else sees only that you are talking.",
+  "help.diplomacy.flows":
+    "The standing trades as they actually move, per day: what arrives, what leaves, and the construction points paid or received. A route across water moves on convoys and can be raided.",
 
   "start.eyebrow": "A world that keeps running",
   "start.title": "Choose your nation",
@@ -613,6 +629,22 @@ const de: Record<StringKey, string> = {
     "Jedes Abkommen gilt, bis eine Seite kündigt — keine Laufzeiten, keine Verlängerungen. Die Kündigung braucht einen Spieltag, kostet Vertrauen, und die andere Seite erfährt es sofort.",
   "help.province.slots":
     "Jedes Gebäude außer Straßen und Minen belegt einen Bauplatz, und ein eingereihter Auftrag hält seinen Platz ebenfalls. Sind sie voll, führt nur mehr Land zu mehr.",
+  "help.province.control":
+    "Gehalten von ist, wer darauf steht; Eigentümer, wem sie gehört. Eine im Krieg genommene Provinz wird erst gehalten und später besessen, und eine besetzte Fabrik liefert dem Besatzer weniger als dem Eigentümer.",
+  "help.province.terrain":
+    "Gelände multipliziert die Verteidigung. Ebene ist neutral; Hügelland und Gebirge begünstigen den, der schon da ist, also braucht dieselbe Armee länger, eine Gebirgsprovinz zu zermahlen.",
+  "help.province.infrastructure":
+    "0 bis 10. Trägt Versorgung weiter durch diese Provinz und beschleunigt den Bau hier. Wird als Stufe gebaut, nicht in einem Bauplatz — eine Straße kostet keiner Fabrik den Platz.",
+  "help.province.deposits":
+    "Was die Provinz pro Tag in den nationalen Vorrat fördert. Ein Förderausbau erhöht es; sonst nichts hier, und eine Provinz ohne Vorkommen fördert nichts, egal wie viele Fabriken sie hat.",
+  "help.production.factories":
+    "Militärfabriken und Werften in den Provinzen, die du hältst, gegen die einer Produktionslinie zugewiesenen. Eine untätige Fabrik verbraucht weiter Rohstoffe und fertigt nichts; der Regent setzt untätige ein.",
+  "help.production.manpower":
+    "Eine bevölkerungsabhängige Obergrenze, die langsam nachwächst. Eine Division oder Staffel aufzustellen verbraucht sie, und nichts gibt sie schneller zurück — eine frische Welt braucht ein paar Spieltage, bis überhaupt etwas da ist.",
+  "help.diplomacy.offers":
+    "An dich gerichtete Vorschläge. Einen Handel anzunehmen startet den Fluss im nächsten Tick; die Bedingungen sehen nur ihr beide, alle anderen sehen nur, dass ihr verhandelt.",
+  "help.diplomacy.flows":
+    "Die laufenden Handelsflüsse, wie sie sich tatsächlich bewegen, pro Tag: was ankommt, was abgeht, und die gezahlte oder erhaltene Bauleistung. Eine Route über Wasser läuft auf Konvois und kann gejagt werden.",
 
   "start.eyebrow": "Eine Welt, die weiterläuft",
   "start.title": "Wähle deine Nation",

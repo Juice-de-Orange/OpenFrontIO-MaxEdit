@@ -208,6 +208,23 @@ describe("the circled i", () => {
     expect(open[0].textContent).toContain("military factories");
   });
 
+  test("the province and production panels carry theirs on the rows they explain", () => {
+    hud.update(model({ selected: 0 }));
+    const province = panel("world-province");
+    expect(
+      province.querySelectorAll("button.info").length,
+    ).toBeGreaterThanOrEqual(5);
+    infoButton("help.province.terrain").click();
+    expect(province.querySelector(".help")?.textContent).toContain(
+      "Terrain multiplies the defence",
+    );
+    menuButton("Production").click();
+    infoButton("help.production.manpower").click();
+    expect(
+      panel("world-production").querySelector(".help")?.textContent,
+    ).toContain("population-scaled cap");
+  });
+
   test("research and the air panel have theirs too", () => {
     hud.update(model());
     menuButton("Research").click();

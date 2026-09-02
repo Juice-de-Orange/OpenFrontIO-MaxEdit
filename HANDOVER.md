@@ -21,7 +21,7 @@ TLS, the thirteenth gate is waiting on a clock — and as of the night of
 worked through in its own order, steps 0 to 5, seven commits
 (`c2fecc64..14a7626a`), each pushed after the full checklist: the interface
 says where to build and why a button is disabled; a clock; every number
-explained inline behind a circled i (nineteen so far, both languages);
+explained inline behind a circled i (twenty-seven so far, both languages);
 buildings standing on the map; the war visible to the defender, with the
 battle's numbers per day for both parties; a ruler and a flag on every
 nation; regents with a focus of their own; supply drawn in proportion to
@@ -424,7 +424,7 @@ reading the old comment.
 (`Season.ts`, as a real command), supply by equipment (§6.6; the phase-6
 gate re-run and passing), `STARTING_DIVISIONS` deleted at Max's call, a
 language picker in the bar (reloads, because the built-once forms keep
-their labels), and nine more explanations — nineteen in all. Still open:
+their labels), and seventeen more explanations — twenty-seven in all. Still open:
 the player's own name, names and flags on the map through `NamePass`,
 purpose-drawn icons, and the rest of the prose.
 

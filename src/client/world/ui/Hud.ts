@@ -944,31 +944,46 @@ export class Hud {
 
     const children: Node[] = [
       heading(t("province.title", { id })),
-      row(t("province.controller"), nationName(model, controller)),
+      ...this.explained(
+        "help.province.control",
+        row(t("province.controller"), nationName(model, controller)),
+      ),
       row(
         t("province.owner"),
         owner === controller
           ? nationName(model, owner)
           : `${nationName(model, owner)} (${t("province.occupied")})`,
       ),
-      row(
-        t("province.terrain"),
-        TERRAIN_KEY[province.terrain] === undefined
-          ? "—"
-          : t(TERRAIN_KEY[province.terrain] as StringKey),
+      ...this.explained(
+        "help.province.terrain",
+        row(
+          t("province.terrain"),
+          TERRAIN_KEY[province.terrain] === undefined
+            ? "—"
+            : t(TERRAIN_KEY[province.terrain] as StringKey),
+        ),
       ),
-      row(
-        t("province.infrastructure"),
-        fraction(
-          Math.min(10, province.infrastructure + builtInfrastructure),
-          10,
+      ...this.explained(
+        "help.province.infrastructure",
+        row(
+          t("province.infrastructure"),
+          fraction(
+            Math.min(10, province.infrastructure + builtInfrastructure),
+            10,
+          ),
         ),
       ),
       ...this.explained(
         "help.province.slots",
         row(t("province.slots"), fraction(used, province.buildingSlots)),
       ),
-      row(t("province.deposits"), depositLine(province) ?? t("province.none")),
+      ...this.explained(
+        "help.province.deposits",
+        row(
+          t("province.deposits"),
+          depositLine(province) ?? t("province.none"),
+        ),
+      ),
     ];
 
     // The war, for whoever is looking. `fronts` and `invasions` are public on
@@ -1260,20 +1275,26 @@ export class Hud {
 
     const children: Node[] = [
       heading(t("production.title")),
-      row(
-        t("production.factories"),
-        fraction(
-          economy.militaryFactoriesAssigned,
-          economy.militaryFactoriesTotal,
+      ...this.explained(
+        "help.production.factories",
+        row(
+          t("production.factories"),
+          fraction(
+            economy.militaryFactoriesAssigned,
+            economy.militaryFactoriesTotal,
+          ),
         ),
       ),
       row(
         t("production.dockyards"),
         fraction(economy.dockyardsAssigned, economy.dockyardsTotal),
       ),
-      row(
-        t("production.manpower"),
-        `${amount(economy.manpower)} / ${amount(economy.manpowerCap)}`,
+      ...this.explained(
+        "help.production.manpower",
+        row(
+          t("production.manpower"),
+          `${amount(economy.manpower)} / ${amount(economy.manpowerCap)}`,
+        ),
       ),
       spacer(),
       ...this.explained(
@@ -1620,7 +1641,13 @@ export class Hud {
 
     // Offers waiting on this player first: it is the only thing on this panel
     // that somebody else is waiting for an answer to.
-    children.push(spacer(), heading(t("diplomacy.offers")));
+    children.push(
+      spacer(),
+      ...this.explained(
+        "help.diplomacy.offers",
+        heading(t("diplomacy.offers")),
+      ),
+    );
     if (offersToMe.length === 0) children.push(muted(t("diplomacy.noOffers")));
     for (const offer of offersToMe) {
       const item = document.createElement("div");
@@ -1741,7 +1768,13 @@ export class Hud {
         Math.abs(model.economy?.tradeResourcePerTick[resource] ?? 0) > 1e-9,
     );
     if (moving.length > 0) {
-      children.push(spacer(), heading(t("diplomacy.flows")));
+      children.push(
+        spacer(),
+        ...this.explained(
+          "help.diplomacy.flows",
+          heading(t("diplomacy.flows")),
+        ),
+      );
       for (const resource of moving) {
         children.push(
           row(
