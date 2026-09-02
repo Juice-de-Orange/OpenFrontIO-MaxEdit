@@ -1,7 +1,10 @@
 import { describe, expect, test } from "vitest";
 import type { FrameUploadTarget } from "../../../src/client/render/frame/Upload";
 import { uploadFrameData } from "../../../src/client/render/frame/Upload";
-import { UT_CITY, UT_FACTORY } from "../../../src/client/render/types/UnitType";
+import {
+  UT_CIVILIAN_FACTORY,
+  UT_MILITARY_FACTORY,
+} from "../../../src/client/render/types/UnitType";
 import {
   FrameAdapter,
   type FrontGrid,
@@ -70,6 +73,12 @@ describe("structuresOf", () => {
         BUILDINGS[type].takesSlot,
       );
     }
+    // Distinct icons, except the two refineries, which are one building.
+    const icons = Object.entries(STRUCTURE_ICON)
+      .filter(([type]) => !type.startsWith("synthetic_"))
+      .map(([, icon]) => icon);
+    expect(new Set(icons).size).toBe(icons.length);
+    expect(STRUCTURE_ICON.synthetic_oil).toBe(STRUCTURE_ICON.synthetic_rubber);
   });
 
   test("a built factory becomes one structure on one of its province's tiles", () => {
@@ -82,7 +91,7 @@ describe("structuresOf", () => {
     expect(units.size).toBe(1);
     const unit = units.get(structureId(1, "civilian_factory"));
     expect(unit).toBeDefined();
-    expect(unit?.unitType).toBe(UT_CITY);
+    expect(unit?.unitType).toBe(UT_CIVILIAN_FACTORY);
     expect(unit?.level).toBe(3);
     expect(unit?.ownerID).toBe(2); // the controller, not the partition seed
     expect(unit?.isActive).toBe(true);
@@ -128,7 +137,7 @@ describe("structuresOf", () => {
     const second = structuresOf(buildings, [1, 1, 1, 1], idx);
     expect([...second.entries()]).toEqual([...first.entries()]);
     expect(first.get(structureId(0, "military_factory"))?.unitType).toBe(
-      UT_FACTORY,
+      UT_MILITARY_FACTORY,
     );
   });
 });

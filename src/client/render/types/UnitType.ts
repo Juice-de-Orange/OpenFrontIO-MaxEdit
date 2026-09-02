@@ -30,18 +30,76 @@ export const UT_DEFENSE_POST = "Defense Post" as const;
 export const UT_SAM_LAUNCHER = "SAM Launcher" as const;
 export const UT_MISSILE_SILO = "Missile Silo" as const;
 
+// This fork's buildings (CLAUDE.md §6.1). Columns 6–12 of the atlas, drawn by
+// `scripts/generate-structure-atlas.mjs` from `resources/images/structures/`.
+// The two synthetic refineries share one icon: they are the same building
+// with two outputs.
+export const UT_CIVILIAN_FACTORY = "Civilian Factory" as const;
+export const UT_MILITARY_FACTORY = "Military Factory" as const;
+export const UT_DOCKYARD = "Dockyard" as const;
+export const UT_REFINERY = "Refinery" as const;
+export const UT_AIR_BASE = "Air Base" as const;
+export const UT_NAVAL_BASE = "Naval Base" as const;
+export const UT_SUPPLY_HUB = "Supply Hub" as const;
+
 // ---------------------------------------------------------------------------
 // Derived sets
 // ---------------------------------------------------------------------------
 
-export const STRUCTURE_TYPES: ReadonlySet<string> = new Set([
+/**
+ * Structure types in atlas column order — index = column in
+ * `resources/atlases/icon-atlas.png`. One list, read by StructurePass,
+ * StructureLevelPass and the cosmetics preview; it used to be copied into
+ * each with a "must match" comment. Append, never reorder: the atlas is a
+ * checked-in artefact and its columns do not move.
+ */
+export const STRUCTURE_ORDER = [
   UT_CITY,
   UT_PORT,
   UT_FACTORY,
   UT_DEFENSE_POST,
   UT_SAM_LAUNCHER,
   UT_MISSILE_SILO,
-]);
+  UT_CIVILIAN_FACTORY,
+  UT_MILITARY_FACTORY,
+  UT_DOCKYARD,
+  UT_REFINERY,
+  UT_AIR_BASE,
+  UT_NAVAL_BASE,
+  UT_SUPPLY_HUB,
+] as const;
+
+export type StructureType = (typeof STRUCTURE_ORDER)[number];
+
+/**
+ * The plate a structure's icon sits on. Numbered as the structure shader's
+ * `shapeSDF` reads them; the six inherited entries keep the shape their
+ * column index used to imply.
+ */
+export const SHAPE_CIRCLE = 0;
+export const SHAPE_PENTAGON = 1;
+export const SHAPE_HEXAGON = 2;
+export const SHAPE_OCTAGON = 3;
+export const SHAPE_SQUARE = 4;
+export const SHAPE_TRIANGLE = 5;
+
+export const STRUCTURE_SHAPE: Readonly<Record<StructureType, number>> = {
+  [UT_CITY]: SHAPE_CIRCLE,
+  [UT_PORT]: SHAPE_PENTAGON,
+  [UT_FACTORY]: SHAPE_HEXAGON,
+  [UT_DEFENSE_POST]: SHAPE_OCTAGON,
+  [UT_SAM_LAUNCHER]: SHAPE_SQUARE,
+  [UT_MISSILE_SILO]: SHAPE_TRIANGLE,
+  [UT_CIVILIAN_FACTORY]: SHAPE_CIRCLE,
+  [UT_MILITARY_FACTORY]: SHAPE_HEXAGON,
+  [UT_DOCKYARD]: SHAPE_PENTAGON,
+  [UT_REFINERY]: SHAPE_OCTAGON,
+  [UT_AIR_BASE]: SHAPE_SQUARE,
+  [UT_NAVAL_BASE]: SHAPE_PENTAGON,
+  [UT_SUPPLY_HUB]: SHAPE_TRIANGLE,
+};
+
+export const STRUCTURE_TYPES: ReadonlySet<string> = new Set(STRUCTURE_ORDER);
 
 export const NUKE_TYPES: ReadonlySet<string> = new Set([
   UT_ATOM_BOMB,
@@ -90,4 +148,11 @@ export const ALL_UNIT_TYPES = [
   UT_SAM_LAUNCHER,
   UT_MISSILE_SILO,
   UT_TRAIN,
+  UT_CIVILIAN_FACTORY,
+  UT_MILITARY_FACTORY,
+  UT_DOCKYARD,
+  UT_REFINERY,
+  UT_AIR_BASE,
+  UT_NAVAL_BASE,
+  UT_SUPPLY_HUB,
 ] as const;

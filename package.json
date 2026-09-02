@@ -29,6 +29,7 @@
     "prepare": "husky",
     "gen-maps": "cd map-generator && go run . && npm run format",
     "gen-provinces": "tsx scripts/genProvinces.ts",
+    "gen-structure-atlas": "node scripts/generate-structure-atlas.mjs",
     "inst": "npm ci --ignore-scripts"
   },
   "lint-staged": {

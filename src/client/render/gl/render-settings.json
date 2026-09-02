@@ -151,7 +151,14 @@
       "Missile Silo": {
         "scale": 1.55,
         "iconFill": 0.85
-      }
+      },
+      "Civilian Factory": { "scale": 1.08, "iconFill": 0.8 },
+      "Military Factory": { "scale": 1.08, "iconFill": 0.8 },
+      "Dockyard": { "scale": 1.08, "iconFill": 0.8 },
+      "Refinery": { "scale": 1.05, "iconFill": 0.8 },
+      "Air Base": { "scale": 1.1, "iconFill": 0.8 },
+      "Naval Base": { "scale": 1.08, "iconFill": 0.8 },
+      "Supply Hub": { "scale": 1.3, "iconFill": 0.75 }
     },
     "highlightOutlineWidth": 0.04,
     "highlightDimAlpha": 0.3,

@@ -115,18 +115,25 @@ float sdPolygon(vec2 p, float R, float n, float rot) {
 
 // Per-structure-type shape SDF.
 // Atlas indices: 0=City, 1=Port, 2=Factory, 3=DefensePost, 4=SAM, 5=Silo
+// The plate per atlas column, as `STRUCTURE_SHAPE` numbers it (UnitType.ts):
+// 0 circle, 1 pentagon, 2 hexagon, 3 octagon, 4 square, 5 triangle. Data, not
+// the column index — the index used to be the shape, and every column past
+// the sixth came out a triangle.
+uniform int uShapeKinds[ATLAS_COLS];
+
 float shapeSDF(vec2 p, float R) {
-  if (vAtlasIdx < 0.5)
-    return length(p) - R;                     // City → circle
-  if (vAtlasIdx < 1.5)
-    return sdPolygon(p, R, 5.0, PI * 0.5);    // Port → pentagon (vertex up)
-  if (vAtlasIdx < 2.5)
-    return sdPolygon(p, R, 6.0, PI / 6.0);    // Factory → hexagon (flat top)
-  if (vAtlasIdx < 3.5)
-    return sdPolygon(p, R, 8.0, 0.0);         // Defense Post → octagon (flat top)
-  if (vAtlasIdx < 4.5)
-    return sdPolygon(p, R, 4.0, 0.0);         // SAM Launcher → square (flat sides)
-  return sdPolygon(p, R, 3.0, PI * 0.5);      // Missile Silo → triangle (vertex up)
+  int kind = uShapeKinds[int(vAtlasIdx + 0.5)];
+  if (kind == 0)
+    return length(p) - R;                     // circle
+  if (kind == 1)
+    return sdPolygon(p, R, 5.0, PI * 0.5);    // pentagon (vertex up)
+  if (kind == 2)
+    return sdPolygon(p, R, 6.0, PI / 6.0);    // hexagon (flat top)
+  if (kind == 3)
+    return sdPolygon(p, R, 8.0, 0.0);         // octagon (flat top)
+  if (kind == 4)
+    return sdPolygon(p, R, 4.0, 0.0);         // square (flat sides)
+  return sdPolygon(p, R, 3.0, PI * 0.5);      // triangle (vertex up)
 }
 
 void main() {

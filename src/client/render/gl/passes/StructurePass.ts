@@ -15,14 +15,7 @@
  */
 
 import type { GhostPreviewData, RendererConfig, UnitState } from "../../types";
-import {
-  UT_CITY,
-  UT_DEFENSE_POST,
-  UT_FACTORY,
-  UT_MISSILE_SILO,
-  UT_PORT,
-  UT_SAM_LAUNCHER,
-} from "../../types";
+import { STRUCTURE_ORDER, STRUCTURE_SHAPE } from "../../types";
 import { DynamicInstanceBuffer } from "../DynamicBuffer";
 import type { RenderSettings } from "../RenderSettings";
 import {
@@ -41,19 +34,6 @@ const iconAtlasUrl = assetUrl("atlases/icon-atlas.png");
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-/**
- * Structure types in atlas column order.
- * Index = atlas column index.
- */
-const STRUCTURE_ORDER = [
-  UT_CITY,
-  UT_PORT,
-  UT_FACTORY,
-  UT_DEFENSE_POST,
-  UT_SAM_LAUNCHER,
-  UT_MISSILE_SILO,
-] as const;
 
 const ATLAS_COLS = STRUCTURE_ORDER.length;
 
@@ -85,6 +65,7 @@ export class StructurePass {
   private uIconGrowZoom: WebGLUniformLocation;
   private uShapeScales: WebGLUniformLocation;
   private uIconFills: WebGLUniformLocation;
+  private uShapeKinds: WebGLUniformLocation;
   private uGhostAlpha: WebGLUniformLocation;
   private uOutlineColor: WebGLUniformLocation;
   private uAltView: WebGLUniformLocation;
@@ -177,6 +158,7 @@ export class StructurePass {
     this.uIconGrowZoom = gl.getUniformLocation(this.program, "uIconGrowZoom")!;
     this.uShapeScales = gl.getUniformLocation(this.program, "uShapeScales")!;
     this.uIconFills = gl.getUniformLocation(this.program, "uIconFills")!;
+    this.uShapeKinds = gl.getUniformLocation(this.program, "uShapeKinds")!;
     this.uGhostAlpha = gl.getUniformLocation(this.program, "uGhostAlpha")!;
     this.uOutlineColor = gl.getUniformLocation(this.program, "uOutlineColor")!;
     this.uAltView = gl.getUniformLocation(this.program, "uAltView")!;
@@ -394,6 +376,14 @@ export class StructurePass {
     }
     gl.uniform1fv(this.uShapeScales, scales);
     gl.uniform1fv(this.uIconFills, fills);
+    // The plate shape per column, from the table rather than the column index:
+    // the shader used to branch on the index, which meant every column past
+    // the sixth was a triangle.
+    const kinds = new Int32Array(ATLAS_COLS);
+    for (let i = 0; i < STRUCTURE_ORDER.length; i++) {
+      kinds[i] = STRUCTURE_SHAPE[STRUCTURE_ORDER[i]];
+    }
+    gl.uniform1iv(this.uShapeKinds, kinds);
 
     gl.uniform1i(
       this.uAltView,

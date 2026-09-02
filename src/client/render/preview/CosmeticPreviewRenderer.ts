@@ -40,15 +40,9 @@ import type {
 } from "../types/Renderer";
 import {
   UT_ATOM_BOMB,
-  UT_CITY,
-  UT_DEFENSE_POST,
-  UT_FACTORY,
   UT_HYDROGEN_BOMB,
   UT_MIRV,
   UT_MIRV_WARHEAD,
-  UT_MISSILE_SILO,
-  UT_PORT,
-  UT_SAM_LAUNCHER,
   UT_SAM_MISSILE,
   UT_SHELL,
   UT_TRADE_SHIP,
@@ -94,14 +88,7 @@ const DEFAULT_BORDER: readonly [number, number, number] = [0.1, 0.35, 0.7];
 /** In-game local rail color over a non-bright territory (theme focusedBorderColor). */
 const LOCAL_RAIL_COLOR: readonly [number, number, number] = [0.9, 0.9, 0.9];
 
-const ALL_STRUCTURE_TYPES = [
-  UT_CITY,
-  UT_PORT,
-  UT_FACTORY,
-  UT_DEFENSE_POST,
-  UT_SAM_LAUNCHER,
-  UT_MISSILE_SILO,
-];
+const ALL_STRUCTURE_TYPES = [...STRUCTURE_ORDER];
 
 const ALL_MOBILE_UNIT_TYPES = [
   UT_TRANSPORT,

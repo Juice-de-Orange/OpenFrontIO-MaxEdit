@@ -20,11 +20,13 @@
 
 import type { UnitState } from "src/client/render/types";
 import {
-  UT_CITY,
-  UT_FACTORY,
-  UT_MISSILE_SILO,
-  UT_PORT,
-  UT_SAM_LAUNCHER,
+  UT_AIR_BASE,
+  UT_CIVILIAN_FACTORY,
+  UT_DOCKYARD,
+  UT_MILITARY_FACTORY,
+  UT_NAVAL_BASE,
+  UT_REFINERY,
+  UT_SUPPLY_HUB,
 } from "src/client/render/types/UnitType";
 import {
   BUILDING_TYPES,
@@ -34,27 +36,24 @@ import {
 import type { ProvinceTileIndex } from "./ProvinceTileIndex";
 
 /**
- * Which inherited icon stands for which building.
+ * Which icon stands for which building.
  *
- * Six atlas columns for eight slot-taking types, and no asset pipeline: the
- * atlas is 384×64 of inherited binary and the generator its headers name has
- * never existed. So a dockyard and a naval base both look like a port, and
- * the refineries look like factories — ugly and deliberate. Whether the map
- * carries buildings at all is the question to answer before drawing icons.
- * Two columns are avoided on purpose: "Defense Post" darkens the territory
- * around it (DefenseCoveragePass) and would turn every supply hub into a
- * shadow. Infrastructure and extraction upgrades are levels on the province,
- * not things standing in it, and get no icon.
+ * Columns 6–12 of the atlas are this fork's own, drawn by
+ * `scripts/generate-structure-atlas.mjs` from `resources/images/structures/`
+ * — one per building type, so a dockyard and a naval base no longer share a
+ * port. The two synthetic refineries share one icon on purpose: they are the
+ * same building with two outputs. Infrastructure and extraction upgrades are
+ * levels on the province, not things standing in it, and get no icon.
  */
 export const STRUCTURE_ICON: Partial<Record<BuildingType, string>> = {
-  civilian_factory: UT_CITY,
-  military_factory: UT_FACTORY,
-  synthetic_oil: UT_FACTORY,
-  synthetic_rubber: UT_FACTORY,
-  dockyard: UT_PORT,
-  naval_base: UT_PORT,
-  air_base: UT_SAM_LAUNCHER,
-  supply_hub: UT_MISSILE_SILO,
+  civilian_factory: UT_CIVILIAN_FACTORY,
+  military_factory: UT_MILITARY_FACTORY,
+  synthetic_oil: UT_REFINERY,
+  synthetic_rubber: UT_REFINERY,
+  dockyard: UT_DOCKYARD,
+  naval_base: UT_NAVAL_BASE,
+  air_base: UT_AIR_BASE,
+  supply_hub: UT_SUPPLY_HUB,
 };
 
 /** A stable id per (province, building type); positive, since 0 reads as "none". */
