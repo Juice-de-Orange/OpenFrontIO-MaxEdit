@@ -38,6 +38,13 @@ import {
   TRUST_START,
 } from "src/shared/config/diplomacy";
 import {
+  MAX_AGREEMENTS,
+  MAX_DIVISIONS,
+  MAX_FORMATIONS,
+  MAX_PRODUCTION_LINES,
+  MAX_QUEUE_LENGTH,
+} from "src/shared/config/limits";
+import {
   INVASION_MIN_CONTROL,
   INVASION_TICKS_PER_ZONE,
   SEA_SUPPLY_RANGE,
@@ -130,24 +137,6 @@ import {
   type WorldEvent,
   type WorldState,
 } from "./WorldState";
-
-/** A queue nobody could work through is a queue used as a memory leak. */
-const MAX_QUEUE_LENGTH = 24;
-
-/** And the same reasoning for the other two lists a command can grow. */
-const MAX_PRODUCTION_LINES = 12;
-const MAX_DIVISIONS = 200;
-/** Wings and fleets share one list and one ceiling (§6.7, §6.8). */
-const MAX_FORMATIONS = 60;
-
-/**
- * And for agreements, proposals included.
- *
- * Proposals are what makes a limit necessary at all: an agreement needs two
- * nations to want it, but an offer needs only one, and a client in a loop
- * could otherwise fill the world with them.
- */
-const MAX_AGREEMENTS = 24;
 
 interface ManifestNation {
   name: string;

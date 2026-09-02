@@ -71,3 +71,29 @@ export const REGENT_RETREAT_STRENGTH = 0.25;
  * pit, and the hub — not the army — is what fixes it.
  */
 export const REGENT_HUB_BELOW = 0.5;
+
+/**
+ * The second pass (decision 0028). Every number here is a threshold the
+ * regent reads and a player never sees; they are here rather than inline
+ * because §9 says so and because they will be retuned once fifty-one
+ * regents have played a season against people.
+ */
+
+/** A border province is garrisoned only if this much of its supply gets through. */
+export const REGENT_GARRISON_SUPPLY = 0.5;
+/** No new division while one is below this strength: fill before you raise. */
+export const REGENT_STARVING = 0.5;
+/** A wing or fleet below this strength is brought home to refill without attrition. */
+export const REGENT_STAND_DOWN = 0.25;
+/** Stockpile a wing or fleet is raised at — half a template, so it fills in weeks, not months. */
+export const REGENT_WING_STOCK = 12;
+export const REGENT_BOMBER_STOCK = 9;
+export const REGENT_ESCORT_STOCK = 6;
+export const REGENT_SUB_STOCK = 5;
+export const REGENT_FLEET_STOCK = 2;
+/** Orders kept in the queue: enough that construction never idles, few enough that it is not spread thin. */
+export const REGENT_QUEUE_DEPTH = 2;
+/** Below this sufficiency, with oil or rubber the scarcest, a refinery beats the market. */
+export const REGENT_REFINERY_BELOW = 0.8;
+/** An attack on a garrisoned province needs a staging division at least this strong. */
+export const REGENT_ATTACK_STRENGTH = 0.5;

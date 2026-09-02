@@ -3,7 +3,11 @@ import { regentSystem } from "../../src/server/systems/regent";
 import { World } from "../../src/server/world/World";
 import { applyEvent, type WorldState } from "../../src/server/world/WorldState";
 import { DIVISION_MANPOWER } from "../../src/shared/config/rates";
-import { REGENT_INTERVAL_TICKS } from "../../src/shared/config/regent";
+import {
+  REGENT_INTERVAL_TICKS,
+  REGENT_QUEUE_DEPTH,
+} from "../../src/shared/config/regent";
+import { temperamentOf } from "../../src/shared/config/temperament";
 import { equipmentIndex } from "../../src/shared/economy/Equipment";
 import { mapFixture } from "../util/worldFixture";
 
@@ -86,10 +90,17 @@ describe("the regent", () => {
     expect(state.nations[1].constructionQueue).toHaveLength(0);
     visit(state);
     expect(state.nations[1].constructionQueue.length).toBeGreaterThan(0);
-    // But it is a steward, not a planner: one item at a time.
+    // But it is a steward, not a planner: one order a visit, and never more
+    // than a shallow queue, so construction is not spread thin.
     const length = state.nations[1].constructionQueue.length;
     visit(state);
-    expect(state.nations[1].constructionQueue.length).toBe(length);
+    expect(state.nations[1].constructionQueue.length).toBeLessThanOrEqual(
+      length + 1,
+    );
+    for (let i = 0; i < 6; i++) visit(state);
+    expect(state.nations[1].constructionQueue.length).toBeLessThanOrEqual(
+      REGENT_QUEUE_DEPTH,
+    );
   });
 
   test("puts idle factories on a line and never switches one", () => {
@@ -165,6 +176,28 @@ describe("the regent", () => {
         state.provinceController[p.id] > 0 &&
         p.neighbours.some((n) => state.provinceController[n] === 1),
     ) as { id: number };
+    // Somebody is holding it: a march into empty ground needs no army and is
+    // never called off, but a fight with nobody to fight it is.
+    const holder = state.provinceController[target.id];
+    applyEvent(state, {
+      kind: "division_raised",
+      nation: holder,
+      province: target.id,
+    });
+    const theirs =
+      state.nations[holder].divisions[
+        state.nations[holder].divisions.length - 1
+      ];
+    if (theirs === undefined) throw new Error("no garrison");
+    applyEvent(state, {
+      kind: "division_equipment_changed",
+      nation: holder,
+      divisionId: theirs.id,
+      delta: [
+        [equipmentIndex("infantry_equipment"), 100],
+        [equipmentIndex("artillery"), 12],
+      ],
+    });
     applyEvent(state, {
       kind: "attack_ordered",
       nation: 1,
@@ -190,16 +223,23 @@ describe("the regent", () => {
     state.nations[1].regent.focus = "expansion";
     const ordered = focusRuns();
     expect(ordered).toHaveLength(1);
-    // One front at a time: the next visit does not open a second.
-    expect(focusRuns()).toHaveLength(0);
+    // One new front a visit, and never more open than the temperament
+    // allows (decision 0028): an expander's aggression is its front count.
+    const allowed =
+      1 + Math.floor(temperamentOf(state.worldSeed, 1, true).aggression * 2);
+    for (let i = 0; i < 6; i++) {
+      expect(focusRuns().length).toBeLessThanOrEqual(1);
+      expect(state.nations[1].attacks.length).toBeLessThanOrEqual(allowed);
+    }
+    expect(state.nations[1].attacks.length).toBe(allowed);
   });
 
   test("never touches diplomacy, capitals or the sea (invariant 7)", () => {
     const forbidden = new Set([
       "agreement_proposed",
       "agreement_accepted",
-      "agreement_declined",
-      "agreement_notice",
+      "agreement_withdrawn",
+      "agreement_notice_given",
       "agreement_dissolved",
       "trust_changed",
       "invasion_started",
