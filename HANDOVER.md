@@ -68,8 +68,30 @@ regents playing.
 
 **Everybody registers again**: there are no accounts.
 
-Still to come on the same thread: the building list (8 → 6), the tech list
-(10 → 4), and the panel count (6 → 3).
+**And the rest of the thread is done too** (decision 0032): eight buildings
+became six — the dockyard went, because one kind of factory builds
+everything now — ten techs became four flat ones with no prerequisites, and
+six panels became three: Build, Forces, Diplomacy. The sections inside a
+panel are stacked rather than chosen between, so nothing was taken away
+except the choosing.
+
+|                     | before the day | after it |
+| ------------------- | -------------- | -------- |
+| Resources           | 4              | 1        |
+| Equipment types     | 10             | 3        |
+| Formation templates | 5              | 2        |
+| Missions            | 8              | 4        |
+| Buildings           | 10             | 6        |
+| Techs               | 10             | 4        |
+| Panels              | 6              | 3        |
+
+**Two bugs the reset and the cut created, both found live and both fixed.**
+A browser holding an account from the old world was told "that token belongs
+to no account" for every nation, for ever: the token is now its own refusal
+reason on the wire, and a client that hears it signs itself out and says so
+in words. And a construction queue holding an order for a building that no
+longer exists threw on every tick — the migration now drops those entries,
+and the construction system cancels one rather than reading through it.
 
 **The regent plays the whole game now, and every ruler plays it differently
 (2026-09-02, afternoon).** `src/server/systems/regent/` is a directory: one

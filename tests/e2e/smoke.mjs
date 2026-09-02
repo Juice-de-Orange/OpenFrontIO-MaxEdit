@@ -208,7 +208,7 @@ try {
   // fall through: every check below then fails with its own line
 }
 const buttons = await page.$$eval("#world-menu button", (list) => list.length);
-ok(buttons === 6, `the menu bar has six buttons (${buttons})`);
+ok(buttons === 3, `the menu bar has three panels (${buttons})`);
 
 // The canvas is created at its default 300x150 and sized when the renderer
 // first draws, so wait for the size rather than for the element.
