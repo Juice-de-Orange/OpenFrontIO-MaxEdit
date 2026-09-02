@@ -158,6 +158,7 @@ const en = {
   "air.reachHint":
     "A wing flies over its base's zone and the zones next to it.",
   "air.missionsHint": "Eight missions: four for the sky, four for the sea.",
+  "air.overlayHint": "Press z to see the zones on the map.",
   "air.send": "Send",
   "air.raise": "{what} \u2014 {cost} manpower",
   "formation.fighter_wing": "Fighter wing",
@@ -285,6 +286,8 @@ const en = {
     "A wing flies over its base's own zone and the zones bordering it. Farther zones are listed greyed and cannot be chosen. A base nearer the front is the answer.",
   "help.air.missions":
     "Four missions for the sky: fight for it (air superiority, which every other mission depends on), support the ground (your fronts in the zone hit harder), cut their supply (their divisions in the zone get less), bomb their industry (their factories in the zone make less). Four for the sea: control it (a landing needs it, and it shields your own convoys), raid convoys (sinks the enemy's, cutting sea supply and seaborne trade), escort convoys (the counter), support a landing (a bonus to invasions next to the zone).",
+  "help.air.overlay":
+    "Air zones are groups of land provinces, sea zones groups of water; the map draws their borders in blue when you press z. A wing or fleet is assigned to one of them, and its base has to lie in or beside it.",
   "help.queue":
     "Worked from the top: the front item gets the construction points, the rest wait their turn. A civilian factory is about ten in-game days of a young nation's whole output.",
   "help.production.lines":
@@ -498,6 +501,7 @@ const de: Record<StringKey, string> = {
     "Eine Staffel fliegt \u00fcber die Zone ihrer Basis und die Nachbarzonen.",
   "air.missionsHint":
     "Acht Missionen: vier f\u00fcr den Himmel, vier f\u00fcr die See.",
+  "air.overlayHint": "Taste z zeigt die Zonen auf der Karte.",
   "air.send": "Entsenden",
   "air.raise": "{what} \u2014 {cost} Menschenreserve",
   "formation.fighter_wing": "Jagdstaffel",
@@ -625,6 +629,8 @@ const de: Record<StringKey, string> = {
     "Eine Staffel fliegt über die Zone ihrer Basis und die angrenzenden Zonen. Weiter entfernte Zonen stehen ausgegraut in der Liste und lassen sich nicht wählen. Eine Basis näher an der Front ist die Antwort.",
   "help.air.missions":
     "Vier Missionen für den Himmel: um ihn kämpfen (Luftüberlegenheit, von der jede andere Mission abhängt), den Boden unterstützen (deine Fronten in der Zone schlagen härter), Nachschub abschneiden (ihre Divisionen in der Zone bekommen weniger), Industrie bombardieren (ihre Fabriken in der Zone fertigen weniger). Vier für die See: sie kontrollieren (eine Landung braucht es, und es schützt eigene Konvois), Konvois jagen (versenkt gegnerische, kürzt Seeversorgung und Seehandel), Konvois eskortieren (das Gegenmittel), eine Landung unterstützen (Bonus für Invasionen neben der Zone).",
+  "help.air.overlay":
+    "Luftzonen sind Gruppen von Landprovinzen, Seezonen Gruppen von Wasser; die Karte zeichnet ihre Grenzen blau, wenn du z drückst. Eine Staffel oder Flotte wird einer davon zugewiesen, und ihre Basis muss darin oder daneben liegen.",
   "help.queue":
     "Von oben abgearbeitet: das vorderste Vorhaben bekommt die Bauleistung, der Rest wartet. Eine Zivilfabrik kostet etwa zehn Spieltage der gesamten Leistung einer jungen Nation.",
   "help.production.lines":

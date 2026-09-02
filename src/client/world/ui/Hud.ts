@@ -1874,6 +1874,7 @@ export class Hud {
       // would refuse.
       ...this.explained("help.air.reach", hint(t("air.reachHint"))),
       ...this.explained("help.air.missions", hint(t("air.missionsHint"))),
+      ...this.explained("help.air.overlay", hint(t("air.overlayHint"))),
     );
     if (economy.formations.length === 0) {
       children.push(muted(t("air.noFormations")));

@@ -39,6 +39,7 @@ import { Hud, type HudModel } from "./ui/Hud";
 import { fetchOffer, showStartScreen } from "./ui/StartScreen";
 import { setLanguage, t } from "./ui/strings";
 import { WorldSocket } from "./WorldSocket";
+import { ZONE_LAYERS, zoneLayerImages } from "./ZoneBorders";
 
 const DEFAULT_WORLD = "world-0";
 
@@ -769,21 +770,37 @@ async function buildFrom(
   // territory. Awaited rather than fired off: the renderer keeps the bitmap,
   // and handing it one that is still decoding is a race with no error
   // message. It costs one decode of a full-map image at startup.
+  // All layers in one call: `setMapLayers` replaces the set. The zone layers
+  // start hidden — the map is full enough — and `z` shows them.
+  const [borderImages, zoneImages] = await Promise.all([
+    borderLayerImages(grid.borderTiles, map.width, map.height),
+    zoneLayerImages(grid, map.width, map.height),
+  ]);
   view.setMapLayers(
-    PROVINCE_BORDER_LAYERS,
-    await borderLayerImages(grid.borderTiles, map.width, map.height),
+    [...PROVINCE_BORDER_LAYERS, ...ZONE_LAYERS],
+    new Map([...borderImages, ...zoneImages]),
   );
+  for (const layer of ZONE_LAYERS) view.setLayerVisible(layer.id, false);
 
   // A border overlay that cannot be turned off is a border overlay somebody
   // will ask to have removed. `b`, and nothing else — this is not a settings
   // screen, and phase 3 brings the HUD that would own one.
   let bordersVisible = true;
+  let zonesVisible = false;
   window.addEventListener("keydown", (event) => {
-    if (event.key !== "b" || event.ctrlKey || event.metaKey || event.altKey) {
-      return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key === "b") {
+      bordersVisible = !bordersVisible;
+      view.setLayerVisible(PROVINCE_BORDER_LAYER, bordersVisible);
     }
-    bordersVisible = !bordersVisible;
-    view.setLayerVisible(PROVINCE_BORDER_LAYER, bordersVisible);
+    // The air and sea zones the wings and fleets are sent to (§6.7, §6.8),
+    // which had been numbers in a panel and nothing on the map.
+    if (event.key === "z") {
+      zonesVisible = !zonesVisible;
+      for (const layer of ZONE_LAYERS) {
+        view.setLayerVisible(layer.id, zonesVisible);
+      }
+    }
   });
 
   new CameraController(
