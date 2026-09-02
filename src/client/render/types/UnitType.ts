@@ -42,6 +42,14 @@ export const UT_AIR_BASE = "Air Base" as const;
 export const UT_NAVAL_BASE = "Naval Base" as const;
 export const UT_SUPPLY_HUB = "Supply Hub" as const;
 
+// The forces, drawn from the same atlas: a division standing in a province,
+// a wing over an air zone, a fleet over the water it patrols. They are not
+// structures, but they are the same drawing — an icon on a coloured plate
+// with a number over it — and `STRUCTURE_ORDER` is what indexes the atlas.
+export const UT_DIVISION = "Division" as const;
+export const UT_WING = "Wing" as const;
+export const UT_FLEET = "Fleet" as const;
+
 // ---------------------------------------------------------------------------
 // Derived sets
 // ---------------------------------------------------------------------------
@@ -67,6 +75,9 @@ export const STRUCTURE_ORDER = [
   UT_AIR_BASE,
   UT_NAVAL_BASE,
   UT_SUPPLY_HUB,
+  UT_DIVISION,
+  UT_WING,
+  UT_FLEET,
 ] as const;
 
 export type StructureType = (typeof STRUCTURE_ORDER)[number];
@@ -97,9 +108,29 @@ export const STRUCTURE_SHAPE: Readonly<Record<StructureType, number>> = {
   [UT_AIR_BASE]: SHAPE_SQUARE,
   [UT_NAVAL_BASE]: SHAPE_PENTAGON,
   [UT_SUPPLY_HUB]: SHAPE_TRIANGLE,
+  // A division wears the square its counter has worn since Kriegsspiel; a
+  // wing the triangle of a marker over a map; a fleet the circle the base
+  // game drew for a ship, with an actual ship in it now.
+  [UT_DIVISION]: SHAPE_SQUARE,
+  [UT_WING]: SHAPE_TRIANGLE,
+  [UT_FLEET]: SHAPE_CIRCLE,
 };
 
 export const STRUCTURE_TYPES: ReadonlySet<string> = new Set(STRUCTURE_ORDER);
+
+/**
+ * The three that are forces rather than buildings.
+ *
+ * They share the atlas and the passes, and differ in one rule: their number
+ * is drawn even when it is 1. A lone factory showing "1" would be noise —
+ * one is what a building usually is — but the *first* division is called
+ * the first division, and a counter with no number on it is not a counter.
+ */
+export const FORCE_TYPES: ReadonlySet<string> = new Set([
+  UT_DIVISION,
+  UT_WING,
+  UT_FLEET,
+]);
 
 export const NUKE_TYPES: ReadonlySet<string> = new Set([
   UT_ATOM_BOMB,
@@ -155,4 +186,7 @@ export const ALL_UNIT_TYPES = [
   UT_AIR_BASE,
   UT_NAVAL_BASE,
   UT_SUPPLY_HUB,
+  UT_DIVISION,
+  UT_WING,
+  UT_FLEET,
 ] as const;

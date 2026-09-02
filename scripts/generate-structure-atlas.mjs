@@ -39,6 +39,13 @@ const OURS = [
   "air_base",
   "naval_base",
   "supply_hub",
+  // Not buildings: the forces (§6.3, §6.7, §6.8). They ride the same atlas
+  // and the same passes, because a division standing in a province and a
+  // factory standing in a province are the same drawing problem — an icon
+  // on a coloured plate with a number over it.
+  "division",
+  "wing",
+  "fleet",
 ];
 /** The glyph's box inside a cell; the passes scale by `iconFill`, so keep a margin. */
 const GLYPH = 44;

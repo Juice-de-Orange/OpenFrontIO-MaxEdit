@@ -25,9 +25,15 @@ import type {
   UnitState,
 } from "src/client/render/types";
 import type { Province } from "src/shared/map/Province";
+import {
+  forcesOf,
+  type DivisionLike,
+  type FormationLike,
+} from "./ForcesAdapter";
 import { placeLabel, type Box } from "./LabelPlacement";
 import type { ProvinceTileIndex } from "./ProvinceTileIndex";
 import { structuresOf } from "./StructureAdapter";
+import type { ZoneAnchors } from "./ZoneAnchors";
 
 /** Above this share of the map, a full upload beats a delta. */
 const FULL_UPLOAD_FRACTION = 0.25;
@@ -100,6 +106,10 @@ export class FrameAdapter {
   /** One box per province, in tiles. Built once: the partition never moves. */
   private provinceBoxes: Box[] | null = null;
 
+  /** The two halves of the icon map, merged by `publishIcons`. */
+  private buildingIcons: ReadonlyMap<number, UnitState> = new Map();
+  private forceIcons: ReadonlyMap<number, UnitState> = new Map();
+
   constructor(
     private readonly index: ProvinceTileIndex,
     private readonly grid: FrontGrid,
@@ -157,8 +167,38 @@ export class FrameAdapter {
     buildings: readonly number[],
     controllers: readonly number[],
   ): void {
-    (this.frame as { units: ReadonlyMap<number, UnitState> }).units =
-      structuresOf(buildings, controllers, this.index);
+    this.buildingIcons = structuresOf(buildings, controllers, this.index);
+    this.publishIcons();
+  }
+
+  /**
+   * Redraw this nation's own divisions, wings and fleets.
+   *
+   * Separate from the buildings because they change on different beats — a
+   * building count moves on a delta, an army moves whenever the economy view
+   * does — and both end up in the one `units` map the passes read.
+   */
+  applyForces(
+    nation: number | null,
+    divisions: readonly DivisionLike[],
+    formations: readonly FormationLike[],
+    anchors: ZoneAnchors,
+  ): void {
+    this.forceIcons = forcesOf(
+      nation,
+      divisions,
+      formations,
+      this.index,
+      anchors,
+    );
+    this.publishIcons();
+  }
+
+  /** One map for the renderer: what is built, and what is standing on it. */
+  private publishIcons(): void {
+    const units = new Map<number, UnitState>(this.buildingIcons);
+    for (const [id, unit] of this.forceIcons) units.set(id, unit);
+    (this.frame as { units: ReadonlyMap<number, UnitState> }).units = units;
     this.structuresDirty = true;
   }
 

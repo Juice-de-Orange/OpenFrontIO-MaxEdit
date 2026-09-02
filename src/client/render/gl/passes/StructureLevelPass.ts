@@ -13,7 +13,7 @@
  */
 
 import type { RendererConfig, UnitState } from "../../types";
-import { STRUCTURE_ORDER, STRUCTURE_TYPES } from "../../types";
+import { FORCE_TYPES, STRUCTURE_ORDER, STRUCTURE_TYPES } from "../../types";
 import { DynamicInstanceBuffer } from "../DynamicBuffer";
 import type { RenderSettings } from "../RenderSettings";
 import { createProgram } from "../utils/GlUtils";
@@ -294,7 +294,8 @@ export class StructureLevelPass {
     for (const unit of units.values()) {
       if (!unit.isActive) continue;
       if (!STRUCTURE_TYPES.has(unit.unitType)) continue;
-      if (unit.level <= 1) continue;
+      // A building's "1" is noise; a division's "1" is its name.
+      if (unit.level <= 1 && !FORCE_TYPES.has(unit.unitType)) continue;
 
       const levelStr = unit.level.toString();
       layoutString(

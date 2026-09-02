@@ -39,6 +39,7 @@ import { Hud, type HudModel } from "./ui/Hud";
 import { fetchOffer, showStartScreen } from "./ui/StartScreen";
 import { setLanguage, t } from "./ui/strings";
 import { WorldSocket } from "./WorldSocket";
+import { zoneAnchors, type ZoneAnchors } from "./ZoneAnchors";
 import { ZONE_LAYERS, zoneLayerImages } from "./ZoneBorders";
 
 const DEFAULT_WORLD = "world-0";
@@ -333,6 +334,7 @@ export async function startWorldClient(
 
   let view: MapRenderer | undefined;
   let adapter: FrameAdapter | undefined;
+  let anchors: ZoneAnchors = { air: new Map(), sea: new Map() };
   /**
    * Set when the renderer could not be built — no GPU context, a map
    * mismatch. The HUD keeps updating without a map behind it, so the
@@ -477,6 +479,7 @@ export async function startWorldClient(
             .then((built) => {
               view = built.view;
               adapter = built.adapter;
+              anchors = built.anchors;
               model.provinces = built.provinces;
               adapter.applyFullState(state.controllers, state.tick);
               adapter.applyFronts(state.fronts, model.controllers);
@@ -488,6 +491,12 @@ export async function startWorldClient(
                 model.nation,
               );
               adapter.applyBuildings(model.buildings, model.controllers);
+              adapter.applyForces(
+                model.nation,
+                model.economy?.divisions ?? [],
+                model.economy?.formations ?? [],
+                anchors,
+              );
               adapter.applyLabels(
                 model.controllers,
                 model.provinces,
@@ -516,6 +525,12 @@ export async function startWorldClient(
           model.nation,
         );
         adapter.applyBuildings(model.buildings, model.controllers);
+        adapter.applyForces(
+          model.nation,
+          model.economy?.divisions ?? [],
+          model.economy?.formations ?? [],
+          anchors,
+        );
         adapter.applyLabels(model.controllers, model.provinces, model.nations);
         uploadFrameData(view, adapter.frameData());
         hud.update(model);
@@ -573,6 +588,15 @@ export async function startWorldClient(
             model.nations,
           );
         }
+        // **Every tick**, unlike the buildings: an army moves, fills and
+        // is sent somewhere far more often than a factory finishes, and a
+        // marker that lags a tick behind the panel is worse than none.
+        adapter.applyForces(
+          model.nation,
+          model.economy?.divisions ?? [],
+          model.economy?.formations ?? [],
+          anchors,
+        );
         uploadFrameData(view, adapter.frameData());
         hud.update(model);
       },
@@ -687,6 +711,7 @@ async function buildFrom(
   view: MapRenderer;
   adapter: FrameAdapter;
   provinces: ProvinceMap["provinces"];
+  anchors: ZoneAnchors;
 }> {
   const map = await loadWorldMap(state.map.id);
   const grid = map.provinces;
@@ -819,7 +844,14 @@ async function buildFrom(
     },
   );
 
-  return { view, adapter, provinces: grid.provinces };
+  return {
+    view,
+    adapter,
+    provinces: grid.provinces,
+    // One tile per zone, worked out once: where a wing or a fleet stands
+    // when it is assigned to an area rather than to a place.
+    anchors: zoneAnchors(grid, map.width),
+  };
 }
 
 startWorldClient().catch((e: unknown) => {
