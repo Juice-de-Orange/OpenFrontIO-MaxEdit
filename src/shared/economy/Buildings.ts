@@ -16,12 +16,10 @@
 export const BUILDING_TYPES = [
   "civilian_factory",
   "military_factory",
-  "dockyard",
   "air_base",
   "naval_base",
   "supply_hub",
   "infrastructure",
-  "extraction_upgrade",
 ] as const;
 
 export type BuildingType = (typeof BUILDING_TYPES)[number];
@@ -63,7 +61,6 @@ export interface BuildingSpec {
 export const BUILDINGS: Record<BuildingType, BuildingSpec> = {
   civilian_factory: { cost: 360, takesSlot: true, coastalOnly: false },
   military_factory: { cost: 300, takesSlot: true, coastalOnly: false },
-  dockyard: { cost: 300, takesSlot: true, coastalOnly: true },
   air_base: { cost: 250, takesSlot: true, coastalOnly: false },
   naval_base: { cost: 250, takesSlot: true, coastalOnly: true },
   supply_hub: { cost: 150, takesSlot: true, coastalOnly: false },
@@ -74,11 +71,5 @@ export const BUILDINGS: Record<BuildingType, BuildingSpec> = {
     // The artefact caps a province's infrastructure at 10; construction can
     // take it the rest of the way there but no further.
     maxPerProvince: 10,
-  },
-  extraction_upgrade: {
-    cost: 240,
-    takesSlot: false,
-    coastalOnly: false,
-    maxPerProvince: 5,
   },
 };

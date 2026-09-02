@@ -47,7 +47,7 @@ const ARCHETYPE_BUILDINGS: Readonly<
   warden: ["supply_hub", "military_factory"],
   marshal: ["military_factory", "supply_hub"],
   conqueror: ["military_factory", "infrastructure"],
-  admiral: ["dockyard", "civilian_factory"],
+  admiral: ["naval_base", "civilian_factory"],
   airman: ["air_base", "military_factory"],
 };
 
@@ -139,13 +139,6 @@ function provinceForAirBase(s: Situation, zone: number): number | null {
   return firstFit(s, "air_base");
 }
 
-/** How many of a building stand in the provinces I own. */
-function total(s: Situation, building: BuildingType): number {
-  let n = 0;
-  for (const p of s.owned) n += countBuilding(s.state, p, building);
-  return n;
-}
-
 export function build(s: Situation): WorldEvent[] {
   if (s.me.constructionQueue.length >= REGENT_QUEUE_DEPTH) return [];
   const { temperament: t } = s;
@@ -184,38 +177,17 @@ export function build(s: Situation): WorldEvent[] {
   // 4. The sea, when the supply or the temperament runs on it.
   if (
     s.coastal &&
-    (s.sea.routes.length > 0 || s.sea.island || t.naval >= 0.6)
+    (s.sea.routes.length > 0 || s.sea.island || t.naval >= 0.6) &&
+    s.bases.naval.length === 0 &&
+    !queued(s, "naval_base")
   ) {
-    const yards = s.factories.dockyard.total;
-    if (yards === 0 && !queued(s, "dockyard")) {
-      const province = firstFit(s, "dockyard");
-      if (province !== null) return order(s, province, "dockyard");
-    }
-    if (s.bases.naval.length === 0 && !queued(s, "naval_base")) {
-      const province = firstFit(s, "naval_base");
-      if (province !== null) return order(s, province, "naval_base");
-    }
+    // A port, and nothing else: the dockyard went (decision 0032), so what a
+    // coast needs is somewhere to raise a fleet, and the ships come off the
+    // same factories as everything else.
+    const province = firstFit(s, "naval_base");
+    if (province !== null) return order(s, province, "naval_base");
   }
-  // 5. The builder's mines: the richest deposit first — but a mine per
-  // factory, not mines until the ground is empty, or nothing else is built.
-  if (
-    t.industry >= 0.5 &&
-    !queued(s, "extraction_upgrade") &&
-    total(s, "extraction_upgrade") <= total(s, "civilian_factory")
-  ) {
-    const rich = [...s.owned]
-      .map((p) => ({
-        p,
-        deposits: Object.values(
-          s.state.map.provinces[p].resourceDeposits,
-        ).reduce((sum, v) => sum + (v ?? 0), 0),
-      }))
-      .filter((it) => it.deposits > 0)
-      .filter((it) => buildable(s.state, s.nation, it.p, "extraction_upgrade"))
-      .sort((a, b) => b.deposits - a.deposits || a.p - b.p);
-    if (rich[0] !== undefined) return order(s, rich[0].p, "extraction_upgrade");
-  }
-  // 6. What the temperament and the focus would build for its own sake.
+  // 5. What the temperament and the focus would build for its own sake.
   for (const building of [
     ...ARCHETYPE_BUILDINGS[t.archetype],
     ...FOCUS_BUILDINGS[s.focus],

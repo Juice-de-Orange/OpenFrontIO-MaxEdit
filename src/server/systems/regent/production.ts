@@ -70,10 +70,8 @@ function staff(
   wanted: Wanted[],
 ): WorldEvent[] {
   const { me, nation } = s;
-  const total =
-    yard === "military_factory"
-      ? s.factories.military.total
-      : s.factories.dockyard.total;
+  void yard;
+  const total = s.factories.military.total;
   if (total === 0 || wanted.length === 0) return [];
   const mine = me.productionLines.filter(
     (line) => EQUIPMENT[line.equipment].yard === yard,

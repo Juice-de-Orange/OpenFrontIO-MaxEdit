@@ -93,3 +93,4 @@ What this makes easy, what it makes hard, and what it forecloses.
 | [0029](0029-one-resource-and-a-bar-that-shows-it.md)                 | One resource, and a bar that always shows it                              | Accepted |
 | [0030](0030-three-things-to-build-and-two-orders-to-give.md)         | Three things to build, two units to raise, two orders to give             | Accepted |
 | [0031](0031-you-draw-the-water-a-fleet-patrols.md)                   | You draw the water a fleet patrols                                        | Accepted |
+| [0032](0032-six-buildings-four-techs-three-panels.md)                | Six buildings, four techs, three panels                                   | Accepted |

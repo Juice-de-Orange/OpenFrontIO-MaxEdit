@@ -90,6 +90,14 @@ export interface WorldStatus {
 /** And how stale the newest snapshot may be. Three intervals, same reasoning. */
 const MAX_SNAPSHOT_AGE_TICKS = 3 * SNAPSHOT_INTERVAL_TICKS;
 
+/**
+ * The marker `authorise` returns for a token that names no account.
+ *
+ * A sentinel rather than a message, because the caller has to *branch* on
+ * this one: it is the single refusal the client can put right on its own.
+ */
+const STALE_TOKEN = "stale-token";
+
 interface Session {
   socket: WebSocket;
   ready: boolean;
@@ -379,7 +387,7 @@ export class WorldSocketServer {
       return "playing a nation on this world needs an account: POST /register";
     }
     const account = await this.identity.service.authenticate(token);
-    if (account === null) return "that token belongs to no account";
+    if (account === null) return STALE_TOKEN;
     const claim = await this.identity.service.claim(nation, account.id);
     if (claim === "taken") {
       return `nation ${nation} is held by another account`;
@@ -468,7 +476,16 @@ export class WorldSocketServer {
               message.token,
             );
             if (refusal !== null) {
-              this.reject(socket, "unauthorised", refusal);
+              // A token that names no account is the one refusal the client
+              // can act on by itself: forget it and register again. Everything
+              // else is a refusal the *player* has to act on.
+              this.reject(
+                socket,
+                refusal === STALE_TOKEN ? "stale-token" : "unauthorised",
+                refusal === STALE_TOKEN
+                  ? "this browser holds an account that no longer exists"
+                  : refusal,
+              );
               socket.close(CloseCode.Unauthorised, "not yours");
               return;
             }
@@ -734,7 +751,12 @@ export class WorldSocketServer {
 
   private reject(
     socket: WebSocket,
-    reason: "protocol-version" | "unknown-world" | "malformed" | "unauthorised",
+    reason:
+      | "protocol-version"
+      | "unknown-world"
+      | "malformed"
+      | "unauthorised"
+      | "stale-token",
     detail: string,
   ): void {
     this.send(socket, {

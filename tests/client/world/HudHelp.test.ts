@@ -46,8 +46,6 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
     civilianFactories: 3,
     militaryFactoriesAssigned: 0,
     militaryFactoriesTotal: 4,
-    dockyardsAssigned: 0,
-    dockyardsTotal: 0,
     researchSlots: [
       { tech: null, progress: 0, unlocked: true },
       { tech: null, progress: 0, unlocked: true },
@@ -229,7 +227,7 @@ describe("the circled i", () => {
     expect(province.querySelector(".help")?.textContent).toContain(
       "Terrain multiplies the defence",
     );
-    menuButton("Production").click();
+    menuButton("Forces").click();
     infoButton("help.production.manpower").click();
     expect(
       panel("world-production").querySelector(".help")?.textContent,
@@ -238,12 +236,12 @@ describe("the circled i", () => {
 
   test("research and the air panel have theirs too", () => {
     hud.update(model());
-    menuButton("Research").click();
+    menuButton("Build").click();
     infoButton("help.research.slots").click();
     expect(
       panel("world-research").querySelector(".help")?.textContent,
     ).toContain("costs nothing but the slot");
-    menuButton("Air and sea").click();
+    menuButton("Forces").click();
     infoButton("help.air.missions").click();
     expect(panel("world-air").querySelector(".help")?.textContent).toContain(
       "Four missions for the sky",
@@ -275,7 +273,7 @@ describe("the airfield rule, visible", () => {
 
   test("a zone the wing cannot reach is greyed in the dropdown and says so", () => {
     hud.update(model({ economy: economy({ formations: [wing], zones }) }));
-    menuButton("Air and sea").click();
+    menuButton("Forces").click();
     const options = [...panel("world-air").querySelectorAll("select")][1]
       .options;
     const byZone = new Map(
@@ -293,7 +291,7 @@ describe("the airfield rule, visible", () => {
 
   test("the panel states the rule in words as well", () => {
     hud.update(model({ economy: economy({ formations: [wing], zones }) }));
-    menuButton("Air and sea").click();
+    menuButton("Forces").click();
     expect(panel("world-air").textContent).toContain(
       "flies over its base's zone and the zones next to it",
     );

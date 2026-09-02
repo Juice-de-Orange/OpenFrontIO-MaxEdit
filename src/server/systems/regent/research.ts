@@ -1,11 +1,11 @@
 /**
  * Research: the slots stay filled, and what fills them is the temperament.
  *
- * There is no air or naval tech (techs.ts), so the lists differ on the one
- * question the tree asks: industry first, or the field? The scholar and the
+ * Four flat techs (decision 0032), so the lists are four orderings of the
+ * same four rather than four paths through a tree. The scholar and the
  * builder take the bureau and the tools; the soldiers take the workshops
- * that fill wings and fleets faster and the trenches that make a garrison
- * hold. First available from the list, so a replay picks the same one.
+ * that fill an army faster and the trenches that make a garrison hold.
+ * First available from the list, so a replay picks the same one.
  */
 
 import {
@@ -19,37 +19,22 @@ import type { WorldEvent } from "../../world/WorldState";
 import type { Situation } from "./situation";
 
 const INDUSTRY: readonly TechId[] = [
-  "reinforced_concrete",
   "research_bureau",
   "machine_tools",
-  "precision_tooling",
-  "assembly_line",
-  "excavation",
-  "deep_mining",
   "field_workshops",
   "entrenchment",
 ];
 const FIELD: readonly TechId[] = [
   "field_workshops",
-  "entrenchment",
   "machine_tools",
-  "assembly_line",
-  "precision_tooling",
-  "reinforced_concrete",
+  "entrenchment",
   "research_bureau",
-  "excavation",
-  "deep_mining",
 ];
 const WALLS: readonly TechId[] = [
   "entrenchment",
   "field_workshops",
-  "reinforced_concrete",
   "machine_tools",
-  "assembly_line",
   "research_bureau",
-  "precision_tooling",
-  "excavation",
-  "deep_mining",
 ];
 
 export const RESEARCH_ORDER: Readonly<Record<Archetype, readonly TechId[]>> = {

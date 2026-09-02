@@ -5,7 +5,6 @@ import {
 } from "../../../src/server/world/WorldState";
 import {
   buildWorld,
-  countOf,
   finishQueue,
   hostileNeighbourOf,
   landFixture,
@@ -65,47 +64,38 @@ describe("the regent's construction", () => {
     }
   });
 
-  test("a builder upgrades its richest deposit, a mine per factory", () => {
+  test("a builder fills its slots with factories", () => {
+    // The extraction upgrade went with the fourth resource's bookkeeping
+    // (decision 0032). What a builder does now is what a builder always did
+    // first: put civilian factories in the ground.
     const fixture = landFixture();
     const seed = seedFor(fixture, 1, (t) => t.archetype === "builder");
     ({ state } = buildWorld(fixture, seed));
     steward(state, 1);
-    const richest = [...situation(state, 1).owned]
-      .map((p) => ({
-        p,
-        deposits: Object.values(state.map.provinces[p].resourceDeposits).reduce(
-          (sum, v) => sum + (v ?? 0),
-          0,
-        ),
-      }))
-      .sort((a, b) => b.deposits - a.deposits || a.p - b.p)[0];
-    expect(richest.deposits).toBeGreaterThan(0);
 
     const orders: { provinceId: number; building: string }[] = [];
     for (let i = 0; i < 6; i++) {
       orders.push(...queued(visit(state)));
       finishQueue(state, 1);
     }
-    const mines = orders.filter((o) => o.building === "extraction_upgrade");
-    expect(mines.length).toBeGreaterThan(0);
-    expect(mines[0].provinceId).toBe(richest.p);
-    // Never mines alone: a mine per civilian factory, at most one ahead.
-    const owned = situation(state, 1).owned;
-    const total = (building: "extraction_upgrade" | "civilian_factory") =>
-      owned.reduce((n, p) => n + countOf(state, p, building), 0);
-    expect(total("extraction_upgrade")).toBeLessThanOrEqual(
-      total("civilian_factory") + 1,
-    );
+    const factories = orders.filter((o) => o.building === "civilian_factory");
+    expect(factories.length).toBeGreaterThan(0);
+    // And never a building that no longer exists.
+    for (const order of orders) {
+      expect(["dockyard", "extraction_upgrade", "synthetic_oil"]).not.toContain(
+        order.building,
+      );
+    }
   });
 
-  test("a non-builder leaves the deposits alone", () => {
+  test("a non-builder still builds something", () => {
     const fixture = landFixture();
     const seed = seedFor(fixture, 1, (t) => t.industry < 0.5);
     ({ state } = buildWorld(fixture, seed));
     steward(state, 1);
     for (let i = 0; i < 6; i++) {
       expect(queued(visit(state)).map((o) => o.building)).not.toContain(
-        "extraction_upgrade",
+        "dockyard",
       );
       finishQueue(state, 1);
     }

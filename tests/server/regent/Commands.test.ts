@@ -149,7 +149,7 @@ describe("every regent event is a command the world would accept", () => {
       if (home === undefined) throw new Error("no coast");
       setBuilding(state, home.id, "supply_hub", 1);
       setBuilding(state, home.id, "naval_base", 1);
-      setBuilding(state, home.id, "dockyard", 3);
+      setBuilding(state, home.id, "military_factory", 3);
       const far = state.map.provinces.find(
         (p) =>
           p.seaZone !== null &&

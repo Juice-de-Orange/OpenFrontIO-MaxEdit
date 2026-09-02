@@ -22,10 +22,8 @@ import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
 import {
   CIVILIAN_FACTORY_OUTPUT,
-  DOCKYARD_DEMAND,
   EQUIPMENT_MATERIALS,
   EXTRACTION_PER_DEPOSIT,
-  EXTRACTION_UPGRADE_BONUS,
   INFRASTRUCTURE_EXTRACTION_BONUS,
   MANPOWER_REGROWTH,
   MILITARY_FACTORY_DEMAND,
@@ -85,7 +83,6 @@ export function measureNation(
   // second copy of the constant that a restore could bring back stale.
   const tech = nationModifiers(state, nation);
   const militaryOutput = factoryOutput(state, nation, "military_factory");
-  const dockyardOutput = factoryOutput(state, nation, "dockyard");
   // One answer per zone rather than one per province: a nation's provinces
   // fall into a handful of air zones and the arithmetic is the same for every
   // province in one of them.
@@ -105,7 +102,6 @@ export function measureNation(
   let construction = 0;
   let industry = 0;
   let militaryHeld = 0;
-  let dockyardsHeld = 0;
 
   for (
     let province = 0;
@@ -139,12 +135,11 @@ export function measureNation(
 
     const deposits = state.map.provinces[province].resourceDeposits;
     const infrastructure = effectiveInfrastructure(state, province);
-    const upgrades = countBuilding(state, province, "extraction_upgrade");
+    // Roads and nothing else: the extraction upgrade went with the fourth
+    // resource's bookkeeping (decision 0032). A province yields what it
+    // holds, times what the roads through it are worth.
     const yieldFactor =
-      factor *
-      (1 + infrastructure * INFRASTRUCTURE_EXTRACTION_BONUS) *
-      (1 + upgrades * EXTRACTION_UPGRADE_BONUS) *
-      (1 + tech.extraction);
+      factor * (1 + infrastructure * INFRASTRUCTURE_EXTRACTION_BONUS);
     for (const resource of RESOURCES) {
       const deposit = deposits[resource];
       if (deposit === undefined) continue;
@@ -158,11 +153,8 @@ export function measureNation(
       (1 + tech.construction);
 
     const military = countBuilding(state, province, "military_factory");
-    const dockyards = countBuilding(state, province, "dockyard");
-    industry +=
-      (military * militaryOutput + dockyards * dockyardOutput) * industryFactor;
+    industry += military * militaryOutput * industryFactor;
     militaryHeld += military;
-    dockyardsHeld += dockyards;
   }
 
   // What a factory draws depends on what it is making (§6.2 and decision
@@ -183,12 +175,7 @@ export function measureNation(
     0,
     militaryHeld - assignedFactories(state, nation, "military_factory"),
   );
-  const dockyardsIdle = Math.max(
-    0,
-    dockyardsHeld - assignedFactories(state, nation, "dockyard"),
-  );
   addDemand(demand, MILITARY_FACTORY_DEMAND, militaryIdle);
-  addDemand(demand, DOCKYARD_DEMAND, dockyardsIdle);
 
   const stock = state.nations[nation].resources;
   let sufficiency = 1;

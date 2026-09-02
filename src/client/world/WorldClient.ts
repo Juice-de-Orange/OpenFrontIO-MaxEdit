@@ -187,6 +187,17 @@ function storageWorks(): boolean {
   }
 }
 
+/** Drop the token: the account it names does not exist. */
+function forgetToken(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // Then the next load asks the server again and is told the same thing,
+    // which is a loop the player can break by clearing site data. Storage
+    // that refuses to forget is rare enough not to design around.
+  }
+}
+
 /** The account token this browser holds, if it has one. */
 function heldToken(): string | null {
   try {
@@ -338,6 +349,7 @@ export async function startWorldClient(
   let adapter: FrameAdapter | undefined;
   let anchors: ZoneAnchors = { air: new Map(), sea: new Map() };
   let camera: CameraController | null = null;
+  let staleTokenHandled = false;
   let zoneSource: ProvinceMap | null = null;
   let mapSize = { width: 0, height: 0 };
   /**
@@ -652,7 +664,20 @@ export async function startWorldClient(
             : t("hud.orderRefused", { reason: ack.reason ?? "" }),
         );
       },
+      // The account this browser holds is gone — the world was reset under
+      // it. Forget the token so the next claim registers a new account
+      // rather than failing on every nation for ever.
+      onStaleToken: () => {
+        forgetToken();
+        // Straight back to the chooser with a sentence that says what
+        // happened, rather than the server's — "that token belongs to no
+        // account" is true and tells a player nothing they can act on.
+        startOver(t("start.staleToken"));
+        staleTokenHandled = true;
+      },
       onFatal: (message, refused) => {
+        // The stale-token path has already said its piece and reloaded.
+        if (staleTokenHandled) return;
         if (refused === true) {
           // Straight back to the chooser with the reason on it. A fatal screen
           // in between adds a click and says nothing the chooser cannot.

@@ -102,7 +102,6 @@ export interface Situation {
   shortfall: number;
   factories: {
     military: { total: number; assigned: number };
-    dockyard: { total: number; assigned: number };
   };
   bases: { air: number[]; naval: number[] };
 }
@@ -299,10 +298,6 @@ export function assess(
       military: {
         total: availableFactories(state, nation, "military_factory"),
         assigned: assignedFactories(state, nation, "military_factory"),
-      },
-      dockyard: {
-        total: availableFactories(state, nation, "dockyard"),
-        assigned: assignedFactories(state, nation, "dockyard"),
       },
     },
     bases,

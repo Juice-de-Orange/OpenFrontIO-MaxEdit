@@ -48,6 +48,8 @@ export interface WorldSocketHandlers {
    * the only one where the client should forget what it remembered.
    */
   onFatal(message: string, refused?: boolean): void;
+  /** The held account token names nothing: drop it before trying again. */
+  onStaleToken?(): void;
 }
 
 export class WorldSocket {
@@ -134,7 +136,17 @@ export class WorldSocket {
           // alike turned a protocol mismatch into "that nation could not be
           // claimed" with a button that cleared the nation and reloaded
           // straight back into the same mismatch.
-          this.fatal(message.detail, message.reason === "unauthorised");
+          // A stale token is the one refusal this client can put right by
+          // itself: the account it holds no longer exists — a browser carried
+          // across a world reset — so it forgets the token and the next claim
+          // registers a new account. Without this the player is told "that
+          // nation could not be claimed" for *every* nation, for ever.
+          if (message.reason === "stale-token") this.handlers.onStaleToken?.();
+          this.fatal(
+            message.detail,
+            message.reason === "unauthorised" ||
+              message.reason === "stale-token",
+          );
           socket.close();
           break;
 

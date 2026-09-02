@@ -140,15 +140,13 @@ describe("the wire protocol", () => {
           divisions: [{ id: 1, provinceId: 3, strength: 0.5, supply: 0.75 }],
           militaryFactoriesAssigned: 2,
           militaryFactoriesTotal: 3,
-          dockyardsAssigned: 0,
-          dockyardsTotal: 0,
           researchSlots: [
             { tech: "machine_tools", progress: 40, unlocked: true },
             { tech: null, progress: 0, unlocked: true },
             { tech: null, progress: 0, unlocked: false },
             { tech: null, progress: 0, unlocked: false },
           ],
-          unlockedTechs: ["excavation"],
+          unlockedTechs: ["machine_tools"],
           attacks: [
             { province: 11, progress: 0.25 },
             { province: 12, progress: 0 },
@@ -309,7 +307,7 @@ describe("the wire protocol", () => {
     // templates where there were five (decision 0030). Both change the
     // shape of an economy rather than adding to it, so an older client
     // would read every number wrong rather than not at all.
-    expect(PROTOCOL_VERSION).toBe(20);
+    expect(PROTOCOL_VERSION).toBe(21);
   });
 
   test("a trade's terms may name equipment, and need not (decision 0027)", () => {

@@ -17,16 +17,22 @@
  * with the phases rather than ahead of them.
  */
 
+/**
+ * Four, flat, no prerequisites (decision 0032).
+ *
+ * §6.4 already said this system should be the cheapest thing in the game and
+ * should stay that way. Ten techs behind a dependency graph was a small
+ * tree pretending not to be one, and nine of the ten were a percentage on a
+ * number the player was not watching. These four each change something a
+ * player can see happen: what a factory turns out, how fast an army fills,
+ * how much a defended province costs to take, and how many things you can
+ * research at once.
+ */
 export const TECH_IDS = [
   "machine_tools",
-  "precision_tooling",
-  "assembly_line",
-  "excavation",
-  "deep_mining",
-  "reinforced_concrete",
-  "research_bureau",
   "field_workshops",
   "entrenchment",
+  "research_bureau",
 ] as const;
 
 export type TechId = (typeof TECH_IDS)[number];
@@ -71,43 +77,10 @@ export interface Tech {
  * choices rather than a checklist to be completed.
  */
 export const TECHS: Record<TechId, Tech> = {
-  machine_tools: { requires: [], ticks: 480, effect: { factoryOutput: 0.1 } },
-  precision_tooling: {
-    requires: ["machine_tools"],
-    ticks: 720,
-    effect: { factoryOutput: 0.15 },
-  },
-  assembly_line: {
-    requires: ["machine_tools"],
-    ticks: 600,
-    effect: { efficiencyCap: 0.1 },
-  },
-  excavation: { requires: [], ticks: 480, effect: { extraction: 0.15 } },
-  deep_mining: {
-    requires: ["excavation"],
-    ticks: 720,
-    effect: { extraction: 0.2 },
-  },
-  reinforced_concrete: {
-    requires: [],
-    ticks: 400,
-    effect: { construction: 0.15 },
-  },
-  research_bureau: {
-    requires: ["reinforced_concrete"],
-    ticks: 900,
-    effect: { researchSlots: 1 },
-  },
-  field_workshops: {
-    requires: [],
-    ticks: 500,
-    effect: { reinforceRate: 0.5 },
-  },
-  entrenchment: {
-    requires: [],
-    ticks: 600,
-    effect: { defenderLoss: -0.25 },
-  },
+  machine_tools: { requires: [], ticks: 480, effect: { factoryOutput: 0.15 } },
+  field_workshops: { requires: [], ticks: 500, effect: { reinforceRate: 0.5 } },
+  entrenchment: { requires: [], ticks: 600, effect: { defenderLoss: -0.25 } },
+  research_bureau: { requires: [], ticks: 900, effect: { researchSlots: 1 } },
 };
 
 /** Slots a nation has before any tech adds one. §6.4: default 2, up to 4. */

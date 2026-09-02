@@ -34,7 +34,6 @@ import {
 import type { Resource } from "src/shared/config/provinces";
 import { RESOURCES } from "src/shared/config/provinces";
 import {
-  DOCKYARD_OUTPUT,
   EFFICIENCY_CAP,
   EFFICIENCY_FLOOR,
   EQUIPMENT_CAP,
@@ -522,8 +521,10 @@ export function factoryOutput(
   nation: number,
   yard: Yard,
 ): number {
-  const base = yard === "dockyard" ? DOCKYARD_OUTPUT : MILITARY_FACTORY_OUTPUT;
-  return base * (1 + nationModifiers(state, nation).factoryOutput);
+  void yard;
+  return (
+    MILITARY_FACTORY_OUTPUT * (1 + nationModifiers(state, nation).factoryOutput)
+  );
 }
 
 /**

@@ -36,7 +36,7 @@ import {
  * misread. One integer, not a semver range: the only question is whether the
  * two sides agree.
  */
-export const PROTOCOL_VERSION = 20;
+export const PROTOCOL_VERSION = 21;
 
 /** WebSocket close codes, in the application-defined range. */
 export const CloseCode = {
@@ -487,6 +487,17 @@ export const ServerRejectSchema = z.object({
     "unknown-world",
     "malformed",
     "unauthorised",
+    /**
+     * The token is well formed and names nothing.
+     *
+     * Its own reason rather than an `unauthorised` with a sentence in it,
+     * because the client can *fix* this one: it holds a token for an account
+     * that no longer exists — a browser carried across a world reset — and
+     * the cure is to forget it and register again. Matching on the English
+     * of a detail string to decide that would be a bug waiting for a
+     * translation.
+     */
+    "stale-token",
   ]),
   detail: z.string(),
   serverProtocolVersion: z.number().int(),
@@ -638,8 +649,6 @@ export const NationEconomySchema = z.object({
   /** Factories assigned to a line, against those the nation holds. */
   militaryFactoriesAssigned: z.number().int().nonnegative(),
   militaryFactoriesTotal: z.number().int().nonnegative(),
-  dockyardsAssigned: z.number().int().nonnegative(),
-  dockyardsTotal: z.number().int().nonnegative(),
   researchSlots: z.array(ResearchSlotSchema),
   /** Techs this nation has finished. Order is not significant. */
   unlockedTechs: z.array(z.enum(TECH_IDS)),

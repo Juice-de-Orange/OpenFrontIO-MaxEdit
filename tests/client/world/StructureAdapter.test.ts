@@ -130,7 +130,7 @@ describe("structuresOf", () => {
     const { idx } = fixture();
     const buildings = counts([
       [0, "military_factory", 2],
-      [3, "dockyard", 1],
+      [3, "military_factory", 1],
     ]);
     const first = structuresOf(buildings, [1, 1, 1, 1], idx);
     const second = structuresOf(buildings, [1, 1, 1, 1], idx);

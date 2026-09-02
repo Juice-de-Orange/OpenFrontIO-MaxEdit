@@ -40,8 +40,16 @@ export function equipmentIndex(type: EquipmentType): number {
   return EQUIPMENT_TYPES.indexOf(type);
 }
 
-/** Which kind of factory can build it. §6.1: dockyards make naval equipment. */
-export type Yard = "military_factory" | "dockyard";
+/**
+ * Which kind of factory can build it.
+ *
+ * One kind (decision 0032). §6.1 gave dockyards their own building because
+ * naval equipment was four of the ten types and coastal industry was a real
+ * constraint; with one naval good and a naval base already deciding where a
+ * fleet can be raised, a second factory type was a second thing to build
+ * before you could build the thing.
+ */
+export type Yard = "military_factory";
 
 export interface EquipmentSpec {
   /**
@@ -58,7 +66,7 @@ export interface EquipmentSpec {
 export const EQUIPMENT: Record<EquipmentType, EquipmentSpec> = {
   infantry: { cost: 1, yard: "military_factory" },
   aircraft: { cost: 8, yard: "military_factory" },
-  ships: { cost: 12, yard: "dockyard" },
+  ships: { cost: 12, yard: "military_factory" },
 };
 
 /**

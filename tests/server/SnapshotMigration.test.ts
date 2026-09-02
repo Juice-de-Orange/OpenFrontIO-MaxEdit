@@ -36,14 +36,14 @@ function build(): World {
 const OLD_TYPES = [
   "civilian_factory",
   "military_factory",
-  "dockyard",
+  "military_factory",
   "synthetic_oil",
   "synthetic_rubber",
   "air_base",
   "naval_base",
   "supply_hub",
   "infrastructure",
-  "extraction_upgrade",
+  "infrastructure",
 ] as const;
 
 describe("a snapshot from before the simplification", () => {
@@ -77,15 +77,16 @@ describe("a snapshot from before the simplification", () => {
     const state = restored.view();
     const held = (type: (typeof BUILDING_TYPES)[number]): number =>
       state.buildings[0 * BUILDING_TYPES.length + buildingIndex(type)];
-    // Old index 0,1,2 keep their places; 5..9 shift down by two.
+    // Two migrations run in a row on a snapshot this old: the refineries
+    // leave (0029), then the dockyard folds onto the military factory and
+    // the extraction upgrade goes (0032). So civilian keeps its 1, military
+    // is its own 2 plus the dockyard's 3, and the rest shift down.
     expect(held("civilian_factory")).toBe(1);
-    expect(held("military_factory")).toBe(2);
-    expect(held("dockyard")).toBe(3);
+    expect(held("military_factory")).toBe(5);
     expect(held("air_base")).toBe(6);
     expect(held("naval_base")).toBe(7);
     expect(held("supply_hub")).toBe(8);
     expect(held("infrastructure")).toBe(9);
-    expect(held("extraction_upgrade")).toBe(10);
   });
 
   test("four stockpiles become the one, and the market order with them", () => {

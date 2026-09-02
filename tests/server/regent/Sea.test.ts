@@ -55,17 +55,19 @@ describe("the regent at sea", () => {
     steward(state, 1);
   });
 
-  test("an island builds a dockyard before anything else", () => {
+  test("an island builds a port before anything else", () => {
+    // The dockyard went (decision 0032): what a coast needs is somewhere to
+    // raise a fleet, and the ships come off the same factories as the rest.
     expect(situation(state, 1).sea.island).toBe(true);
     const first = queued(visit(state));
     expect(first).toHaveLength(1);
-    expect(first[0].building).toBe("dockyard");
+    expect(first[0].building).toBe("naval_base");
     expect(state.map.provinces[first[0].provinceId].seaZone).not.toBeNull();
   });
 
   test("a sea route means convoys and escorts on the slips", () => {
     const home = beachhead(state, 1, 2);
-    setBuilding(state, home, "dockyard", 2);
+    setBuilding(state, home, "military_factory", 2);
     expect(situation(state, 1).sea.routes.length).toBeGreaterThan(0);
     expect(situation(state, 1).sea.convoysWanted).toBeGreaterThan(0);
     for (let i = 0; i < 4; i++) visit(state);
@@ -129,7 +131,7 @@ describe("the regent at sea", () => {
     for (let i = 0; i < 10; i++) {
       const events = visit(state);
       for (const order of queued(events)) {
-        expect(["dockyard", "naval_base"]).not.toContain(order.building);
+        expect(order.building).not.toBe("naval_base");
       }
       for (const line of ofKind(events, "production_line_created")) {
         expect(["ships", "ships", "ships", "ships"]).not.toContain(

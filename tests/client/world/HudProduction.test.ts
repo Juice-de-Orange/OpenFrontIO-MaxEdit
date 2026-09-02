@@ -40,8 +40,6 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
     civilianFactories: 3,
     militaryFactoriesAssigned: 0,
     militaryFactoriesTotal: 4,
-    dockyardsAssigned: 0,
-    dockyardsTotal: 0,
     researchSlots: [
       { tech: null, progress: 0, unlocked: true },
       { tech: null, progress: 0, unlocked: true },

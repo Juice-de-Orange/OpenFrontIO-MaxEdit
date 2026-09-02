@@ -34,7 +34,7 @@ const INHERITED_COLS = 6;
 const OURS = [
   "civilian_factory",
   "military_factory",
-  "dockyard",
+  "military_factory",
   "refinery",
   "air_base",
   "naval_base",

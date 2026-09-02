@@ -42,7 +42,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 20;
+const PROTOCOL_VERSION = 21;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -396,7 +396,7 @@ async function main() {
 
   // The refusals on the way are the validation path being exercised for free.
   const wrong = await player.command(
-    { kind: "start_research", slot: 0, tech: "deep_mining" },
+    { kind: "start_research", slot: 0, tech: "machine_tools" },
     "prereq",
   );
   check(

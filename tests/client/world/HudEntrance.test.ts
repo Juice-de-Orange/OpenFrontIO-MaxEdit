@@ -45,8 +45,6 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
     civilianFactories: 3,
     militaryFactoriesAssigned: 0,
     militaryFactoriesTotal: 4,
-    dockyardsAssigned: 0,
-    dockyardsTotal: 0,
     researchSlots: [
       { tech: null, progress: 0, unlocked: true },
       { tech: null, progress: 0, unlocked: true },
@@ -176,7 +174,7 @@ beforeEach(() => {
 describe("where to build", () => {
   test("an empty queue says to click a province on the map", () => {
     hud.update(model());
-    menuButton("Construction queue").click();
+    menuButton("Build").click();
     const text = panel("world-queue").textContent ?? "";
     expect(text).toContain("Nothing under construction.");
     expect(text).toContain("click one of your provinces on the map");
@@ -229,9 +227,9 @@ describe("why a button is disabled", () => {
     expect(panel("world-province").textContent).toContain("2 / 2");
   });
 
-  test("an inland province says a dockyard needs a coast", () => {
+  test("an inland province says a naval base needs a coast", () => {
     hud.update(model());
-    const button = buildButton("Dockyard");
+    const button = buildButton("Naval base");
     expect(button.disabled).toBe(true);
     expect(button.textContent).toContain("needs a coast");
     // An enabled button carries no reason at all.
@@ -253,7 +251,11 @@ describe("why a button is disabled", () => {
     hud.update(model({ owners: [2] })); // controller 1, owner 2: occupied
     const text = panel("world-province").textContent ?? "";
     expect(text).toContain("Build");
-    for (const label of ["Civilian factory", "Dockyard", "Raise a division"]) {
+    for (const label of [
+      "Civilian factory",
+      "Naval base",
+      "Raise a division",
+    ]) {
       const button = buildButton(label);
       expect(button.disabled).toBe(true);
       expect(button.textContent).toContain("occupied territory");
@@ -286,7 +288,7 @@ describe("the clock", () => {
 describe("research explains itself", () => {
   test("the panel says what a slot is and what it costs", () => {
     hud.update(model());
-    menuButton("Research").click();
+    menuButton("Build").click();
     expect(panel("world-research").textContent).toContain(
       "Each slot researches one technology at a time",
     );
@@ -294,13 +296,13 @@ describe("research explains itself", () => {
 
   test("every tech says what it does, as a signed percentage", () => {
     hud.update(model());
-    menuButton("Research").click();
+    menuButton("Build").click();
     const buttons = [...panel("world-research").querySelectorAll("button")];
     const machineTools = buttons.find((b) =>
       b.textContent?.startsWith("Machine tools"),
     );
     expect(machineTools?.querySelector(".effect")?.textContent).toBe(
-      "+10% factory output",
+      "+15% factory output",
     );
     const bureau = buttons.find((b) =>
       b.textContent?.startsWith("Research bureau"),
@@ -316,17 +318,19 @@ describe("research explains itself", () => {
     );
   });
 
-  test("a tech with missing prerequisites says which, on the button", () => {
-    hud.update(model());
-    menuButton("Research").click();
-    const buttons = [...panel("world-research").querySelectorAll("button")];
-    const deepMining = buttons.find((b) =>
-      b.textContent?.startsWith("Deep mining"),
+  test("a tech already known leaves the offered list for the known one", () => {
+    // There are no prerequisites left to miss (decision 0032): four flat
+    // techs, and a finished one is simply not on offer any more.
+    hud.update(
+      model({ economy: economy({ unlockedTechs: ["entrenchment"] }) }),
     );
-    expect(deepMining?.disabled).toBe(true);
-    expect(deepMining?.querySelector(".why")?.textContent).toBe(
-      "needs Excavation",
+    menuButton("Build").click();
+    const research = panel("world-research");
+    const buttons = [...research.querySelectorAll("button")];
+    expect(buttons.some((b) => b.textContent?.startsWith("Entrenchment"))).toBe(
+      false,
     );
+    expect(research.textContent).toContain("Entrenchment");
   });
 
   test("with every slot busy, an available tech says 'no free slot'", () => {
@@ -335,19 +339,17 @@ describe("research explains itself", () => {
         economy: economy({
           researchSlots: [
             { tech: "machine_tools", progress: 10, unlocked: true },
-            { tech: "excavation", progress: 10, unlocked: true },
+            { tech: "field_workshops", progress: 10, unlocked: true },
             { tech: null, progress: 0, unlocked: false },
             { tech: null, progress: 0, unlocked: false },
           ],
         }),
       }),
     );
-    menuButton("Research").click();
+    menuButton("Build").click();
     const buttons = [...panel("world-research").querySelectorAll("button")];
-    const concrete = buttons.find((b) =>
-      b.textContent?.startsWith("Reinforced concrete"),
-    );
-    expect(concrete?.disabled).toBe(true);
-    expect(concrete?.querySelector(".why")?.textContent).toBe("no free slot");
+    const idle = buttons.find((b) => b.textContent?.startsWith("Entrenchment"));
+    expect(idle?.disabled).toBe(true);
+    expect(idle?.querySelector(".why")?.textContent).toBe("no free slot");
   });
 });

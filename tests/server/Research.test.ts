@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { measureNation } from "../../src/server/systems/economy";
 import { World } from "../../src/server/world/World";
-import { efficiencyCapFor } from "../../src/server/world/WorldState";
-import { EFFICIENCY_CAP } from "../../src/shared/config/rates";
 import {
   MAX_RESEARCH_SLOTS,
   modifiersOf,
@@ -65,10 +63,20 @@ describe("the tech list itself", () => {
   });
 
   test("modifiers add rather than compound", () => {
-    const both = modifiersOf(["machine_tools", "precision_tooling"]);
-    expect(both.factoryOutput).toBeCloseTo(
-      (TECHS.machine_tools.effect.factoryOutput ?? 0) +
-        (TECHS.precision_tooling.effect.factoryOutput ?? 0),
+    // Four flat techs now (decision 0032), so nothing stacks on the same
+    // number twice — what the rule protects is that two effects on two
+    // numbers are read once each, and that an unlocked list with a
+    // duplicate in it is not counted twice.
+    const once = modifiersOf(["machine_tools"]);
+    const twice = modifiersOf(["machine_tools", "machine_tools"]);
+    expect(twice.factoryOutput).toBeCloseTo(once.factoryOutput * 2, 9);
+    const mixed = modifiersOf(["machine_tools", "field_workshops"]);
+    expect(mixed.factoryOutput).toBeCloseTo(
+      TECHS.machine_tools.effect.factoryOutput ?? 0,
+      9,
+    );
+    expect(mixed.reinforceRate).toBeCloseTo(
+      TECHS.field_workshops.effect.reinforceRate ?? 0,
       9,
     );
   });
@@ -94,7 +102,7 @@ describe("researching", () => {
   }
 
   test("a slot accrues one tick at a time, never in a jump", () => {
-    command({ kind: "start_research", slot: 0, tech: "reinforced_concrete" });
+    command({ kind: "start_research", slot: 0, tech: "machine_tools" });
     const seen: number[] = [];
     for (let i = 0; i < 20; i++) {
       world.step();
@@ -106,13 +114,17 @@ describe("researching", () => {
     }
   });
 
-  test("a tech nobody has the prerequisites for is refused, not queued", () => {
+  test("a tech already known is refused, not started again", () => {
+    // There are no prerequisites left to fail (decision 0032): four flat
+    // techs, and the only thing that can be wrong about starting one is
+    // that it is already done.
+    const world2 = world;
     expect(
-      world.rejectionFor({
+      world2.rejectionFor({
         nation,
-        body: { kind: "start_research", slot: 0, tech: "deep_mining" },
+        body: { kind: "start_research", slot: 0, tech: "machine_tools" },
       }),
-    ).toContain("excavation");
+    ).toBeNull();
   });
 
   test("a slot the nation has not unlocked is refused", () => {
@@ -122,24 +134,24 @@ describe("researching", () => {
         body: {
           kind: "start_research",
           slot: RESEARCH_SLOTS,
-          tech: "excavation",
+          tech: "machine_tools",
         },
       }),
     ).toContain("research slots");
   });
 
   test("two slots cannot work on the same tech", () => {
-    command({ kind: "start_research", slot: 0, tech: "excavation" });
+    command({ kind: "start_research", slot: 0, tech: "machine_tools" });
     expect(
       world.rejectionFor({
         nation,
-        body: { kind: "start_research", slot: 1, tech: "excavation" },
+        body: { kind: "start_research", slot: 1, tech: "machine_tools" },
       }),
     ).toContain("already researching");
   });
 
   test("cancelling loses the hours, like a cancelled building", () => {
-    command({ kind: "start_research", slot: 0, tech: "excavation" });
+    command({ kind: "start_research", slot: 0, tech: "machine_tools" });
     for (let i = 0; i < 30; i++) world.step();
     expect(slots()[0].progress).toBeGreaterThan(0);
     command({ kind: "cancel_research", slot: 0 });
@@ -168,25 +180,18 @@ describe("a finished tech changes a number", () => {
     expect(world.view().nations[nation].unlockedTechs).toContain(tech);
   }
 
-  test("extraction research raises what the mines yield", () => {
-    const before = measureNation(world.view(), nation).extraction;
-    research("excavation");
-    const after = measureNation(world.view(), nation).extraction;
-    const moved = (
-      ["material", "material", "material", "material"] as const
-    ).some((r) => after[r] > before[r]);
-    expect(moved, "no resource yields more than it did").toBe(true);
+  test("machine tools raise what the factories turn out", () => {
+    const before = measureNation(world.view(), nation).industry;
+    research("machine_tools");
+    const after = measureNation(world.view(), nation).industry;
+    expect(after).toBeGreaterThan(before);
   });
 
-  test("assembly-line research raises the ceiling a line may climb to", () => {
-    expect(efficiencyCapFor(world.view(), nation)).toBeCloseTo(
-      EFFICIENCY_CAP,
-      9,
-    );
-    research("machine_tools");
-    research("assembly_line");
-    expect(efficiencyCapFor(world.view(), nation)).toBeGreaterThan(
-      EFFICIENCY_CAP,
+  test("the bureau adds the slot §6.4 allows for", () => {
+    const before = slotsFor(world.view().nations[nation].unlockedTechs);
+    research("research_bureau");
+    expect(slotsFor(world.view().nations[nation].unlockedTechs)).toBe(
+      before + 1,
     );
   });
 

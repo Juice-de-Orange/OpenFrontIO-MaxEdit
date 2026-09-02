@@ -47,7 +47,6 @@ import {
   type BuildingType,
 } from "src/shared/economy/Buildings";
 import {
-  EQUIPMENT,
   EQUIPMENT_TYPES,
   type EquipmentType,
 } from "src/shared/economy/Equipment";
@@ -300,14 +299,16 @@ const STYLE = `
 #world-hud .queue-item { margin-bottom: .5rem; }
 `;
 
-/** The panels the menu bar rotates between. */
-type PanelId =
-  | "economy"
-  | "queue"
-  | "production"
-  | "research"
-  | "diplomacy"
-  | "air";
+/**
+ * The three the menu bar rotates between (decision 0032).
+ *
+ * There were six, which is six places to look for one number and six buttons
+ * to learn before the first decision. Three is the shape of the game: what
+ * you build with, what you fight with, and who you deal with. Each still
+ * renders the same sections it always did, stacked, so nothing was thrown
+ * away — the *choosing* was.
+ */
+type PanelId = "economy" | "forces" | "diplomacy";
 
 export interface HudModel {
   /** Null while watching. */
@@ -514,12 +515,9 @@ export class Hud {
     bar.append(brand);
 
     const entries: readonly [PanelId, string, StringKey][] = [
-      ["economy", "📊", "economy.title"],
-      ["queue", "🏗️", "queue.title"],
-      ["production", "🏭", "production.title"],
-      ["research", "🔬", "research.title"],
+      ["economy", "🏗️", "hud.panelEconomy"],
+      ["forces", "⚔️", "hud.panelForces"],
       ["diplomacy", "🤝", "diplomacy.title"],
-      ["air", "✈️", "air.title"],
     ];
     for (const [id, glyph, label] of entries) {
       const button = document.createElement("button");
@@ -712,11 +710,8 @@ export class Hud {
     if (model.nation !== null || this.open === null) return;
     const panels: Record<PanelId, HTMLElement> = {
       economy: this.economyPanel,
-      queue: this.queuePanel,
-      production: this.productionPanel,
-      research: this.researchPanel,
+      forces: this.productionPanel,
       diplomacy: this.diplomacyPanel,
-      air: this.airPanel,
     };
     const panel = panels[this.open];
     // Built once and moved, not rebuilt. `update` runs on every delta, and a
@@ -956,7 +951,7 @@ export class Hud {
 
   private renderQueue(model: HudModel): void {
     const economy = model.economy;
-    this.queuePanel.hidden = economy === null || this.open !== "queue";
+    this.queuePanel.hidden = economy === null || this.open !== "economy";
     if (economy === null) return;
 
     const children: Node[] = [
@@ -1361,8 +1356,7 @@ export class Hud {
    */
   private renderProduction(model: HudModel): void {
     const economy = model.economy;
-    this.productionPanel.hidden =
-      economy === null || this.open !== "production";
+    this.productionPanel.hidden = economy === null || this.open !== "forces";
     if (economy === null) return;
 
     const children: Node[] = [
@@ -1376,10 +1370,6 @@ export class Hud {
             economy.militaryFactoriesTotal,
           ),
         ),
-      ),
-      row(
-        t("production.dockyards"),
-        fraction(economy.dockyardsAssigned, economy.dockyardsTotal),
       ),
       ...this.explained(
         "help.production.manpower",
@@ -1400,15 +1390,9 @@ export class Hud {
     }
 
     for (const line of economy.productionLines) {
-      const spec = EQUIPMENT[line.equipment];
-      const held =
-        spec.yard === "dockyard"
-          ? economy.dockyardsTotal
-          : economy.militaryFactoriesTotal;
-      const committed =
-        spec.yard === "dockyard"
-          ? economy.dockyardsAssigned
-          : economy.militaryFactoriesAssigned;
+      // One kind of factory builds everything now (decision 0032).
+      const held = economy.militaryFactoriesTotal;
+      const committed = economy.militaryFactoriesAssigned;
 
       const item = document.createElement("div");
       item.className = "line";
@@ -1587,7 +1571,7 @@ export class Hud {
    */
   private renderResearch(model: HudModel): void {
     const economy = model.economy;
-    this.researchPanel.hidden = economy === null || this.open !== "research";
+    this.researchPanel.hidden = economy === null || this.open !== "economy";
     if (economy === null) return;
 
     // The sentence this panel was missing. A list of slots and a list of
@@ -1932,7 +1916,7 @@ export class Hud {
    */
   private renderAir(model: HudModel): void {
     const economy = model.economy;
-    this.airPanel.hidden = economy === null || this.open !== "air";
+    this.airPanel.hidden = economy === null || this.open !== "forces";
     if (economy === null) return;
 
     if (this.airList === null) {

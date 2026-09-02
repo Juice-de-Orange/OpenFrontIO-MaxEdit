@@ -228,25 +228,24 @@ export interface WorldChanges {
  * Whatever stood in a refinery slot is discarded: there is nothing for it to
  * become in a world with one resource.
  */
-function migrateToOneResource(
-  snapshot: WorldSnapshot,
-  slots: number,
-): WorldSnapshot {
+function migrateToOneResource(snapshot: WorldSnapshot): WorldSnapshot {
   /** Old BUILDING_TYPES index → new, with -1 for the two that went. */
   const REMAP = [0, 1, 2, -1, -1, 3, 4, 5, 6, 7];
   const oldStride = REMAP.length;
-  const newStride = BUILDING_TYPES.length;
+  // **The stride this step produced, not the one this build uses.** Each
+  // migration hands the next the shape of its own era; sizing every step to
+  // the newest shape truncates the ones in between, which is how the
+  // infrastructure count arrived as a zero.
+  const newStride = 8;
   const provinces = Math.floor(snapshot.buildings.length / oldStride);
-  const buildings = new Array<number>(slots).fill(0);
+  const buildings = new Array<number>(provinces * newStride).fill(0);
   if (snapshot.buildings.length % oldStride === 0) {
     for (let province = 0; province < provinces; province++) {
       for (let old = 0; old < oldStride; old++) {
         const now = REMAP[old];
         if (now < 0) continue;
-        const at = province * newStride + now;
-        if (at < buildings.length) {
-          buildings[at] = snapshot.buildings[province * oldStride + old];
-        }
+        buildings[province * newStride + now] =
+          snapshot.buildings[province * oldStride + old];
       }
     }
   }
@@ -340,7 +339,57 @@ function migrateToThreeEquipment(snapshot: WorldSnapshot): WorldSnapshot {
   return { ...snapshot, nations } as WorldSnapshot;
 }
 
-export const STATE_HASH_VERSION = 8;
+/**
+ * A snapshot from before the building and tech lists shrank (hash 9).
+ *
+ * Two buildings went — the dockyard, because one kind of factory builds
+ * everything now, and the extraction upgrade — so every province's row has
+ * to be re-indexed around the holes, exactly as it was when the refineries
+ * left. Six techs went, and a nation that had researched one keeps only what
+ * still exists; a research slot working on a tech that no longer exists is
+ * emptied rather than left pointing at nothing.
+ *
+ * Whatever stood in a dockyard slot is counted as a military factory: it was
+ * a factory, and the player paid for it.
+ */
+function migrateToSixBuildings(
+  snapshot: WorldSnapshot,
+  slots: number,
+): WorldSnapshot {
+  /** Old index → new; the dockyard folds onto the military factory. */
+  const REMAP = [0, 1, 1, 2, 3, 4, 5, -1];
+  const oldStride = REMAP.length;
+  const newStride = BUILDING_TYPES.length;
+  const provinces = Math.floor(snapshot.buildings.length / oldStride);
+  const buildings = new Array<number>(slots).fill(0);
+  if (snapshot.buildings.length % oldStride === 0) {
+    for (let province = 0; province < provinces; province++) {
+      for (let old = 0; old < oldStride; old++) {
+        const now = REMAP[old];
+        if (now < 0) continue;
+        const at = province * newStride + now;
+        if (at < buildings.length) {
+          buildings[at] += snapshot.buildings[province * oldStride + old];
+        }
+      }
+    }
+  }
+  const known = new Set<string>(TECH_IDS);
+  const nations = snapshot.nations.map((nation) => ({
+    ...nation,
+    unlockedTechs: (nation.unlockedTechs ?? []).filter((tech) =>
+      known.has(tech),
+    ),
+    researchSlots: (nation.researchSlots ?? []).map((slot) =>
+      slot.tech !== null && !known.has(slot.tech)
+        ? { tech: null, progress: 0 }
+        : slot,
+    ),
+  }));
+  return { ...snapshot, buildings, nations };
+}
+
+export const STATE_HASH_VERSION = 9;
 
 /**
  * Everything needed to put the world back, and nothing that can be derived.
@@ -763,8 +812,6 @@ export class World {
     divisions: DivisionView[];
     militaryFactoriesAssigned: number;
     militaryFactoriesTotal: number;
-    dockyardsAssigned: number;
-    dockyardsTotal: number;
     researchSlots: ResearchSlotView[];
     unlockedTechs: TechId[];
     attacks: { province: number; progress: number }[];
@@ -852,8 +899,6 @@ export class World {
         nation,
         "military_factory",
       ),
-      dockyardsAssigned: assignedFactories(this.state, nation, "dockyard"),
-      dockyardsTotal: availableFactories(this.state, nation, "dockyard"),
     };
   }
 
@@ -985,10 +1030,13 @@ export class World {
     // translate from.
     let migrated = snapshot;
     if ((snapshot.hashVersion ?? 1) < 7) {
-      migrated = migrateToOneResource(migrated, this.state.buildings.length);
+      migrated = migrateToOneResource(migrated);
     }
     if ((snapshot.hashVersion ?? 1) < 8) {
       migrated = migrateToThreeEquipment(migrated);
+    }
+    if ((snapshot.hashVersion ?? 1) < 9) {
+      migrated = migrateToSixBuildings(migrated, this.state.buildings.length);
     }
     if (migrated.buildings.length !== this.state.buildings.length) {
       throw new Error(
@@ -1493,7 +1541,7 @@ export class World {
           body.factories + elsewhere > held
         ) {
           return (
-            `you hold ${held} ${yard === "dockyard" ? "dockyards" : "military factories"}, ` +
+            `you hold ${held} military factories, ` +
             `${elsewhere} of them already on other lines`
           );
         }

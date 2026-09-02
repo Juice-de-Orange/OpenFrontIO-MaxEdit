@@ -66,6 +66,8 @@ const en = {
   "economy.howToBuild":
     "To build something, click one of your provinces on the map.",
   "economy.material": "Material",
+  "hud.panelEconomy": "Build",
+  "hud.panelForces": "Forces",
   "bar.construction": "Build",
   "bar.manpower": "Men",
   "economy.perDay": "{value}/day",
@@ -373,6 +375,8 @@ const en = {
     "That name will be refused: 2 to 24 letters, digits, spaces, dots, apostrophes or hyphens.",
   "start.regentNote":
     "Watching needs no account, and you can choose a nation later.",
+  "start.staleToken":
+    "This browser was signed in to a world that no longer exists. It has been signed out — pick a nation again and it will register you fresh.",
   "start.refused": "That nation could not be claimed: {reason}",
   "start.offline":
     "The world did not answer, so there is nothing to choose from yet.",
@@ -429,6 +433,8 @@ const de: Record<StringKey, string> = {
   "economy.howToBuild":
     "Zum Bauen eine eigene Provinz auf der Karte anklicken.",
   "economy.material": "Material",
+  "hud.panelEconomy": "Bauen",
+  "hud.panelForces": "Streitkräfte",
   "bar.construction": "Bau",
   "bar.manpower": "Reserve",
   "economy.perDay": "{value}/Tag",
@@ -738,6 +744,8 @@ const de: Record<StringKey, string> = {
     "Dieser Name wird abgelehnt: 2 bis 24 Buchstaben, Ziffern, Leerzeichen, Punkte, Apostrophe oder Bindestriche.",
   "start.regentNote":
     "Zuschauen braucht kein Konto, und du kannst später eine Nation wählen.",
+  "start.staleToken":
+    "Dieser Browser war an einer Welt angemeldet, die es nicht mehr gibt. Er ist jetzt abgemeldet — wähl einfach nochmal eine Nation, dann wirst du neu registriert.",
   "start.refused": "Diese Nation war nicht zu bekommen: {reason}",
   "start.offline":
     "Die Welt hat nicht geantwortet, es gibt also noch nichts zu wählen.",

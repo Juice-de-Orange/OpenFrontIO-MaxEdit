@@ -275,7 +275,7 @@ describe("the construction system", () => {
     expect(accepted).toBe(slots - used);
   });
 
-  test("a dockyard is refused inland and a stranger's province is refused outright", () => {
+  test("a naval base is refused inland and a stranger's province is refused outright", () => {
     const inland = map.provinces.find((p) => p.nation === nation && !p.coastal);
     if (inland !== undefined) {
       expect(
@@ -284,7 +284,7 @@ describe("the construction system", () => {
           body: {
             kind: "queue_construction",
             provinceId: inland.id,
-            building: "dockyard",
+            building: "naval_base",
           },
         }),
       ).toMatch(/coastal/);

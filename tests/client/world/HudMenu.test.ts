@@ -37,8 +37,6 @@ function economy(over: Partial<NationEconomyView> = {}): NationEconomyView {
     civilianFactories: 3,
     militaryFactoriesAssigned: 0,
     militaryFactoriesTotal: 4,
-    dockyardsAssigned: 0,
-    dockyardsTotal: 0,
     researchSlots: [
       { tech: null, progress: 0, unlocked: true },
       { tech: null, progress: 0, unlocked: true },
@@ -133,6 +131,26 @@ function shown(): string[] {
   );
 }
 
+/**
+ * Which of the three groups is open, by the sections it shows.
+ *
+ * Six panels became three groups (decision 0032) and the sections inside a
+ * group are stacked rather than chosen between, so "one panel at a time" is
+ * now "one group at a time".
+ */
+const GROUPS: Record<string, readonly string[]> = {
+  Build: ["world-economy", "world-queue", "world-research"],
+  Forces: ["world-production", "world-air"],
+  Diplomacy: ["world-diplomacy"],
+};
+
+function openGroups(): string[] {
+  const visible = new Set(shown());
+  return Object.keys(GROUPS).filter((name) =>
+    GROUPS[name].some((id) => visible.has(id)),
+  );
+}
+
 function button(label: string): HTMLButtonElement {
   const bar = document.getElementById("world-menu");
   expect(bar, "the menu bar is not in the document").not.toBeNull();
@@ -156,9 +174,9 @@ describe("the menu bar", () => {
     hud = new Hud(wired);
   });
 
-  test("at most one menu panel is ever shown", () => {
+  test("at most one group is ever shown", () => {
     hud.update(model());
-    expect(shown().length).toBeLessThanOrEqual(1);
+    expect(openGroups().length).toBeLessThanOrEqual(1);
 
     for (const b of [
       ...(
@@ -166,19 +184,22 @@ describe("the menu bar", () => {
       ).querySelectorAll("button"),
     ]) {
       b.click();
-      expect(shown().length).toBeLessThanOrEqual(1);
+      expect(openGroups().length).toBeLessThanOrEqual(1);
     }
   });
 
   test("a click opens the panel and a second click closes it", () => {
     hud.update(model());
-    const research = button("Research");
-    research.click();
-    expect(shown()).toEqual(["world-research"]);
-    expect(research.getAttribute("aria-pressed")).toBe("true");
-    research.click();
+    // Build is the group that opens by default, so the toggle is tested on
+    // one that does not.
+    const forces = button("Forces");
+    forces.click();
+    expect(openGroups()).toEqual(["Forces"]);
+    expect(shown()).toContain("world-air");
+    expect(forces.getAttribute("aria-pressed")).toBe("true");
+    forces.click();
     expect(shown()).toEqual([]);
-    expect(research.getAttribute("aria-pressed")).toBe("false");
+    expect(forces.getAttribute("aria-pressed")).toBe("false");
   });
 
   /**
@@ -195,7 +216,7 @@ describe("the menu bar", () => {
         document.getElementById("world-menu") as HTMLElement
       ).querySelectorAll("button"),
     ];
-    expect(buttons.length).toBe(6);
+    expect(buttons.length).toBe(3);
 
     for (const b of buttons) {
       // A click on the open panel closes it — that is the toggle working, not
@@ -213,7 +234,7 @@ describe("the menu bar", () => {
 
   test("the spectator panel offers the chooser, and it is wired", () => {
     hud.update(model({ nation: null, economy: null }));
-    button("Economy").click();
+    button("Build").click();
     const panel = document.getElementById("world-economy") as HTMLElement;
     const choose = panel.querySelector("button") as HTMLButtonElement;
     expect(choose.textContent).toBe("Choose a nation");
@@ -238,7 +259,7 @@ describe("the menu bar", () => {
     const before = document.querySelector("#world-diplomacy select");
     expect(before).not.toBeNull();
 
-    button("Production").click();
+    button("Forces").click();
     button("Diplomacy").click();
     hud.update(model());
     const after = document.querySelector("#world-diplomacy select");
@@ -256,7 +277,7 @@ describe("the menu bar", () => {
     );
     const province = document.getElementById("world-province") as HTMLElement;
     // No selection: hidden, whatever the menu does.
-    button("Economy").click();
+    button("Build").click();
     expect(province.hidden).toBe(true);
   });
 });

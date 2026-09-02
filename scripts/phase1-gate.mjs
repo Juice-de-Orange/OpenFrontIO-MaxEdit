@@ -54,7 +54,7 @@ const WS_URL = process.env.GATE_WS ?? "ws://localhost:3000/ws";
  * gate failing rather than the world, and the worst way for a gate to fail.
  * `tests/GateProtocolVersion.test.ts` now reads this line and compares it.
  */
-const PROTOCOL_VERSION = 20;
+const PROTOCOL_VERSION = 21;
 /** How long to wait for the snapshot the gate needs. Six minutes of ticks. */
 const SNAPSHOT_TIMEOUT_MS = 8 * 60 * 1000;
 

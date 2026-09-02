@@ -46,7 +46,7 @@ const run = promisify(execFile);
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 20;
+const PROTOCOL_VERSION = 21;
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const MARK_FILE = path.join(REPO_ROOT, ".phase12-gate.local.json");

@@ -45,7 +45,7 @@ const WORLD_ID = process.env.WORLD_ID ?? "world-0";
  * Must equal PROTOCOL_VERSION in src/shared/protocol/Wire.ts.
  * `tests/GateProtocolVersion.test.ts` reads this line and compares it.
  */
-const PROTOCOL_VERSION = 20;
+const PROTOCOL_VERSION = 21;
 
 /** Above this the gate would run for hours; say so instead. */
 const MAX_TICK_MS = 200;
@@ -547,7 +547,7 @@ async function buildYards(player, provinces, nation, want, tag, avoid = -1) {
       {
         kind: "queue_construction",
         provinceId: province.id,
-        building: "dockyard",
+        building: "military_factory",
       },
       `${tag}-y${province.id}`,
     );
