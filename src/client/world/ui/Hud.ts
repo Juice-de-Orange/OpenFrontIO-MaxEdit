@@ -2018,7 +2018,18 @@ export class Hud {
       );
     });
 
-    form.append(spacer(), heading(t("air.assign")), which, zone, mission, send);
+    // The forms below are built once and then only refilled, so a hint here
+    // is a hint that costs nothing per tick — and these three are the places
+    // a player is asked to choose before anything has told them how.
+    form.append(
+      spacer(),
+      heading(t("air.assign")),
+      hint(t("air.assignHint")),
+      which,
+      zone,
+      mission,
+      send,
+    );
     this.airForm = form;
     this.airWhich = which;
     this.airZone = zone;
@@ -2145,6 +2156,7 @@ export class Hud {
         "help.diplomacy.equipment",
         heading(t("diplomacy.propose")),
       ),
+      hint(t("diplomacy.proposeHint")),
       who,
       what,
       terms,
@@ -2155,7 +2167,11 @@ export class Hud {
     // Its rates are constants, so they belong here with the controls; what a
     // nation is actually moving changes every tick and is drawn with the
     // lists above.
-    form.append(spacer(), heading(t("diplomacy.market")));
+    form.append(
+      spacer(),
+      heading(t("diplomacy.market")),
+      hint(t("diplomacy.marketHint")),
+    );
     for (const resource of RESOURCES) {
       form.append(
         row(

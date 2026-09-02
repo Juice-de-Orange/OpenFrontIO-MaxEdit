@@ -604,6 +604,8 @@ function sampleOf(steward) {
       province: d.provinceId,
       strength: d.strength,
     })),
+    rifles: economy.stockpile[EQ.infantry_equipment] ?? 0,
+    plants: economy.militaryFactoriesTotal,
     formations: economy.formations.map((f) => ({
       template: f.template,
       zone: f.zone,
@@ -728,6 +730,52 @@ async function land(spectator, provinces) {
     BUILD_BUDGET_MS,
   );
 
+  // **The opponent builds its arms industry first.** On a world nobody has
+  // played, every nation still holds exactly what it started with — one
+  // military factory — and one plant cannot equip three divisions inside the
+  // window however long the gate waits for it. So the gate does what a
+  // player would: it queues plants, waits for them, and only then opens a
+  // line. This is the difference between an opponent and a parade.
+  const plantsAt = () => invader.economy.militaryFactoriesTotal;
+  if (plantsAt() < ARMS_WANTED) {
+    let queued = 0;
+    for (const province of staging) {
+      if (plantsAt() + queued >= ARMS_WANTED) break;
+      const ack = await invader.command(
+        {
+          kind: "queue_construction",
+          provinceId: province,
+          building: "military_factory",
+        },
+        `inv-plant-${province}`,
+      );
+      if (ack.accepted) queued++;
+    }
+    // The staging provinces may be full; anywhere the invader owns will do.
+    for (
+      let p = 0;
+      p < invader.owners.length && plantsAt() + queued < ARMS_WANTED;
+      p++
+    ) {
+      if (invader.owners[p] !== attacker) continue;
+      if (invader.controllers[p] !== attacker) continue;
+      const ack = await invader.command(
+        {
+          kind: "queue_construction",
+          provinceId: p,
+          building: "military_factory",
+        },
+        `inv-plant2-${p}`,
+      );
+      if (ack.accepted) queued++;
+    }
+    log(`  the invader queued ${queued} more arms plant(s)`);
+    await invader.waitUntil(
+      (p) => p.economy.militaryFactoriesTotal >= ARMS_WANTED,
+      `${ARMS_WANTED} arms plants`,
+      BUILD_BUDGET_MS,
+    );
+  }
   const factories = invader.economy.militaryFactoriesTotal;
   log(
     `  the invader has ${factories} military factor${factories === 1 ? "y" : "ies"}`,
@@ -915,28 +963,38 @@ async function land(spectator, provinces) {
   const divisions = steward.economy.divisions;
   const atBorder = divisions.filter((d) => border.has(d.provinceId)).length;
   check(
-    divisions.length >= wantedGarrison && atBorder >= 1,
-    `it has an army: ${divisions.length} division(s) of the ` +
-      `${wantedGarrison} its land can carry, ${atBorder} at the border`,
+    divisions.length >= 1 && atBorder >= 1,
+    `it raised an army and stood it at the border: ${divisions.length} ` +
+      `division(s), ${atBorder} of them facing nation ${attacker}`,
+  );
+  // **It never raises what it cannot fill.** A division draws from the
+  // stockpile at a rate, so a steward that raises a second one before the
+  // first is armed ends the window with an army of ghosts — the trap this
+  // repository has paid for twice. One filling at a time is the rule.
+  const hollow = divisions.filter((d) => d.strength < 0.5).length;
+  check(
+    hollow <= 1,
+    hollow <= 1
+      ? `and armed them as it went (${hollow} of ${divisions.length} still filling)`
+      : `it raised ${hollow} divisions it cannot fill — the bottomless front`,
+  );
+  // And it kept raising while there was equipment to raise with.
+  const spare = Math.floor(
+    (steward.economy.stockpile[EQ.infantry_equipment] ?? 0) / RIFLES,
+  );
+  check(
+    spare === 0 || divisions.length >= wantedGarrison,
+    spare === 0
+      ? `its stockpile is spent, which is why the army stopped at ` +
+          `${divisions.length} of the ${wantedGarrison} its land could carry`
+      : `with ${spare} division(s) worth of rifles to spare it raised ` +
+          `${divisions.length} of ${wantedGarrison}`,
   );
 
   // The air answer, in the game's own order.
   const baseQueuedAt =
     samples.find((s) => s.queue.includes("air_base"))?.tick ?? null;
   const baseBuilt = held.some((p) => steward.building(p, B.air_base) > 0);
-  const baseBuiltAt = baseBuilt
-    ? (samples.find((s) => s.lines.some((l) => l.equipment === "fighter"))
-        ?.tick ?? steward.tick)
-    : null;
-  const skyContested = wingFlew || (samples.length > 0 && true);
-  check(
-    !skyContested || baseQueuedAt !== null || baseBuilt,
-    baseBuilt
-      ? `it answered the sky: an air base stands`
-      : baseQueuedAt !== null
-        ? `it answered the sky: an air base was queued at tick ${baseQueuedAt}`
-        : "it answered the sky with an air base (none queued, none built)",
-  );
   const fighterLine = steward.economy.productionLines.some(
     (l) => l.equipment === "fighter",
   );
@@ -948,20 +1006,38 @@ async function land(spectator, provinces) {
         f.mission === "air_superiority",
     ),
   );
-  if (baseBuilt) {
-    check(fighterLine, "and a fighter line opened behind the base");
-    if (fighterWing)
-      ok(`and a fighter wing flew air superiority over zone ${frontZone}`);
-    else
-      note(
-        `no fighter wing over zone ${frontZone} yet: the window ended first`,
-      );
-  } else {
+  // **Only measured when there was a sky to answer.** With no enemy wing
+  // over the front the regent is right to build nothing, and a gate that
+  // failed it for that would be measuring the world, not the steward.
+  if (!wingFlew) {
     note(
-      `the base did not finish inside the window; the line and the wing come after it`,
+      "no enemy wing ever flew: the air answer is not measured on this run " +
+        "(REGENT_BREAK=blind is the counter-proof for it)",
     );
+  } else {
+    check(
+      baseQueuedAt !== null || baseBuilt,
+      baseBuilt
+        ? "it answered the sky: an air base stands"
+        : baseQueuedAt !== null
+          ? `it answered the sky: an air base was queued at tick ${baseQueuedAt}`
+          : "it answered the sky with an air base (none queued, none built)",
+    );
+    if (baseBuilt) {
+      check(fighterLine, "and a fighter line opened behind the base");
+      if (fighterWing) {
+        ok(`and a fighter wing flew air superiority over zone ${frontZone}`);
+      } else {
+        note(
+          `no fighter wing over zone ${frontZone} yet: the window ended first`,
+        );
+      }
+    } else {
+      note(
+        "the base did not finish inside the window; the line and the wing come after it",
+      );
+    }
   }
-  void baseBuiltAt;
 
   const queueFilled = samples.filter((s) => s.queue.length > 0).length;
   check(
@@ -978,6 +1054,18 @@ async function land(spectator, provinces) {
   check(
     steward.economy.researchSlots.some((slot) => slot.tech !== null),
     "and the research slots are at work",
+  );
+  // What it did with the window, for the transcript: this is what makes a
+  // failing run readable a week later.
+  const built = new Set();
+  for (const sample of samples) for (const b of sample.queue) built.add(b);
+  const first = samples[0] ?? { plants: 0, rifles: 0, divisions: [] };
+  log(
+    `  the window: ${first.plants} → ${steward.economy.militaryFactoriesTotal} ` +
+      `arms plant(s), ${Math.round(first.rifles)} → ` +
+      `${Math.round(steward.economy.stockpile[EQ.infantry_equipment] ?? 0)} rifles, ` +
+      `${first.divisions.length} → ${divisions.length} division(s); queued ` +
+      `${[...built].join(", ") || "nothing"}`,
   );
 
   // Leave the world as found.

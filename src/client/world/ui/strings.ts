@@ -162,6 +162,8 @@ const en = {
   "air.flying": "zone {zone} \u00b7 {mission}",
   "air.bringHome": "Bring it home",
   "air.assign": "Send a wing",
+  "air.assignHint":
+    "A wing flies from its base to a zone, not to a province, and stays there until you move it. Its mission is what it does to whatever it meets: fighters take the sky, close support helps a battle below, interdiction cuts supply, bombing cuts factories.",
   "air.outOfReach": "out of reach",
   "air.reachHint":
     "A wing flies over its base's zone and the zones next to it.",
@@ -266,8 +268,12 @@ const en = {
   "diplomacy.noticeGiven": "You gave notice. It stops in a day.",
   "diplomacy.noticeReceived": "{nation} gave notice. It stops in a day.",
   "diplomacy.propose": "Offer an agreement",
+  "diplomacy.proposeHint":
+    "Every agreement runs until somebody gives notice, and notice costs trust. A trade sends a resource or equipment one way and construction points the other, at a rate per day both sides see before accepting.",
   "diplomacy.send": "Send the offer",
   "diplomacy.market": "World market",
+  "diplomacy.marketHint":
+    "Always open, no agreement, deliberately bad rates. A positive order buys and costs construction; a negative one sells. It is the fallback when a partner cuts you off, not a business.",
   "diplomacy.flows": "Standing flows",
   "diplomacy.marketRates": "buy {buy} / sell {sell}",
   "diplomacy.netFlow": "standing order: {rate}",
@@ -521,6 +527,8 @@ const de: Record<StringKey, string> = {
   "air.flying": "Zone {zone} \u00b7 {mission}",
   "air.bringHome": "Zurückholen",
   "air.assign": "Staffel entsenden",
+  "air.assignHint":
+    "Eine Staffel fliegt von ihrer Basis in eine Zone, nicht in eine Provinz, und bleibt dort, bis du sie verlegst. Der Auftrag bestimmt, was sie dort tut: Jäger nehmen den Himmel, Erdkampf hilft der Schlacht darunter, Abriegelung kappt den Nachschub, Bombardierung die Fabriken.",
   "air.outOfReach": "au\u00dfer Reichweite",
   "air.reachHint":
     "Eine Staffel fliegt \u00fcber die Zone ihrer Basis und die Nachbarzonen.",
@@ -626,8 +634,12 @@ const de: Record<StringKey, string> = {
   "diplomacy.noticeGiven": "Du hast gekündigt. In einem Tag endet es.",
   "diplomacy.noticeReceived": "{nation} hat gekündigt. In einem Tag endet es.",
   "diplomacy.propose": "Abkommen anbieten",
+  "diplomacy.proposeHint":
+    "Jedes Abkommen läuft, bis jemand kündigt, und Kündigen kostet Vertrauen. Ein Handel schickt einen Rohstoff oder Ausrüstung in die eine Richtung und Baupunkte in die andere, zu einem Tagessatz, den beide Seiten vor der Annahme sehen.",
   "diplomacy.send": "Angebot senden",
   "diplomacy.market": "Weltmarkt",
+  "diplomacy.marketHint":
+    "Immer offen, ohne Abkommen, mit absichtlich schlechten Kursen. Ein positiver Auftrag kauft und kostet Bauleistung, ein negativer verkauft. Er ist der Notnagel, wenn ein Partner dich abschneidet, kein Geschäft.",
   "diplomacy.flows": "Laufende Flüsse",
   "diplomacy.marketRates": "Kauf {buy} / Verkauf {sell}",
   "diplomacy.netFlow": "Dauerauftrag: {rate}",

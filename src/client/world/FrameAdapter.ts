@@ -25,6 +25,7 @@ import type {
   UnitState,
 } from "src/client/render/types";
 import type { Province } from "src/shared/map/Province";
+import { placeLabel, type Box } from "./LabelPlacement";
 import type { ProvinceTileIndex } from "./ProvinceTileIndex";
 import { structuresOf } from "./StructureAdapter";
 
@@ -95,6 +96,9 @@ export class FrameAdapter {
   /** The nation labels and the per-nation state `NamePass` reads, mutated in place. */
   private readonly names = new Map<string, NameEntry>();
   private readonly players = new Map<number, PlayerState>();
+
+  /** One box per province, in tiles. Built once: the partition never moves. */
+  private provinceBoxes: Box[] | null = null;
 
   constructor(
     private readonly index: ProvinceTileIndex,
@@ -219,9 +223,11 @@ export class FrameAdapter {
   applyLabels(
     controllers: readonly number[],
     provinces: readonly Province[],
-    nations: readonly { smallID: number }[],
+    nations: readonly { smallID: number; name?: string }[],
   ): void {
+    const boxes = this.boxes();
     const land = new Map<number, number>();
+    const reach = new Map<number, Box>();
     const largest = new Map<number, Province>();
     for (let id = 0; id < controllers.length; id++) {
       const nation = controllers[id];
@@ -232,30 +238,89 @@ export class FrameAdapter {
       if (best === undefined || province.tileCount > best.tileCount) {
         largest.set(nation, province);
       }
+      const box = boxes[id];
+      const grown = reach.get(nation);
+      if (grown === undefined) {
+        reach.set(nation, { ...box });
+      } else {
+        grown.minX = Math.min(grown.minX, box.minX);
+        grown.minY = Math.min(grown.minY, box.minY);
+        grown.maxX = Math.max(grown.maxX, box.maxX);
+        grown.maxY = Math.max(grown.maxY, box.maxY);
+      }
     }
-    for (const { smallID } of nations) {
+    for (const { smallID, name } of nations) {
       const key = `nation-${smallID}`;
       const home = largest.get(smallID);
-      if (home === undefined) {
+      const box = reach.get(smallID);
+      if (home === undefined || box === undefined) {
         this.names.delete(key);
         this.players.set(smallID, playerState(smallID, false, 0));
         continue;
       }
       const tiles = land.get(smallID) ?? 0;
-      const size = Math.min(
-        LABEL_MAX,
-        Math.max(LABEL_MIN, Math.sqrt(tiles) / LABEL_SCALE),
-      );
-      // A third of the size up, as upstream placed it: the glyphs hang below
-      // the anchor, so the visual centre is lower than the point.
+      // **The largest rectangle that fits in the territory**, not the centre
+      // of the largest province: a coastal nation's centre is in the sea and
+      // a horseshoe's is in the hole (`LabelPlacement.ts`). The old rule is
+      // the fallback for a shape the search finds nothing in — one province
+      // narrower than the coarse grid, say.
+      const placed = placeLabel({
+        box,
+        inside: (x, y) => this.tileState[y * this.grid.width + x] === smallID,
+        nameLength: (name ?? "").length,
+        minSize: LABEL_MIN,
+        maxSize: LABEL_MAX,
+      });
+      const size =
+        placed?.size ??
+        Math.min(
+          LABEL_MAX,
+          Math.max(LABEL_MIN, Math.sqrt(tiles) / LABEL_SCALE),
+        );
       this.names.set(key, {
         playerID: key,
-        x: home.centre.x,
-        y: home.centre.y - size / 3,
+        x: placed?.x ?? home.centre.x,
+        // A third of the size up, as upstream placed it: the glyphs hang
+        // below the anchor, so the visual centre is lower than the point.
+        y: placed?.y ?? home.centre.y - size / 3,
         size,
       });
       this.players.set(smallID, playerState(smallID, true, tiles));
     }
+  }
+
+  /**
+   * A bounding box per province, in tiles, built on first use.
+   *
+   * The partition is fixed for the life of the world, so this is computed
+   * once over every land tile and then read; a nation's own box is the union
+   * of the boxes of the provinces it holds, which is a walk over provinces
+   * rather than over tiles on every label pass.
+   */
+  private boxes(): Box[] {
+    if (this.provinceBoxes !== null) return this.provinceBoxes;
+    const width = this.grid.width;
+    const boxes: Box[] = [];
+    for (let province = 0; province < this.index.provinceCount; province++) {
+      const box: Box = {
+        minX: Number.POSITIVE_INFINITY,
+        minY: Number.POSITIVE_INFINITY,
+        maxX: Number.NEGATIVE_INFINITY,
+        maxY: Number.NEGATIVE_INFINITY,
+      };
+      const tiles = this.index.tilesOf(province);
+      for (let i = 0; i < tiles.length; i++) {
+        const x = tiles[i] % width;
+        const y = (tiles[i] - x) / width;
+        if (x < box.minX) box.minX = x;
+        if (x > box.maxX) box.maxX = x;
+        if (y < box.minY) box.minY = y;
+        if (y > box.maxY) box.maxY = y;
+      }
+      boxes.push(box);
+    }
+    this.provinceBoxes = boxes;
+    return boxes;
   }
 
   /** Paint every province from scratch; the next frame is a full upload. */
