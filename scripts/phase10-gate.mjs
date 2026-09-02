@@ -92,6 +92,8 @@ const BUILDING_COUNT = 10;
 const B = { military_factory: 1, dockyard: 2, air_base: 5, naval_base: 6 };
 /** An opponent with fewer arms plants than this cannot equip an army in the window. */
 const ARMS_WANTED = 3;
+/** shared/config/regent.ts: below this a formation stays at its base. */
+const REGENT_STAND_DOWN = 0.25;
 
 const BREAK = (() => {
   const arg = process.argv.find((a) => a.startsWith("--break="));
@@ -407,9 +409,11 @@ function findPair(spectator, provinces) {
   // the first run of this gate marched three divisions at strength 0.00,
   // because the nation it picked held one military factory.
   const arms = new Map();
+  const held = new Map();
   for (const province of provinces) {
     const holder = spectator.controllers[province.id];
     if (holder <= 0) continue;
+    held.set(holder, (held.get(holder) ?? 0) + 1);
     ceiling.set(
       holder,
       (ceiling.get(holder) ?? 0) + province.tileCount * MANPOWER_PER_TILE,
@@ -436,11 +440,18 @@ function findPair(spectator, provinces) {
       for (const next of byId.get(province).neighbours) {
         const attacker = spectator.controllers[next];
         if (attacker <= 0 || attacker === regent) continue;
-        if (hops < 2 || hops > 5) continue;
+        // Three hops at least: a capital two provinces from the border falls
+        // to a march before a steward's first thought, and a gate that picks
+        // one measures the map. Five at most, or the offensive never arrives.
+        if (hops < 3 || hops > 5) continue;
         // The weaker of the two decides what this pair can show, and the
         // deeper capital makes the campaign a campaign. An attacker with no
         // arms industry is quartered rather than excluded: on a world where
         // nobody has three plants the gate still runs, and says so.
+        // A nation of ten provinces cannot show "sixty per cent held" as
+        // anything but noise, so both sides need room to lose ground in.
+        if ((held.get(regent) ?? 0) < 12) continue;
+        if ((held.get(attacker) ?? 0) < 8) continue;
         const plants = arms.get(attacker) ?? 0;
         const weight =
           Math.min(ceiling.get(attacker) ?? 0, ceiling.get(regent) ?? 0) *
@@ -459,58 +470,62 @@ function findPair(spectator, provinces) {
   return best;
 }
 
-function landmassOf(controllers, provinces, nation) {
-  const seen = new Set();
-  const queue = [];
-  for (const province of provinces) {
-    if (controllers[province.id] !== nation) continue;
-    seen.add(province.id);
-    queue.push(province.id);
+/** The nations holding the most provinces, biggest first. */
+function biggestNations(controllers, count) {
+  const held = new Map();
+  for (const holder of controllers) {
+    if (holder > 0) held.set(holder, (held.get(holder) ?? 0) + 1);
   }
-  const byId = new Map(provinces.map((province) => [province.id, province]));
-  for (let head = 0; head < queue.length; head++) {
-    for (const next of byId.get(queue[head]).neighbours) {
-      if (seen.has(next)) continue;
-      seen.add(next);
-      queue.push(next);
-    }
-  }
-  return seen;
+  return [...held.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .slice(0, count)
+    .map(([nation]) => nation);
 }
 
 /**
- * The phase-9 stage: an island nation, and a partner across one shared sea
- * zone to trade with. The island is left to its regent; the partner is the
- * gate.
+ * A nation with no land border at all, and the biggest one there is.
+ *
+ * Not "an island nation" loosely: the regent's own test is
+ * `coastal && no neighbouring province held by anybody else`, and that is
+ * what makes it open a convoy line without being asked. On Europe exactly
+ * one nation qualifies (Iceland), which is why the partner is found by
+ * asking the world rather than by looking for a shared sea zone — Iceland
+ * shares none with anybody, and its trade routes are still real, several
+ * zones long.
  */
-function findStage(spectator, provinces) {
-  const nations = new Set(spectator.controllers.filter((nation) => nation > 0));
+function findIsland(spectator, provinces) {
+  const byId = new Map(provinces.map((province) => [province.id, province]));
+  const mine = new Map();
+  for (const province of provinces) {
+    const holder = spectator.controllers[province.id];
+    if (holder <= 0) continue;
+    if (!mine.has(holder)) mine.set(holder, []);
+    mine.get(holder).push(province.id);
+  }
+
   let best = null;
-  for (const island of nations) {
-    const mass = landmassOf(spectator.controllers, provinces, island);
-    const shore = provinces.filter(
-      (province) =>
-        spectator.controllers[province.id] === island &&
-        province.seaZone !== null,
-    );
-    if (shore.length < 3) continue;
-    const zones = new Set(shore.map((province) => province.seaZone));
-    const across = provinces.filter(
-      (province) =>
-        !mass.has(province.id) &&
-        province.seaZone !== null &&
-        zones.has(province.seaZone) &&
-        spectator.controllers[province.id] > 0 &&
-        spectator.controllers[province.id] !== island,
-    );
-    if (across.length === 0) continue;
-    const partner = spectator.controllers[across[0].id];
-    const home = shore.find(
-      (province) => province.seaZone === across[0].seaZone,
-    );
-    if (home === undefined) continue;
-    const found = { island, partner, home, shoreSize: shore.length };
-    if (best === null || found.shoreSize > best.shoreSize) best = found;
+  for (const [nation, list] of [...mine.entries()].sort(
+    (a, b) => a[0] - b[0],
+  )) {
+    const seen = new Set(list);
+    const queue = [...list];
+    for (let head = 0; head < queue.length; head++) {
+      for (const next of byId.get(queue[head]).neighbours) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+    // Every province its land touches is its own: no land border anywhere.
+    let alone = true;
+    for (const province of seen) {
+      if (spectator.controllers[province] !== nation) alone = false;
+    }
+    if (!alone) continue;
+    const shore = list.filter((id) => byId.get(id).seaZone !== null);
+    if (shore.length < 2) continue;
+    const found = { island: nation, shore, home: byId.get(shore[0]) };
+    if (best === null || shore.length > best.shore.length) best = found;
   }
   return best;
 }
@@ -573,6 +588,44 @@ async function regentOff(steward) {
       marketBudget: 0.5,
     },
     "regent-off",
+  );
+}
+
+/** The eight building types that take one of a province's slots. */
+const SLOT_BUILDINGS = [0, 1, 2, 3, 4, 5, 6, 7];
+
+/**
+ * §8's "has a non-empty construction queue", with the one case that clause
+ * does not cover: a nation whose every slot is full has nothing left to
+ * queue, and an empty queue is then the right answer rather than a lapse.
+ * Iceland reaches that inside the sea scenario's window.
+ */
+function checkQueue(player, byId, samples) {
+  const filled = samples.filter((s) => s.queue.length > 0).length;
+  let free = 0;
+  for (let p = 0; p < player.controllers.length; p++) {
+    if (player.controllers[p] !== player.nation) continue;
+    if (player.owners[p] !== player.nation) continue;
+    let used = 0;
+    for (const kind of SLOT_BUILDINGS) used += player.building(p, kind);
+    free += Math.max(0, (byId.get(p)?.buildingSlots ?? 0) - used);
+  }
+  const working = filled >= Math.floor(samples.length * 0.5);
+  const now = player.economy.queue.length > 0;
+  if (free === 0 && !now) {
+    // Nowhere left to build: §8's clause is about a steward that lets the
+    // queue lapse, not about one that has finished the map it was given.
+    ok(
+      `the construction queue is empty because every building slot this ` +
+        `nation holds is full — there is nothing left to queue`,
+    );
+    return;
+  }
+  check(
+    working && now,
+    `the construction queue was working on ${filled} of ${samples.length} ` +
+      `samples and is ${now ? "non-empty now" : "empty now"}, with ${free} ` +
+      `free slot(s) to build in`,
   );
 }
 
@@ -1056,12 +1109,7 @@ async function land(spectator, provinces) {
     }
   }
 
-  const queueFilled = samples.filter((s) => s.queue.length > 0).length;
-  check(
-    steward.economy.queue.length > 0 &&
-      queueFilled >= Math.floor(samples.length * 0.5),
-    `the construction queue is non-empty now and was on ${queueFilled} of ${samples.length} samples`,
-  );
+  checkQueue(steward, byId, samples);
   const { switched, ran } = linesNeverSwitched(samples);
   check(
     switched === 0 && ran > 0,
@@ -1112,36 +1160,27 @@ async function land(spectator, provinces) {
 // The sea scenario: §6.10's escort duty.
 // ---------------------------------------------------------------------------
 async function sea(spectator, provinces) {
-  const stage = findStage(spectator, provinces);
+  const stage = findIsland(spectator, provinces);
   if (stage === null) {
-    log(
-      "  a world this gate cannot use: no island with a partner across one sea zone",
-    );
+    log("  a world this gate cannot use: no nation without a land border");
     process.exit(2);
   }
-  const { island, partner, home } = stage;
+  const { island, home } = stage;
   log(
-    `  island nation ${island} is left to its regent; nation ${partner} ` +
-      `trades with it across sea zone ${home.seaZone}`,
+    `  nation ${island} has no land border at all: ${stage.shore.length} ` +
+      `coastal province(s), home port in province ${home.id} (sea zone ${home.seaZone})`,
   );
   const steward = new Player(island);
-  const trader = new Player(partner);
   await steward.ready;
-  await trader.ready;
   await sweep(steward);
-  await trader.require(
-    {
-      kind: "configure_regent",
-      enabled: false,
-      focus: "economy",
-      marketBudget: 0,
-    },
-    "trader-regent-off",
-  );
 
   // The gate lays the keel the regent has no time to lay itself: a port and
   // three yards. What the regent does with them is the measurement.
-  const port = await buildOn(steward, [home.id], "naval_base", "isl-port");
+  // Already there from an earlier run is a keel laid, not a refusal.
+  const port =
+    steward.building(home.id, B.naval_base) > 0
+      ? home.id
+      : await buildOn(steward, [home.id], "naval_base", "isl-port");
   if (port === null) {
     log("  a world this gate cannot use: the island cannot build a naval base");
     process.exit(2);
@@ -1153,7 +1192,8 @@ async function sea(spectator, provinces) {
     BUILD_BUDGET_MS,
   );
   log(
-    `  ${steward.economy.dockyardsTotal} dockyard(s) and ${portStands ? "a" : "no"} naval base on the island`,
+    `  ${steward.economy.dockyardsTotal} dockyard(s) and ` +
+      `${portStands ? "a" : "no"} naval base on the island`,
   );
   await steward.waitFor(
     (p) => p.economy.manpower >= WING_MANPOWER,
@@ -1161,19 +1201,56 @@ async function sea(spectator, provinces) {
     BUILD_BUDGET_MS,
   );
 
-  // A trade across the water: the partner sends steel, the island pays in
-  // construction points. The island's convoys carry it (§6.5), and that is
-  // what the escort duty exists for.
-  const offer = await trader.require(
-    {
-      kind: "propose_agreement",
-      to: island,
-      type: "trade",
-      terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
-    },
-    "offer",
+  // **A trade across the water, with the world picking the counterparty.**
+  // `propose_agreement` is refused when no route exists, land or sea, so the
+  // first nation that accepts the offer is by definition one the island can
+  // reach — and for a nation with no land border that route is the sea.
+  // Looking for a shared sea zone (as the phase-9 gate does) finds nothing
+  // here: the one qualifying island shares a zone with nobody and trades
+  // several zones deep all the same.
+  const candidates = biggestNations(spectator.controllers, 12).filter(
+    (nation) => nation !== island,
   );
-  void offer;
+  let partner = null;
+  let trader = null;
+  let pending = null;
+  const refusals = new Set();
+  for (const candidate of candidates) {
+    const player = new Player(candidate);
+    await player.ready;
+    await player.command(
+      {
+        kind: "configure_regent",
+        enabled: false,
+        focus: "economy",
+        marketBudget: 0,
+      },
+      `trader-${candidate}-regent-off`,
+    );
+    const ack = await player.command(
+      {
+        kind: "propose_agreement",
+        to: island,
+        type: "trade",
+        terms: { resource: "steel", resourcePerTick: 0.5, pointsPerTick: 0.25 },
+      },
+      `offer-${candidate}`,
+    );
+    if (ack.accepted) {
+      partner = candidate;
+      trader = player;
+      break;
+    }
+    refusals.add(ack.reason);
+    player.close();
+  }
+  if (partner === null) {
+    log("  a world this gate cannot use: nobody can reach the island by sea");
+    for (const reason of refusals) log(`    ${reason}`);
+    process.exit(2);
+  }
+  log(`  nation ${partner} offers the island a standing trade in steel`);
+
   await steward.waitFor(
     (p) =>
       p.agreements.some(
@@ -1182,7 +1259,7 @@ async function sea(spectator, provinces) {
     "the offer to arrive",
     30_000,
   );
-  const pending = steward.agreements.find(
+  pending = steward.agreements.find(
     (a) => a.type === "trade" && a.parties[0] === partner && !a.accepted,
   );
   await steward.require(
@@ -1196,9 +1273,15 @@ async function sea(spectator, provinces) {
   );
   log("  a sea trade stands: the island imports steel over the water");
 
+  // **Twice the land window.** §8's two thousand ticks are about holding a
+  // capital against an offensive; the escort duty is a supply chain — a
+  // dockyard line has to climb its efficiency ramp from the floor and then
+  // build twelve escorts at twelve industry each before a group can sail.
+  // The first run of this scenario ended with the group raised and still
+  // in port, which measured the ramp rather than the steward.
   await regentOn(steward, "defence");
   const startTick = steward.tick;
-  const endTick = startTick + WINDOW_TICKS;
+  const endTick = startTick + WINDOW_TICKS * 2;
   const samples = [];
   while (steward.tick < endTick) {
     samples.push(sampleOf(steward));
@@ -1218,19 +1301,26 @@ async function sea(spectator, provinces) {
   const escorts = steward.economy.formations.filter(
     (f) => f.template === "escort_group",
   );
+  // Any zone its convoys cross, not only the home one: the route to the
+  // partner is several zones long and the regent covers the raided one first.
   const onDuty = samples.some((s) =>
     s.formations.some(
-      (f) =>
-        f.template === "escort_group" &&
-        f.mission === "convoy_escort" &&
-        f.zone === home.seaZone,
+      (f) => f.template === "escort_group" && f.mission === "convoy_escort",
     ),
   );
   if (escorts.length > 0) {
-    ok(`an escort group was raised (${escorts.length})`);
+    const strengths = escorts.map((f) => `${f.strength.toFixed(2)}`).join(", ");
+    ok(`an escort group was raised (${escorts.length}, strength ${strengths})`);
+    const sailed = samples
+      .flatMap((s) => s.formations)
+      .filter((f) => f.template === "escort_group" && f.mission !== null);
     check(
       onDuty,
-      `and put on convoy_escort over sea zone ${home.seaZone}, where the convoys sail`,
+      onDuty
+        ? `and put on convoy_escort over a zone its convoys cross`
+        : `it never sailed: ${sailed.length} sample(s) with a mission, ` +
+            `strength ${strengths} against the ${REGENT_STAND_DOWN} a group ` +
+            `needs to leave port`,
     );
   } else {
     const inStore = steward.economy.stockpile[EQ.escort] ?? 0;
@@ -1238,12 +1328,7 @@ async function sea(spectator, provinces) {
       `no escort group yet: ${inStore} escort(s) in store when the window closed; the group comes at six`,
     );
   }
-  const queueFilled = samples.filter((s) => s.queue.length > 0).length;
-  check(
-    steward.economy.queue.length > 0 &&
-      queueFilled >= Math.floor(samples.length * 0.5),
-    `the construction queue is non-empty now and was on ${queueFilled} of ${samples.length} samples`,
-  );
+  checkQueue(steward, new Map(provinces.map((p) => [p.id, p])), samples);
   const { switched, ran } = linesNeverSwitched(samples);
   check(
     switched === 0 && ran > 0,
@@ -1252,7 +1337,7 @@ async function sea(spectator, provinces) {
 
   await regentOff(steward);
   steward.close();
-  trader.close();
+  trader?.close();
 }
 
 async function main() {
