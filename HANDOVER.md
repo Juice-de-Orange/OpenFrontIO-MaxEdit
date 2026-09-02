@@ -15,6 +15,49 @@ traps have already been paid for.
 
 ## Where we are
 
+**The regent plays the whole game now, and every ruler plays it differently
+(2026-09-02, afternoon).** `src/server/systems/regent/` is a directory: one
+rule a file — garrison, war, build, production, air, sea, research, market —
+all reading one `Situation` assembled once a visit. What differs between two
+stewards is a **temperament** drawn from the world seed like their name
+(decision 0028): six axes and an archetype, so a builder fills slots, a
+warden digs in, a marshal defends and strikes, an admiral lives by convoys
+and escorts, an airman puts fighters over the home zone, a scholar
+researches, a conqueror opens fronts. The archetype rides on the wire and
+shows in the diplomacy list; the season's opening hands an unclaimed nation
+the focus its archetype calls for.
+
+What that bought, concretely: divisions raised to what the supply sources
+can carry and never faster than the stockpile can arm them, the capital
+first and then the threatened border; hubs for the hungry; an air base under
+a hostile sky and a fighter line behind it; dockyards, convoys and the
+§6.10 escort duty for a coast; refineries when the market cannot cover a
+shortage; the builder's mines; fronts under `expansion` up to
+`1 + floor(aggression × 2)`, and one front for a marshal under `military`
+(Max's call, named in 0028 as the deviation from §6.10 it is). Tests live in
+`tests/server/regent/`, including the one phase 10 never had: every event
+the regent emits is translated back into the player's command and handed to
+`rejectionFor`, which must accept it — the regent bypasses that validation,
+so it has to keep every rule the player is held to. Determinism over two
+worlds and a stepped replay, and a visit to all fifty-two nations of Europe
+in about 13 ms of the tick's 50.
+
+**A trade may carry equipment** (§10's last open question, decision 0027):
+terms take an optional `equipment: { type, perTick }` from the proposer,
+priced in the same construction points, so allies can specialise. One
+exchange scales as one (invariant 2), the crates ride convoys like
+everything else, and `tradeFlowRate` is now the single function trade,
+naval and the regent's escort duty price a crossing from. `STATE_HASH_VERSION`
+6, `PROTOCOL_VERSION` 18 — **a redeploy restores loudly and the season runs
+on** (decision 0016).
+
+Also that afternoon: the naval base stopped borrowing upstream's port
+anchor; map labels sit in the largest rectangle that fits inside the
+territory rather than on the biggest province's centre (`LabelPlacement.ts`,
+upstream's algorithm ported and finally testable); the smoke presses `z`
+and counts overlay pixels, opens a circled i, and fills the name field; the
+three built-once forms say what the choice in front of the player means.
+
 **Twelve of thirteen gates passed, the world is deployed and playable over
 TLS, the thirteenth gate is waiting on a clock — and as of the night of
 2026-09-01/02 the game says how to play it.** _The next plan_ below was
@@ -1636,6 +1679,57 @@ proven here; the pixels are the morning checklist.
 
 ---
 
+### Phase 10 again, against an opponent that fights (2026-09-02)
+
+The first phase-10 gate marched an army of nobody: since the front became a
+rate, `claim_province` walks into any undefended province, so a relentless
+attacker needed no army at all and the regent's one garrison stopped it at
+the capital. That measured a caretaker. The rewritten gate builds its
+opponent an arms industry, three divisions and a bomber wing, and then
+measures the steward against it.
+
+```
+phase-10 gate
+  world world-0 at tick 136768, 50 ms a tick
+  nation 3 is left to its regent; nation 4 marches on its capital in province 25, 3 hop(s) behind the border
+  the invader queued 2 more arms plant(s)
+  the invader has 3 military factories
+  the invader builds a supply hub at its staging (province 66)
+  the invader builds an air base in province 66 (zone 1; the front is zone 1)
+  the invader's stockpile holds 3 divisions' worth
+  3 invader division(s) at the border, strength 0.99, 0.99, 0.91
+  the invader's bomber wing flies ground support over zone 1
+  the regent takes over: defence, half a point a tick for the market
+
+  ok    the opponent was active: 6 standing attacks ordered, an army at strength 1.00, bombers over the front
+  ok    the capital in province 25 is still the regent's after 2000 tick(s)
+  ok    it holds 32 of the 37 provinces it started with (86%; sixty needed)
+  ok    it raised an army and stood it at the border: 1 division(s), 1 of them facing nation 4
+  ok    and armed them as it went (1 of 1 still filling)
+  ok    its stockpile is spent, which is why the army stopped at 1 of the 3 its land could carry
+  ok    it answered the sky: an air base stands
+  note  the regent holds 1 arms plant(s), so there is no idle factory for a fighter line — §6.10 staffs idle factories and never takes one off the rifles
+  ok    the construction queue is non-empty now and was on 99 of 100 samples
+  ok    1 production line(s) ran and not one was reset
+  ok    and the research slots are at work
+  the window: 1 → 1 arms plant(s), 32 → 0 rifles, 0 → 1 division(s); queued supply_hub, dockyard, naval_base
+  ok    the world stayed healthy throughout (0 ms behind at tick 140404)
+PASS
+```
+
+Two things in that transcript are the whole point. The steward held 86% of
+its ground against an armed, air-supported offensive rather than everything
+but the capital. And the last line is a temperament reading its own map: a
+coastal ruler spent its window on a hub, a dockyard and a naval base, which
+is not what the builder two nations over would have done.
+
+The counter-proofs: `--break=asleep` switches the regent off and the same
+offensive takes the capital; `--break=blind` needs the world started with
+`REGENT_BREAK=blind`, which makes `assess` report an empty sky, and the air
+answer falls while everything before it stands. A second scenario,
+`--scenario=sea`, puts an island nation under the regent with a trade across
+the water and measures the §6.10 escort duty.
+
 ## What the phase-6 gate was really asking
 
 **This file predicted the fix and the prediction was wrong**, which is worth
@@ -2058,43 +2152,53 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
    set a value — 1 is the number to try, and the help text changes with it.
 3. `REGENT_FOCUS_RESEED=1` once on the host, so the running season's fifty
    regents stop all playing "economy". A restart, five minutes of snapshot.
-4. Redeploy with the day's work (zones, icons, the diplomacy changes) — the
-   same sequence as the morning, one world restart.
+4. **Redeploy with the day's work.** This one is not the morning's kind:
+   protocol 18 **and hash version 6**, so the world restarts and restores
+   _loudly_ — it reports the version change and rebuilds from the command
+   log rather than the snapshot (decision 0016). The season and every
+   agreement survive it; the run is longer. Everything since the morning
+   rides on it: the regent's second pass, equipment trade, the zone
+   overlay's key, the icons, the labels, the hints.
 5. The review page, 0e–0p: which icons and colours read, which do not.
 6. Off-host backup target and the internal ntfy URL (see "Deployed").
+7. Decision 0027 (a trade may carry equipment) and 0028 (temperament) are
+   written as Accepted because they were built to Max's instruction; the
+   one judgement call inside them is the marshal attacking under
+   `military`, which is a deviation from §6.10's four foci and is named as
+   such in 0028.
 
 **Still to build, scoped on 2026-09-02** (nothing here waits on a decision
 except where it says so):
 
-- **The regent, second pass.** What `systems/regent.ts` does today: one
-  division, in the capital; a supply hub where a division starves; the
-  focus's first building when the queue is empty; rifles and guns on the
-  military factories; the first tech the list offers; the market for the
-  scarcest resource; on `expansion`, one attack on the weakest neighbour.
-  What it does not do: raise a second division, so every province but the
-  capital is a free march for anyone; garrison a border; build a refinery,
-  an air base, a dockyard or a naval base; raise a wing or a fleet or send
-  one anywhere; make convoys, so its sea supply and sea trade sit at the
-  floor; the §6.10 escort duty. The phase-10 gate measured an opponent with
-  no army. A second pass, still rule-based: border garrisons up to what
-  supply and manpower carry, facing the neighbours it has no agreement
-  with; fighters and an air base once an enemy wing is over its zone; a
-  dockyard and a convoy line where it depends on the sea, and escorts over
-  the route (§6.10); a refinery when the market budget cannot cover the
-  shortfall; expansion staged from the border, not the capital. And a
-  harder gate: an opponent with divisions and bombers.
-- **Trade in equipment** (§10's decision, not built): an optional equipment
-  term beside the resource, the flow between stockpiles, convoy cost over
-  the sea, the form. Terms are in the snapshot, so **state hash 6 and a
-  protocol bump** — decision 0016 makes that survivable, not free. Max's go
-  first.
-- **The regent's escort duty** on its own if the second pass is too much at
-  once: enough `escort_group`s on `convoy_escort` over the zones its convoys
-  cross. No hash, no bump.
-- Small: the smoke does not yet press `z`, open a ⓘ, read a name off the
-  map or fill the name field; the naval base and the port share an anchor;
-  the map labels sit on the largest province's centre rather than upstream's
-  largest inscribed rectangle; the built-once forms have no ⓘ.
+**All four items below were built on the afternoon of 2026-09-02** and are
+kept here with what they turned into, because the reasoning is what a later
+phase will want:
+
+- ~~**The regent, second pass.**~~ Built: `src/server/systems/regent/`, one
+  rule a file, driven by a temperament per ruler (decision 0028). Border
+  garrisons to what supply and manpower carry, an air base and fighters
+  under a hostile sky, dockyards and the §6.10 escort duty on a coast,
+  refineries when the market budget cannot cover the shortfall, expansion
+  staged from the border rather than the capital. The gate grew an opponent
+  with an arms industry, three divisions and a bomber wing.
+- ~~**Trade in equipment**~~ (§10's decision): built as decision 0027 —
+  hash version 6, protocol 18.
+- ~~**The regent's escort duty**~~: part of the second pass (`regent/sea.ts`).
+- ~~Small~~: the smoke presses `z`, opens a ⓘ and fills the name field; the
+  naval base has an anchor on a battlement of its own; map labels use the
+  largest inscribed rectangle (`LabelPlacement.ts`); the built-once forms
+  carry a hint each.
+
+**What the phase-10 rewrite taught about writing a gate**, since the next
+one will hit it too: a gate on a world nobody has played measures the
+_world_, not the thing under test. Every nation there still holds exactly
+what it started with — one military factory, no depots — so an opponent
+"with three divisions" marched at strength 0.20 until the gate built it two
+more arms plants and a supply hub at its staging, which is what a player
+would have done first. And the checks have to be conditional on what was
+possible: a steward with one arms plant cannot open a fighter line, because
+§6.10 staffs _idle_ factories and never takes one off the rifles, so the
+gate asks for the line only where there was a factory to spare.
 
 **Look at it** (the checklist above, 0g–0p) and say what reads and what does
 not. Then, in this order: redeploy the host — protocol 17 means the deployed

@@ -183,13 +183,26 @@ each side, bounded so that air shifts a fight it never decides alone.
 - **regent** — the world playing a nation nobody is (§6.10). Every twelve
   ticks, rule-based, emitting the same events a player's commands would — a
   pure function of the state, so a replay reaches the same conclusions. It
-  garrisons the capital, keeps the queue non-empty (a starving division's
-  supply hub first), runs rifles _and_ guns because strength is the worst
-  template ratio, fills research, and buys the scarcest resource at the
-  market inside its budget — its only economic reaction (invariant 7). It
-  never touches an existing line's equipment type, and it is **opt-in until
-  phase 11** ([decision 0018](../decisions/0018-the-regent-is-opt-in-until-identity.md)):
+  is a **directory**, `systems/regent/`: `situation.ts` reads the world once
+  a visit into everything the rules need, and eight rules read that —
+  `garrison`, `war`, `build`, `production`, `air`, `sea`, `research`,
+  `market` — each returning events and rationing itself to one decision a
+  visit, because the events do not apply until the system has finished.
+  It never touches an existing line's equipment type, and it is **opt-in
+  until phase 11** ([decision 0018](../decisions/0018-the-regent-is-opt-in-until-identity.md)):
   the season opening is where regents switch on for unclaimed nations.
+
+  **Every steward is its own** ([decision 0028](../decisions/0028-every-ruler-has-a-temperament.md)):
+  `shared/config/temperament.ts` draws six axes and an archetype from
+  `(worldSeed, nation)` the way `rulers.ts` draws the name — derived, never
+  stored, no hash — and the rules read them. A builder fills slots, a warden
+  digs in, an admiral lives by convoys, a conqueror opens fronts.
+
+  **It bypasses `rejectionFor`**, because it emits events rather than
+  sending commands. Every rule therefore mirrors the validation a player is
+  held to, and `tests/server/regent/Commands.test.ts` is the proof: it
+  translates every event the regent emits back into the player's command and
+  requires the world to accept it.
 
 - **victory** — when the season is won, and when it merely ends (§10).
   Blocs are connected components over live alliances

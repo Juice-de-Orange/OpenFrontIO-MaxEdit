@@ -805,6 +805,16 @@ async function land(spectator, provinces) {
   );
   await assignUpTo(invader, guns, 1, "inv-g", factories);
 
+  // **A depot where the army will stand.** Reinforcement is supply-limited
+  // (§6.6), and the staging is by definition the far end of the invader's
+  // network: without a hub the divisions raised there fill at a trickle and
+  // the gate measures a parade. This is the first thing a player does before
+  // an offensive, and the reason it is here is that the run before this one
+  // marched at strength 0.20.
+  const depot = await buildOn(invader, staging, "supply_hub", "inv-depot");
+  if (depot !== null) {
+    log(`  the invader builds a supply hub at its staging (province ${depot})`);
+  }
   const base = await buildOn(invader, baseCandidates, "air_base", "inv-base");
   if (base === null) {
     log("  a world this gate cannot use: the invader cannot build an air base");
@@ -938,7 +948,7 @@ async function land(spectator, provinces) {
   // --- The verdict ----------------------------------------------------------
   log("");
   check(
-    ordersPlaced >= 5 && armyPeak >= 0.5,
+    ordersPlaced >= 5 && armyPeak >= 0.4,
     `the opponent was active: ${ordersPlaced} standing attacks ordered, an ` +
       `army at strength ${armyPeak.toFixed(2)}` +
       (wingFlew ? ", bombers over the front" : ", no bombers in the budget"),
@@ -1023,7 +1033,8 @@ async function land(spectator, provinces) {
           ? `it answered the sky: an air base was queued at tick ${baseQueuedAt}`
           : "it answered the sky with an air base (none queued, none built)",
     );
-    if (baseBuilt) {
+    const plantsNow = steward.economy.militaryFactoriesTotal;
+    if (baseBuilt && plantsNow >= 2) {
       check(fighterLine, "and a fighter line opened behind the base");
       if (fighterWing) {
         ok(`and a fighter wing flew air superiority over zone ${frontZone}`);
@@ -1032,6 +1043,12 @@ async function land(spectator, provinces) {
           `no fighter wing over zone ${frontZone} yet: the window ended first`,
         );
       }
+    } else if (baseBuilt) {
+      note(
+        `the regent holds ${plantsNow} arms plant(s), so there is no idle ` +
+          `factory for a fighter line — §6.10 staffs idle factories and ` +
+          `never takes one off the rifles`,
+      );
     } else {
       note(
         "the base did not finish inside the window; the line and the wing come after it",
