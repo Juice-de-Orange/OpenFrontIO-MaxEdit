@@ -37,6 +37,20 @@ extension, not headless browsers. What it cannot judge is _taste_ — how the
 icons look, whether the ⓘ reads as help — and that is the morning's
 checklist, items 0g onward.
 
+**The day of 2026-09-02, until midday** (`5572cbb7..9130b92a`): the leftovers,
+worked through with one rule — whatever is really Max's decision is built
+switched off or behaviour-neutral, with a decision record marked Proposed,
+so the evening is a yes or a no and never a rebuild. Prettier over the
+twenty-six files it had never matched; the nine Postgres tests run for the
+first time; the dead-partner rule reads a capital's _owner_ (decision 0025,
+the occupation clock as the grace period); trust may regrow at a constant
+that is zero (0026); `REGENT_FOCUS_RESEED` for the running season; the
+phase-12 gate re-run on the host, thirty ticks lost of a hundred allowed;
+air and sea zones on the map on `z`; an icon of its own for every building
+through a generator that renders SVGs in headless Chromium; the player's
+own name (0024, live since 09:50). Twenty-five screenshots of all of it are
+on a private review page for the evening, each with its checklist item.
+
 **Not done, deliberately** (decisions that are Max's): trust regrowth, the
 dead-partner rule's "lost its capital for one tick", the player's own name,
 an icon atlas of our own, the host improvements. The phase-12 gate's
@@ -2036,7 +2050,20 @@ The HUD's German is picked from `navigator.language`; it has no picker yet.
 
 ## What to do next
 
-**Look at it** (the checklist above, 0g–0l) and say what reads and what does
+**The evening's questions, 2026-09-02**, each a yes or a no:
+
+1. Decision 0025 (a capital is lost when owned, not held): accept, or revert
+   the one word in `tradeContext`.
+2. Decision 0026 (trust regrowth): leave `TRUST_REGROWTH_PER_DAY` at 0, or
+   set a value — 1 is the number to try, and the help text changes with it.
+3. `REGENT_FOCUS_RESEED=1` once on the host, so the running season's fifty
+   regents stop all playing "economy". A restart, five minutes of snapshot.
+4. Redeploy with the day's work (zones, icons, the diplomacy changes) — the
+   same sequence as the morning, one world restart.
+5. The review page, 0e–0p: which icons and colours read, which do not.
+6. Off-host backup target and the internal ntfy URL (see "Deployed").
+
+**Look at it** (the checklist above, 0g–0p) and say what reads and what does
 not. Then, in this order: redeploy the host — protocol 17 means the deployed
 client and world must move together, the world restarts once and resumes
 from its snapshot (hash version 5 is unchanged), and `resources/flags`
@@ -2070,6 +2097,26 @@ Two things worth improving rather than blocking on: the backups live on the
 same disk as the database they protect, and the watchdog alerts through a
 public ntfy rather than the self-hosted one that already exists behind the
 host's router.
+
+**The options, scoped on 2026-09-02** (looked at, not done — each needs a
+fact only Max has):
+
+- **Off-host backup.** The host has one disk (250 GB, 70 % used) and no
+  second volume, so "another disk" means another machine. (a) A pull: a
+  machine that is on at night rsyncs `/srv/openfront/backups/` down on a
+  cron — one line, but the old desktop this was scoped from is not always
+  on. (b) A push from the host to a target Max names (rclone or rsync over
+  ssh, a second timer beside the watchdog's) — one unit file and a key.
+  (c) The VPS provider's snapshot, if the plan has one — nothing in the
+  repository at all. Needs: the target.
+- **The self-hosted ntfy.** `deploy/watchdog.sh` already reads `NTFY_URL`
+  and `NTFY_TOPIC` from `/etc/world-watchdog.env`; pointing it elsewhere is
+  two lines in that file and a `systemctl restart`. Needs: the internal URL
+  (it is in the `HOST.local.md` on the other machine, not here) and a check
+  that the VPS can reach it through the router — phase 12's own warning is
+  that a monitoring system elsewhere on the network may not be reachable
+  from the host. If it is not, the public topic stays and the risk is a
+  topic name somebody could publish to.
 
 **The map's real borders are done** (plan §8, decision 0021) — built after
 phase 11 instead of last, at the player's call. The partition hash moved, so
